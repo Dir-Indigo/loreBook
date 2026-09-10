@@ -24,6 +24,7 @@ import { ApiService } from '../../utils/ApiService';
 import Navbar from '../../components/layout/Navbar';
 import CustomTable from '../../components/common/CustomTable';
 import CustomButton from '../../components/common/CustomButton';
+import CustomLoading from '../../components/common/CustomLoading';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -169,19 +170,11 @@ export default function AdminPage() {
 
   if (authLoading || (loading && !isSuperAdmin)) {
     return (
-      <Box
-        sx={{
-          width: '100vw',
-          height: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: 'background.default',
-        }}
-      >
-        <CircularProgress size={32} />
-      </Box>
+      <CustomLoading
+        fullscreen
+        message="Panel de Administración"
+        subtitle="Verificando permisos de SuperAdmin y cargando métricas..."
+      />
     );
   }
 

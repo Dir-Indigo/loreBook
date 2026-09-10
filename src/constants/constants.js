@@ -50,25 +50,25 @@ export const EVENT_IMPORTANCE = [
 
 /**
  * 4 Curated Anti-Fatigue Matte Color Themes (RNF-3, RF-5.3, RF-5.4, RF-5.5)
- * Non-glossy, soft on the eyes, balanced contrast for long writing sessions.
+ * Non-glossy, soft on the eyes, balanced contrast for long writing sessions with harmonious secondary accents.
  */
 export const MATTE_THEMES = {
   warm_sand: {
     id: 'warm_sand',
     name: 'Cálido Arena',
-    description: 'Tonalidades crema y tierra suave para una lectura natural similar al papel pergamino.',
+    description: 'Tonalidades crema y tierra suave con un contraste verde salvia mate armonioso.',
     mode: 'light',
     palette: {
       primary: {
-        main: '#8c6d53',
+        main: '#8c6d53', // Terracota / Tierra suave
         light: '#bcaaa4',
         dark: '#5d4037',
         contrastText: '#fdfbf7',
       },
       secondary: {
-        main: '#607d8b',
-        light: '#90a4ae',
-        dark: '#37474f',
+        main: '#4a7c72', // Verde Salvia Mate / Laurel Pine
+        light: '#78a89f',
+        dark: '#2d564e',
         contrastText: '#ffffff',
       },
       background: {
@@ -90,26 +90,26 @@ export const MATTE_THEMES = {
         borderActive: '#8c6d53',
         compactBg: '#e8e0d4',
       },
-      tagColors: ['#8c6d53', '#5d6d7e', '#6e7f60', '#9c6b6b', '#827717', '#546e7a'],
+      tagColors: ['#8c6d53', '#4a7c72', '#b26a45', '#5d6d7e', '#827717', '#9c6b6b'],
     },
   },
 
   sepia_writer: {
     id: 'sepia_writer',
     name: 'Sepia Escritor',
-    description: 'Estética de máquina de escribir y biblioteca clásica con cálidos contrastes mate.',
+    description: 'Estética de biblioteca clásica y máquina de escribir con acento azul petróleo mate.',
     mode: 'light',
     palette: {
       primary: {
-        main: '#795548',
+        main: '#795548', // Madera noble / Sepia intenso
         light: '#a1887f',
         dark: '#4e342e',
         contrastText: '#faf7f2',
       },
       secondary: {
-        main: '#78909c',
-        light: '#b0bec5',
-        dark: '#455a64',
+        main: '#356877', // Azul Petróleo Profundo Mate
+        light: '#6596a5',
+        dark: '#1e4652',
         contrastText: '#ffffff',
       },
       background: {
@@ -131,26 +131,26 @@ export const MATTE_THEMES = {
         borderActive: '#795548',
         compactBg: '#e2d7c5',
       },
-      tagColors: ['#795548', '#546e7a', '#558b2f', '#ad1457', '#e65100', '#4e342e'],
+      tagColors: ['#795548', '#356877', '#a0522d', '#558b2f', '#ad1457', '#4e342e'],
     },
   },
 
   muted_dark: {
     id: 'muted_dark',
     name: 'Noche Atenuada',
-    description: 'Modo oscuro carbón suave no reflectante diseñado para sesiones nocturnas.',
+    description: 'Modo carbón suave no reflectante con acento ámbar/albaricoque cálido mate.',
     mode: 'dark',
     palette: {
       primary: {
-        main: '#9fa8da',
+        main: '#9fa8da', // Índigo / Lavanda atenuado
         light: '#c5cae9',
         dark: '#5c6bc0',
         contrastText: '#12161f',
       },
       secondary: {
-        main: '#80cbc4',
-        light: '#b2dfdb',
-        dark: '#00897b',
+        main: '#e09f67', // Ámbar Albaricoque Cálido Mate
+        light: '#f0bc8e',
+        dark: '#b2743e',
         contrastText: '#12161f',
       },
       background: {
@@ -172,26 +172,26 @@ export const MATTE_THEMES = {
         borderActive: '#9fa8da',
         compactBg: '#2a303d',
       },
-      tagColors: ['#9fa8da', '#80cbc4', '#ce93d8', '#ffab91', '#81c784', '#ffe082'],
+      tagColors: ['#9fa8da', '#e09f67', '#80cbc4', '#ce93d8', '#ffab91', '#81c784'],
     },
   },
 
   slate_executive: {
     id: 'slate_executive',
     name: 'Gris Ejecutivo',
-    description: 'Paleta minimalista y limpia con tonos pizarra neutros y excelente legibilidad.',
+    description: 'Paleta pizarra moderna y limpia con acento cobre/ocre mate de alto impacto.',
     mode: 'light',
     palette: {
       primary: {
-        main: '#475569',
+        main: '#334155', // Pizarra grafito profundo
         light: '#64748b',
-        dark: '#334155',
+        dark: '#1e293b',
         contrastText: '#f8fafc',
       },
       secondary: {
-        main: '#0d9488',
-        light: '#14b8a6',
-        dark: '#0f766e',
+        main: '#c26a27', // Ocre / Cobre Mate Ejecutivo
+        light: '#df8d4f',
+        dark: '#914a14',
         contrastText: '#ffffff',
       },
       background: {
@@ -210,10 +210,10 @@ export const MATTE_THEMES = {
       node: {
         bg: '#ffffff',
         border: '#cbd5e1',
-        borderActive: '#475569',
+        borderActive: '#334155',
         compactBg: '#e2e8f0',
       },
-      tagColors: ['#475569', '#0d9488', '#d97706', '#dc2626', '#2563eb', '#7c3aed'],
+      tagColors: ['#334155', '#c26a27', '#0d9488', '#2563eb', '#7c3aed', '#dc2626'],
     },
   },
 };

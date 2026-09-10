@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { Box, CircularProgress, Typography } from '@mui/material';
+import { Box } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
 import { ApiService } from '../utils/ApiService';
 import Navbar from '../components/layout/Navbar';
@@ -11,6 +11,8 @@ import CharacterDrawer from '../components/characters/CharacterDrawer';
 import CharacterModal from '../components/characters/CharacterModal';
 import EventModal from '../components/canvas/EventModal';
 import EventVersionsModal from '../components/canvas/EventVersionsModal';
+import CustomLoading from '../components/common/CustomLoading';
+import { APP_CONFIG } from '../constants/constants';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -225,6 +227,38 @@ export default function DashboardPage() {
     }
   };
 
+  /**
+   * Duplicate Event via Ctrl+C & Ctrl+V (Requirement 1.2)
+   */
+  const handleDuplicateEvent = async (originalEvent, offset = { x: 50, y: 40 }) => {
+    if (!activeStoryId || !originalEvent) return;
+
+    const charIds = (originalEvent.event_characters || [])
+      .map((ec) => ec.character?.id || ec.character_id)
+      .filter(Boolean);
+
+    const rawTitle = `${originalEvent.title || 'Evento'} (Copia)`;
+    const newTitle = rawTitle.substring(0, APP_CONFIG.EVENT_TITLE_MAX_LENGTH);
+    const newOrderIndex = (Number(originalEvent.order_index) || 1) + 0.1;
+
+    const eventPayload = {
+      story_id: activeStoryId,
+      title: newTitle,
+      summary: originalEvent.summary || '',
+      details: originalEvent.details || '',
+      order_index: newOrderIndex,
+      importance_level: originalEvent.importance_level || 'medium',
+      color_tag: originalEvent.color_tag || '#8c6d53',
+      pos_x: (Number(originalEvent.pos_x) || 120) + offset.x,
+      pos_y: (Number(originalEvent.pos_y) || 100) + offset.y,
+    };
+
+    const { error } = await ApiService.createEvent(eventPayload, charIds);
+    if (!error) {
+      await loadStoryData(activeStoryId);
+    }
+  };
+
   const handleDeleteEvent = async (eventId) => {
     if (window.confirm('¿Seguro que deseas eliminar este evento de la línea de tiempo?')) {
       const { error } = await ApiService.deleteEvent(eventId);
@@ -274,6 +308,13 @@ export default function DashboardPage() {
     }
   };
 
+  const handleUpdateStoryCover = async (storyId, coverUrl) => {
+    const { error } = await ApiService.updateStory(storyId, { cover_url: coverUrl });
+    if (!error) {
+      await loadStories();
+    }
+  };
+
   // Next order index calculation
   const nextOrderIndex = events.length > 0
     ? Math.max(...events.map((e) => e.order_index || 0)) + 1
@@ -281,23 +322,11 @@ export default function DashboardPage() {
 
   if (authLoading || dataLoading) {
     return (
-      <Box
-        sx={{
-          width: '100vw',
-          height: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: 'background.default',
-          gap: 2,
-        }}
-      >
-        <CircularProgress size={32} color="primary" />
-        <Typography variant="body2" color="text.secondary">
-          Cargando entorno de trabajo...
-        </Typography>
-      </Box>
+      <CustomLoading
+        fullscreen
+        message="Cargando tu estudio narrativo..."
+        subtitle="Sincronizando universos, personajes y líneas de tiempo"
+      />
     );
   }
 
@@ -340,6 +369,7 @@ export default function DashboardPage() {
             setSelectedEvent(null);
             setEventModalOpen(true);
           }}
+          onUpdateStoryCover={handleUpdateStoryCover}
         />
 
         {/* Center Canvas Area */}
@@ -359,6 +389,7 @@ export default function DashboardPage() {
             onOpenVersions={handleOpenVersions}
             onCreateBackup={handleCreateQuickBackup}
             onNodeDragStop={handleNodeDragStop}
+            onDuplicateEvent={handleDuplicateEvent}
           />
         </Box>
       </Box>

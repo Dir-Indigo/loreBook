@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -10,11 +10,21 @@ import {
   MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Box, Typography, Paper, Chip } from '@mui/material';
+import {
+  Box,
+  Typography,
+  Chip,
+  Snackbar,
+  Alert,
+  Switch,
+  Tooltip,
+} from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import TimelineIcon from '@mui/icons-material/Timeline';
-import ZoomInIcon from '@mui/icons-material/ZoomIn';
-import ZoomOutIcon from '@mui/icons-material/ZoomOut';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import ContentPasteIcon from '@mui/icons-material/ContentPaste';
+import ViewAgendaOutlinedIcon from '@mui/icons-material/ViewAgendaOutlined';
+import ViewHeadlineIcon from '@mui/icons-material/ViewHeadline';
 import EventNode from './EventNode';
 import CustomButton from '../common/CustomButton';
 import { APP_CONFIG } from '../../constants/constants';
@@ -33,10 +43,22 @@ export default function TimelineCanvas({
   onOpenVersions,
   onCreateBackup,
   onNodeDragStop,
+  onDuplicateEvent, // Requirement 1.2
 }) {
   const { currentThemeConfig } = useLoreTheme();
+
+  // Compact mode: manual Switch OR auto-trigger at extreme zoom (text unreadable)
+  const AUTO_COMPACT_THRESHOLD = 0.62; // below this zoom text is hard to read
   const [zoomLevel, setZoomLevel] = useState(1);
-  const isCompact = zoomLevel < APP_CONFIG.ZOOM_COMPACT_THRESHOLD;
+  const [manualCompact, setManualCompact] = useState(false);
+  const autoCompact = zoomLevel < AUTO_COMPACT_THRESHOLD;
+  // Final: compact if user switched it on OR zoom is so low text is unreadable
+  const isCompact = manualCompact || autoCompact;
+
+  // Selected node and clipboard state for Ctrl+C and Ctrl+V (Requirement 1.2)
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const copiedEventRef = useRef(null);
+  const [snackbarInfo, setSnackbarInfo] = useState(null);
 
   // Transform events into React Flow nodes
   const initialNodes = useMemo(() => {
@@ -116,6 +138,58 @@ export default function TimelineCanvas({
     setEdges(initialEdges);
   }, [initialEdges, setEdges]);
 
+  // Track selection changes
+  const onSelectionChange = useCallback(({ nodes }) => {
+    if (nodes && nodes.length > 0) {
+      setSelectedNodeId(nodes[0].id);
+    } else {
+      setSelectedNodeId(null);
+    }
+  }, []);
+
+  // Handle Ctrl+C and Ctrl+V keyboard shortcuts (Requirement 1.2)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignore if user is currently typing in an input, textarea or select
+      const activeTag = document.activeElement?.tagName?.toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select' || document.activeElement?.isContentEditable) {
+        return;
+      }
+
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+
+      // Copy (Ctrl+C)
+      if (isCtrlOrCmd && (e.key === 'c' || e.key === 'C')) {
+        if (selectedNodeId) {
+          const targetEvent = events.find((ev) => ev.id === selectedNodeId);
+          if (targetEvent) {
+            copiedEventRef.current = targetEvent;
+            setSnackbarInfo({
+              severity: 'info',
+              message: `Evento "${targetEvent.title}" copiado. Presiona Ctrl+V para pegar una copia.`,
+              icon: <ContentCopyIcon fontSize="small" />,
+            });
+          }
+        }
+      }
+
+      // Paste (Ctrl+V)
+      if (isCtrlOrCmd && (e.key === 'v' || e.key === 'V')) {
+        if (copiedEventRef.current && onDuplicateEvent) {
+          onDuplicateEvent(copiedEventRef.current, { x: 50, y: 40 });
+          setSnackbarInfo({
+            severity: 'success',
+            message: `Copia generada en el lienzo para: "${copiedEventRef.current.title}"`,
+            icon: <ContentPasteIcon fontSize="small" />,
+          });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedNodeId, events, onDuplicateEvent]);
+
   // Handle Drag End to persist (X, Y) coordinates (RF-4.3)
   const handleNodeDragStop = useCallback(
     (event, node) => {
@@ -126,9 +200,9 @@ export default function TimelineCanvas({
     [onNodeDragStop]
   );
 
-  // Multiscale zoom tracking (RNF-6)
+  // Zoom tracking: updates zoom level; auto-compact kicks in at extreme zoom-out
   const handleMove = useCallback((evt, viewport) => {
-    if (viewport?.zoom) {
+    if (viewport?.zoom !== undefined) {
       setZoomLevel(viewport.zoom);
     }
   }, []);
@@ -143,7 +217,7 @@ export default function TimelineCanvas({
         overflow: 'hidden',
       }}
     >
-      {/* Multiscale status HUD */}
+      {/* Top HUD toolbar */}
       <Box
         sx={{
           position: 'absolute',
@@ -153,22 +227,42 @@ export default function TimelineCanvas({
           display: 'flex',
           alignItems: 'center',
           gap: 1,
+          flexWrap: 'wrap',
         }}
       >
-        <Chip
-          icon={isCompact ? <ZoomOutIcon fontSize="inherit" /> : <ZoomInIcon fontSize="inherit" />}
-          label={isCompact ? 'Vista Compacta (Alejada)' : 'Vista Detallada (Cercana)'}
-          size="small"
-          color={isCompact ? 'secondary' : 'default'}
+        {/* Compact Mode Switch */}
+        <Box
           sx={{
+            display: 'flex',
+            alignItems: 'center',
             bgcolor: 'background.paper',
             border: 1,
             borderColor: 'divider',
-            fontWeight: 600,
-            fontSize: '0.75rem',
+            borderRadius: 2,
+            px: 1.2,
+            py: 0.3,
             boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+            gap: 0.5,
           }}
-        />
+        >
+          <Tooltip title={isCompact ? 'Cambiar a vista detallada' : 'Cambiar a vista resumen'}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              {isCompact
+                ? <ViewHeadlineIcon sx={{ fontSize: 16, color: autoCompact ? 'warning.main' : 'secondary.main' }} />
+                : <ViewAgendaOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />}
+              <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.73rem', color: isCompact ? (autoCompact ? 'warning.main' : 'secondary.main') : 'text.secondary', whiteSpace: 'nowrap' }}>
+                {autoCompact ? 'Resumen (Auto)' : isCompact ? 'Vista Resumen' : 'Vista Detallada'}
+              </Typography>
+              <Switch
+                size="small"
+                checked={manualCompact}
+                onChange={(e) => setManualCompact(e.target.checked)}
+                color={autoCompact ? 'warning' : 'secondary'}
+                sx={{ ml: 0.5 }}
+              />
+            </Box>
+          </Tooltip>
+        </Box>
 
         <Chip
           label={`${events.length} Eventos`}
@@ -178,7 +272,7 @@ export default function TimelineCanvas({
             border: 1,
             borderColor: 'divider',
             fontWeight: 600,
-            fontSize: '0.75rem',
+            fontSize: '0.85rem',
           }}
         />
       </Box>
@@ -225,7 +319,7 @@ export default function TimelineCanvas({
             Línea de Tiempo Vacía
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
-            Comienza agregando el primer evento narrativo de esta historia. Podrás arrastrarlo y organizarlo libremente en el lienzo.
+            Comienza agregando el primer evento narrativo de esta historia. Podrás arrastrarlo, organizarlo libremente y duplicarlo con Ctrl+C / Ctrl+V.
           </Typography>
           <CustomButton
             startIcon={<AddIcon fontSize="small" />}
@@ -243,6 +337,7 @@ export default function TimelineCanvas({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDragStop={handleNodeDragStop}
+        onSelectionChange={onSelectionChange}
         onMove={handleMove}
         nodeTypes={nodeTypes}
         fitView
@@ -278,6 +373,29 @@ export default function TimelineCanvas({
           }}
         />
       </ReactFlow>
+
+      {/* Snackbar feedback for Copy & Paste shortcuts */}
+      <Snackbar
+        open={Boolean(snackbarInfo)}
+        autoHideDuration={2800}
+        onClose={() => setSnackbarInfo(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        {snackbarInfo ? (
+          <Alert
+            severity={snackbarInfo.severity}
+            icon={snackbarInfo.icon}
+            onClose={() => setSnackbarInfo(null)}
+            sx={{
+              borderRadius: 2,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+              fontWeight: 600,
+            }}
+          >
+            {snackbarInfo.message}
+          </Alert>
+        ) : null}
+      </Snackbar>
     </Box>
   );
 }

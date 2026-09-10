@@ -15,6 +15,7 @@ import {
   Paper,
   Chip,
   Tooltip,
+  Avatar,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -22,6 +23,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import LayersIcon from '@mui/icons-material/Layers';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ImageIcon from '@mui/icons-material/Image';
 import CustomModal from '../common/CustomModal';
 import CustomButton from '../common/CustomButton';
 
@@ -43,6 +45,7 @@ export default function StoryModal({
   const [title, setTitle] = useState('');
   const [synopsis, setSynopsis] = useState('');
   const [genre, setGenre] = useState('');
+  const [coverUrl, setCoverUrl] = useState('');
   const [belongsToUniverseId, setBelongsToUniverseId] = useState('');
   const [isUniverseRoot, setIsUniverseRoot] = useState(false);
 
@@ -50,6 +53,7 @@ export default function StoryModal({
     setTitle('');
     setSynopsis('');
     setGenre('');
+    setCoverUrl('');
     setBelongsToUniverseId('');
     setIsUniverseRoot(false);
     setIsCreating(false);
@@ -61,6 +65,7 @@ export default function StoryModal({
     setTitle(story.title || '');
     setSynopsis(story.synopsis || '');
     setGenre(story.genre || '');
+    setCoverUrl(story.cover_url || '');
     setBelongsToUniverseId(story.belongs_to_universe_id || '');
     setIsUniverseRoot(Boolean(story.is_universe_root));
     setIsCreating(true);
@@ -74,6 +79,7 @@ export default function StoryModal({
       title: title.trim(),
       synopsis: synopsis.trim(),
       genre: genre.trim(),
+      cover_url: coverUrl.trim() || null,
       belongs_to_universe_id: isUniverseRoot ? null : (belongsToUniverseId || null),
       is_universe_root: isUniverseRoot,
     };
@@ -99,7 +105,7 @@ export default function StoryModal({
         onClose();
       }}
       title="Gestión de Historias y Universos"
-      subtitle="Administra tus proyectos literarios y estructura mundos interconectados"
+      subtitle="Administra tus proyectos literarios, portadas y mundos interconectados"
       icon={AutoStoriesIcon}
       maxWidth="md"
     >
@@ -152,6 +158,40 @@ export default function StoryModal({
               fullWidth
               autoFocus
             />
+
+            {/* Cover Image Input and Preview */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <TextField
+                label="URL de Imagen de Fondo / Portada"
+                placeholder="https://images.unsplash.com/... o enlace directo a imagen"
+                value={coverUrl}
+                onChange={(e) => setCoverUrl(e.target.value)}
+                fullWidth
+                helperText="Se mostrará como portada y fondo panorámico en el panel lateral de Proyecto Activo"
+              />
+              {coverUrl && (
+                <Box
+                  sx={{
+                    width: '100%',
+                    height: 100,
+                    borderRadius: 2,
+                    backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.7)), url(${coverUrl})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    border: 1,
+                    borderColor: 'divider',
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    p: 1.5,
+                    color: '#fff',
+                  }}
+                >
+                  <Typography variant="caption" sx={{ fontWeight: 700, textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
+                    Vista previa de la portada: {title || 'Tu Historia'}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
               <TextField
@@ -272,7 +312,7 @@ export default function StoryModal({
                       border: 1.5,
                       borderColor: isSelected ? 'primary.main' : 'divider',
                       borderRadius: 2,
-                      bgcolor: isSelected ? 'background.paper' : 'background.paper',
+                      bgcolor: 'background.paper',
                       transition: 'all 0.15s ease',
                       '&:hover': {
                         borderColor: 'primary.light',
@@ -280,9 +320,25 @@ export default function StoryModal({
                     }}
                   >
                     <ListItem disablePadding>
+                      {story.cover_url && (
+                        <Box
+                          sx={{
+                            width: 54,
+                            height: 54,
+                            borderRadius: 1.5,
+                            mr: 2,
+                            flexShrink: 0,
+                            backgroundImage: `url(${story.cover_url})`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                            border: 1,
+                            borderColor: 'divider',
+                          }}
+                        />
+                      )}
                       <ListItemText
                         primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, mb: 0.5 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, mb: 0.5, flexWrap: 'wrap' }}>
                             <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                               {story.title}
                             </Typography>
@@ -350,7 +406,7 @@ export default function StoryModal({
                             Cargar en Lienzo
                           </CustomButton>
                         )}
-                        <Tooltip title="Editar detalles">
+                        <Tooltip title="Editar detalles y portada">
                           <IconButton
                             size="small"
                             onClick={() => handleStartEdit(story)}
