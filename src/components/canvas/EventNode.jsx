@@ -10,7 +10,11 @@ import {
   Tooltip,
   Collapse,
   Badge,
-  Fade,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Divider,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -19,10 +23,9 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import HistoryIcon from '@mui/icons-material/History';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import FlareIcon from '@mui/icons-material/Flare';
-import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
-import PersonIcon from '@mui/icons-material/Person';
 import ViewHeadlineIcon from '@mui/icons-material/ViewHeadline';
 import ViewAgendaOutlinedIcon from '@mui/icons-material/ViewAgendaOutlined';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { APP_CONFIG } from '../../constants/constants';
 
 function EventNodeComponent({ data, selected }) {
@@ -36,7 +39,7 @@ function EventNodeComponent({ data, selected }) {
     importanceLevel = 'medium',
     characters = [],
     versionsCount = 1,
-    isCompact = false, // multiscale flag (RNF-6)
+    isCompact = false, // multiscale flag
     onEdit,
     onDelete,
     onOpenVersions,
@@ -44,18 +47,19 @@ function EventNodeComponent({ data, selected }) {
   } = data;
 
   const [expanded, setExpanded] = useState(false);
-  const [showCompactAvatars, setShowCompactAvatars] = useState(false); // Requirement 1.1
-  const [localCompact, setLocalCompact] = useState(false); // per-card compact toggle
+  // cardMode: null = auto (from zoom/switch), 'compact' = forced summary, 'expanded' = forced detailed
+  const [cardMode, setCardMode] = useState(null);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const isMenuOpen = Boolean(anchorEl);
 
-  // Show compact if global flag OR this card was individually collapsed
-  const showCompact = isCompact || localCompact;
+  // Show compact if forced compact, OR (auto and global isCompact is true, provided not forced expanded)
+  const showCompact = cardMode === 'compact' ? true : cardMode === 'expanded' ? false : isCompact;
 
-  // Character limit truncation (RF-4.5)
   const displayTitle = title.length > APP_CONFIG.EVENT_TITLE_MAX_LENGTH
     ? `${title.substring(0, APP_CONFIG.EVENT_TITLE_MAX_LENGTH)}...`
     : title;
 
-  // COMPACT MULTISCALE VIEW (global zoom-out OR per-card toggle)
+  // COMPACT MULTISCALE VIEW (modo chico / resumen)
   if (showCompact) {
     return (
       <Box
@@ -63,64 +67,87 @@ function EventNodeComponent({ data, selected }) {
           bgcolor: 'background.paper',
           border: '2px solid',
           borderColor: selected ? 'primary.main' : colorTag || 'divider',
-          borderRadius: 2,
-          p: 0.8,
-          px: 1.2,
+          borderRadius: 2.5,
+          p: 1.2,
+          px: 1.5,
           width: 300,
           display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          boxShadow: selected ? '0 0 0 2px rgba(140, 109, 83, 0.3)' : 'none',
+          flexDirection: 'column',
+          gap: 0.8,
+          boxShadow: selected ? '0 0 0 2px rgba(140, 109, 83, 0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
           transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
           userSelect: 'none',
-          overflow: 'hidden',
+          position: 'relative',
         }}
       >
-        <Handle type="target" position={Position.Left} style={{ background: colorTag, width: 8, height: 8 }} />
-        <Handle type="source" position={Position.Right} style={{ background: colorTag, width: 8, height: 8 }} />
-
-        {/* Order Badge */}
-        <Box
-          sx={{
-            width: 22,
-            height: 22,
-            borderRadius: '50%',
-            bgcolor: colorTag,
-            color: '#fff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '0.68rem',
-            fontWeight: 700,
-            flexShrink: 0,
+        {/* Prominent connection handles for easy cable linking & detachment */}
+        <Handle
+          type="target"
+          position={Position.Left}
+          style={{
+            background: colorTag || '#8c6d53',
+            width: 14,
+            height: 14,
+            border: '2px solid #ffffff',
+            boxShadow: '0 0 6px rgba(0,0,0,0.3)',
+            cursor: 'crosshair',
           }}
-        >
-          {Math.round(orderIndex)}
-        </Box>
-
-        {/* Title */}
-        <Typography
-          variant="caption"
-          noWrap
-          sx={{
-            fontWeight: 700,
-            color: 'text.primary',
-            fontSize: '1.20rem',
-            flexGrow: 1,
-            minWidth: 0,
+        />
+        <Handle
+          type="source"
+          position={Position.Right}
+          style={{
+            background: colorTag || '#8c6d53',
+            width: 14,
+            height: 14,
+            border: '2px solid #ffffff',
+            boxShadow: '0 0 6px rgba(0,0,0,0.3)',
+            cursor: 'crosshair',
           }}
-        >
-          {displayTitle}
-        </Typography>
+        />
 
-        {/* Per-card expand button (only shown when locally collapsed, not from global switch) */}
-        {localCompact && !isCompact && (
-          <Tooltip title="Expandir esta carta">
+        {/* Top Row: Order Badge + Title + Card Expand Button (Always visible in summary mode) */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+          <Box
+            sx={{
+              width: 22,
+              height: 22,
+              borderRadius: '50%',
+              bgcolor: colorTag || 'primary.main',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.68rem',
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            {Math.round(orderIndex)}
+          </Box>
+
+          <Typography
+            variant="caption"
+            noWrap
+            title={title}
+            sx={{
+              fontWeight: 700,
+              color: 'text.primary',
+              fontSize: '0.9rem',
+              flexGrow: 1,
+              minWidth: 0,
+            }}
+          >
+            {displayTitle}
+          </Typography>
+
+          {/* Top-Right Slot: ALWAYS VISIBLE Expand Card Button */}
+          <Tooltip title="Expandir esta carta (modo completo)">
             <IconButton
               size="small"
               onClick={(e) => {
                 e.stopPropagation();
-                setLocalCompact(false);
+                setCardMode('expanded');
               }}
               sx={{
                 p: 0.4,
@@ -128,72 +155,51 @@ function EventNodeComponent({ data, selected }) {
                 color: 'secondary.main',
                 '&:hover': { bgcolor: 'divider' },
                 flexShrink: 0,
+                transition: 'all 0.4s ease',
               }}
             >
-              <ViewAgendaOutlinedIcon sx={{ fontSize: 14 }} />
+              <ExpandMoreIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </Tooltip>
-        )}
+        </Box>
 
-        {/* Person Icon Button Toggle & Avatars Reveal (Requirement 1.1) */}
+        {/* Avatars directly below title in summary mode */}
         {characters.length > 0 && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-            {showCompactAvatars && (
-              <Fade in={showCompactAvatars} timeout={250}>
-                <AvatarGroup
-                  max={3}
-                  sx={{
-                    '& .MuiAvatar-root': {
-                      width: 20,
-                      height: 20,
-                      fontSize: '0.6rem',
-                      border: '1.5px solid',
-                      borderColor: 'background.paper',
-                    },
-                  }}
-                >
-                  {characters.map((char) => (
-                    <Tooltip key={char.id} title={`${char.name} (${char.role_archetype || 'Rol no definido'})`}>
-                      <Avatar src={char.avatar_url} alt={char.name}>
-                        {char.name?.charAt(0)}
-                      </Avatar>
-                    </Tooltip>
-                  ))}
-                </AvatarGroup>
-              </Fade>
-            )}
-
-            <Tooltip title={showCompactAvatars ? 'Ocultar personajes' : `Ver ${characters.length} personajes involucrados`}>
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowCompactAvatars(!showCompactAvatars);
-                }}
-                sx={{
-                  p: 0.4,
-                  bgcolor: showCompactAvatars ? 'primary.main' : 'background.subtle',
-                  color: showCompactAvatars ? 'primary.contrastText' : 'text.secondary',
-                  '&:hover': {
-                    bgcolor: showCompactAvatars ? 'primary.dark' : 'divider',
-                  },
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                {showCompactAvatars ? (
-                  <PersonIcon sx={{ fontSize: 15 }} />
-                ) : (
-                  <PersonOutlineIcon sx={{ fontSize: 15 }} />
-                )}
-              </IconButton>
-            </Tooltip>
+          <Box sx={{ display: 'flex', alignItems: 'center', pt: 0.2 }}>
+            <AvatarGroup
+              max={12}
+              sx={{
+                '& .MuiAvatar-root': {
+                  width: 22,
+                  height: 22,
+                  fontSize: '0.6rem',
+                  border: '1.5px solid',
+                  borderColor: 'background.paper',
+                },
+              }}
+            >
+              {characters.map((char) => (
+                <Tooltip key={char.id} title={`${char.name} (${char.role_archetype || 'Rol no definido'})`}>
+                  <Avatar
+                    src={char.avatar_url}
+                    alt={char.name}
+                    sx={{
+                      bgcolor: char.color_tag || 'primary.main',
+                      color: '#ffffff',
+                    }}
+                  >
+                    {char.name?.charAt(0)}
+                  </Avatar>
+                </Tooltip>
+              ))}
+            </AvatarGroup>
           </Box>
         )}
       </Box>
     );
   }
 
-  // FULL EXTENDED VIEW (Zoom In mode)
+  // FULL EXTENDED VIEW (Modo Completo)
   return (
     <Box
       sx={{
@@ -208,12 +214,36 @@ function EventNodeComponent({ data, selected }) {
         transition: 'all 0.2s ease',
         userSelect: 'none',
         overflow: 'hidden',
+        position: 'relative',
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ background: colorTag, width: 9, height: 9 }} />
-      <Handle type="source" position={Position.Right} style={{ background: colorTag, width: 9, height: 9 }} />
+      {/* Prominent connection handles for easy cable linking & detachment */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        style={{
+          background: colorTag || '#8c6d53',
+          width: 14,
+          height: 14,
+          border: '2px solid #ffffff',
+          boxShadow: '0 0 6px rgba(0,0,0,0.3)',
+          cursor: 'crosshair',
+        }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        style={{
+          background: colorTag || '#8c6d53',
+          width: 14,
+          height: 14,
+          border: '2px solid #ffffff',
+          boxShadow: '0 0 6px rgba(0,0,0,0.3)',
+          cursor: 'crosshair',
+        }}
+      />
 
-      {/* Node Header: order chip + title + expand button */}
+      {/* Node Header: order chip + title + Top-Right Card Collapse Button */}
       <Box sx={{ p: 1.5, pb: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flexGrow: 1 }}>
           <Chip
@@ -242,27 +272,28 @@ function EventNodeComponent({ data, selected }) {
           </Typography>
         </Box>
 
+        {/* Top-Right Slot: ALWAYS VISIBLE Card Collapse Button */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.2, flexShrink: 0 }}>
-          <Tooltip title={expanded ? 'Colapsar detalles' : 'Desplegar detalles (RF-4.4)'}>
+          <Tooltip title="Colapsar esta carta (modo resumen)">
             <IconButton
               size="small"
               onClick={(e) => {
                 e.stopPropagation();
-                setExpanded(!expanded);
+                setCardMode('compact');
               }}
-              sx={{ p: 0.5, color: 'text.secondary' }}
+              sx={{ p: 0.5, color: 'text.secondary', '&:hover': { color: 'secondary.main' }, transition: 'all 0.4s ease' }}
             >
-              {expanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+              <ExpandLessIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         </Box>
       </Box>
 
-      {/* Linked Characters below title (RF-4.2) */}
+      {/* Linked Characters below title */}
       {characters.length > 0 && (
         <Box sx={{ px: 1.5, pb: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <AvatarGroup
-            max={5}
+            max={12}
             sx={{
               '& .MuiAvatar-root': {
                 width: 24,
@@ -275,7 +306,14 @@ function EventNodeComponent({ data, selected }) {
           >
             {characters.map((char) => (
               <Tooltip key={char.id} title={`${char.name} (${char.role_archetype || 'Rol no definido'})`}>
-                <Avatar src={char.avatar_url} alt={char.name}>
+                <Avatar
+                  src={char.avatar_url}
+                  alt={char.name}
+                  sx={{
+                    bgcolor: char.color_tag || 'primary.main',
+                    color: '#ffffff',
+                  }}
+                >
                   {char.name?.charAt(0)}
                 </Avatar>
               </Tooltip>
@@ -294,7 +332,7 @@ function EventNodeComponent({ data, selected }) {
         </Box>
       )}
 
-      {/* Summary preview (below characters) */}
+      {/* Summary preview */}
       {summary && (
         <Box sx={{ px: 1.5, pb: 1 }}>
           <Typography
@@ -314,7 +352,7 @@ function EventNodeComponent({ data, selected }) {
         </Box>
       )}
 
-      {/* Expandable Extended Details (RF-4.4) */}
+      {/* Expandable Extended Details */}
       <Collapse in={expanded} timeout="auto" unmountOnExit>
         <Box sx={{ px: 1.5, py: 1, bgcolor: 'background.subtle', borderTop: 1, borderColor: 'divider' }}>
           {details ? (
@@ -329,7 +367,7 @@ function EventNodeComponent({ data, selected }) {
         </Box>
       </Collapse>
 
-      {/* Footer Node Actions (RF-4.6, Edit, Delete) */}
+      {/* Footer Node Actions */}
       <Box
         sx={{
           p: 0.8,
@@ -343,50 +381,21 @@ function EventNodeComponent({ data, selected }) {
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Tooltip title={`Historial de versiones (${versionsCount}) - RF-4.6`}>
+          {/* Details Toggle Button */}
+          <Tooltip title={expanded ? 'Ocultar detalles extendidos' : 'Desplegar detalles extendidos'}>
             <IconButton
               size="small"
               onClick={(e) => {
                 e.stopPropagation();
-                onOpenVersions && onOpenVersions(id);
+                setExpanded(!expanded);
               }}
-              sx={{ p: 0.5, color: 'text.secondary' }}
+              sx={{ p: 0.5, color: expanded ? 'primary.main' : 'text.secondary', transition: 'all 0.4s ease' }}
             >
-              <Badge badgeContent={versionsCount > 1 ? versionsCount : 0} color="primary" variant="dot">
-                <HistoryIcon fontSize="small" />
-              </Badge>
+              {expanded ? <ViewAgendaOutlinedIcon fontSize="small" /> : <ViewHeadlineIcon fontSize="small" />}
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="Crear respaldo rápido de versión">
-            <IconButton
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCreateBackup && onCreateBackup(id);
-              }}
-              sx={{ p: 0.5, color: 'text.secondary' }}
-            >
-              <BookmarkBorderIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-
-          {/* Per-card collapse to compact */}
-          <Tooltip title="Colapsar esta carta">
-            <IconButton
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation();
-                setLocalCompact(true);
-              }}
-              sx={{ p: 0.5, color: 'text.secondary', '&:hover': { color: 'secondary.main' } }}
-            >
-              <ViewHeadlineIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Box>
-
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          {/* Edit */}
           <Tooltip title="Editar evento">
             <IconButton
               size="small"
@@ -399,20 +408,68 @@ function EventNodeComponent({ data, selected }) {
               <EditOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-
-          <Tooltip title="Eliminar evento">
-            <IconButton
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete && onDelete(id);
-              }}
-              sx={{ p: 0.5, color: 'error.main' }}
-            >
-              <DeleteOutlineIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
         </Box>
+
+        {/* More Menu */}
+        <IconButton
+          size="small"
+          onClick={(e) => {
+            e.stopPropagation();
+            setAnchorEl(e.currentTarget);
+          }}
+          sx={{ p: 0.5, color: 'text.secondary' }}
+        >
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
+        <Menu
+          anchorEl={anchorEl}
+          open={isMenuOpen}
+          onClose={(e) => {
+            e?.stopPropagation();
+            setAnchorEl(null);
+          }}
+        >
+          <MenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              setAnchorEl(null);
+              onOpenVersions && onOpenVersions(id);
+            }}
+          >
+            <ListItemIcon>
+              <Badge badgeContent={versionsCount > 1 ? versionsCount : 0} color="primary" variant="dot">
+                <HistoryIcon fontSize="small" />
+              </Badge>
+            </ListItemIcon>
+            <ListItemText primary="Historial" />
+          </MenuItem>
+          <MenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              setAnchorEl(null);
+              onCreateBackup && onCreateBackup(id);
+            }}
+          >
+            <ListItemIcon>
+              <BookmarkBorderIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primary="Respaldar" />
+          </MenuItem>
+          <Divider />
+          <MenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              setAnchorEl(null);
+              onDelete && onDelete(id);
+            }}
+            sx={{ color: 'error.main' }}
+          >
+            <ListItemIcon>
+              <DeleteOutlineIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            <ListItemText primary="Eliminar" />
+          </MenuItem>
+        </Menu>
       </Box>
     </Box>
   );

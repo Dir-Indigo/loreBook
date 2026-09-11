@@ -17,8 +17,10 @@ export const USER_ROLES = {
 
 export const CHARACTER_ARCHETYPES = [
   'Protagonista',
+  'Principal',
   'Antagonista',
   'Secundario',
+  'Co-Protagonista',
   'Mentor',
   'Interés Amoroso',
   'Aliado',
@@ -46,6 +48,20 @@ export const EVENT_IMPORTANCE = [
   { value: 'medium', label: 'Importante' },
   { value: 'high', label: 'Clímax / Crítico' },
   { value: 'legendary', label: 'Hito Histórico' },
+];
+
+export const CHARACTER_COLOR_PALETTE = [
+  '#cbd5e1', // Gris Claro
+  '#334155', // Gris Oscuro
+  '#0f172a', // Negro
+  '#8c6d53', // Terracota / Tierra
+  '#f59e0b', // Ámbar / Dorado
+  '#dc2626', // Rojo Escarlata
+  '#ec4899', // Magenta
+  '#10b981', // Verde
+  '#06b6d4', // Cyan
+  '#1e3a8a', // Azul Noche
+  '#7c3aed', // Violeta
 ];
 
 /**

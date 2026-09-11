@@ -24,6 +24,9 @@ export default function DashboardPage() {
   const [characters, setCharacters] = useState([]);
   const [relationships, setRelationships] = useState([]);
   const [events, setEvents] = useState([]);
+  const [eventConnections, setEventConnections] = useState([]);
+  const [boards, setBoards] = useState([]);
+  const [activeBoardId, setActiveBoardId] = useState(null);
 
   // UI / Modal States
   const [dataLoading, setDataLoading] = useState(true);
@@ -42,6 +45,18 @@ export default function DashboardPage() {
   const [eventVersions, setEventVersions] = useState([]);
   const [versionsLoading, setVersionsLoading] = useState(false);
 
+  // Helper to change active story & save to localStorage
+  const changeActiveStory = useCallback((id) => {
+    setActiveStoryId(id);
+    setActiveBoardId(null); // reset board when switching story
+    setBoards([]);
+    setEvents([]);
+    setEventConnections([]);
+    if (id && typeof window !== 'undefined') {
+      localStorage.setItem('lorebook_active_story_id', id);
+    }
+  }, []);
+
   // Redirect unauthenticated users to login
   useEffect(() => {
     if (!authLoading && !user) {
@@ -49,47 +64,74 @@ export default function DashboardPage() {
     }
   }, [user, authLoading, router]);
 
+  const userId = user?.id;
+
   // Load all stories for user
   const loadStories = useCallback(async () => {
-    if (!user) return;
-    setDataLoading(true);
-    const { data } = await ApiService.getStories(user.id);
+    if (!userId) return;
+    const { data } = await ApiService.getStories(userId);
     if (data && data.length > 0) {
       setStories(data);
-      if (!activeStoryId || !data.some((s) => s.id === activeStoryId)) {
+      const savedStoryId = typeof window !== 'undefined' ? localStorage.getItem('lorebook_active_story_id') : null;
+      if (savedStoryId && data.some((s) => s.id === savedStoryId)) {
+        setActiveStoryId(savedStoryId);
+      } else {
         setActiveStoryId(data[0].id);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('lorebook_active_story_id', data[0].id);
+        }
       }
     } else {
       setStories([]);
       setActiveStoryId(null);
+      setDataLoading(false);
     }
-    setDataLoading(false);
-  }, [user, activeStoryId]);
+  }, [userId]);
 
   useEffect(() => {
-    if (user) {
+    if (userId) {
       loadStories();
     }
-  }, [user, loadStories]);
+  }, [userId, loadStories]);
 
-  // Load characters, relationships, and events for the active story
-  const loadStoryData = useCallback(async (storyId) => {
+  // Load characters, relationships, boards and (board-filtered) events for the active story
+  const loadStoryData = useCallback(async (storyId, boardId = null) => {
     if (!storyId) {
       setCharacters([]);
       setRelationships([]);
       setEvents([]);
+      setEventConnections([]);
+      setBoards([]);
+      setActiveBoardId(null);
+      setDataLoading(false);
       return;
     }
 
-    const [charsRes, relsRes, eventsRes] = await Promise.all([
+    const [charsRes, relsRes, boardsRes, connsRes] = await Promise.all([
       ApiService.getCharacters(storyId),
       ApiService.getCharacterRelationships(storyId),
-      ApiService.getEvents(storyId),
+      ApiService.getBoards(storyId),
+      ApiService.getEventConnections(storyId),
     ]);
 
     if (charsRes.data) setCharacters(charsRes.data);
     if (relsRes.data) setRelationships(relsRes.data);
+    if (connsRes.data) setEventConnections(connsRes.data);
+
+    const loadedBoards = boardsRes.data || [];
+    setBoards(loadedBoards);
+
+    // Determine which board to show
+    const targetBoardId = boardId
+      || (loadedBoards.find((b) => !b.parent_board_id)?.id) // first root board
+      || null;
+    setActiveBoardId(targetBoardId);
+
+    // Load events for the selected board
+    const eventsRes = await ApiService.getEvents(storyId, targetBoardId);
     if (eventsRes.data) setEvents(eventsRes.data);
+
+    setDataLoading(false);
   }, []);
 
   useEffect(() => {
@@ -99,6 +141,103 @@ export default function DashboardPage() {
   }, [activeStoryId, loadStoryData]);
 
   const activeStory = stories.find((s) => s.id === activeStoryId) || null;
+
+  // Optimistic Connection Handlers (Instant UI updates with minimal API overhead)
+  const handleCreateConnection = async (sourceEventId, targetEventId) => {
+    if (!activeStoryId) return;
+    const tempId = `temp-${Date.now()}`;
+    const newConn = { id: tempId, story_id: activeStoryId, source_event_id: sourceEventId, target_event_id: targetEventId };
+    
+    setEventConnections((prev) => {
+      if (prev.some((c) => c.source_event_id === sourceEventId && c.target_event_id === targetEventId)) return prev;
+      return [...prev, newConn];
+    });
+
+    const { data, error } = await ApiService.createEventConnection(activeStoryId, sourceEventId, targetEventId);
+    if (error) {
+      setEventConnections((prev) => prev.filter((c) => c.id !== tempId));
+    } else if (data) {
+      setEventConnections((prev) => prev.map((c) => (c.id === tempId ? data : c)));
+    }
+  };
+
+  const handleDeleteConnection = async (sourceEventId, targetEventId) => {
+    if (!activeStoryId) return;
+    setEventConnections((prev) =>
+      prev.filter((c) => !(c.source_event_id === sourceEventId && c.target_event_id === targetEventId))
+    );
+    await ApiService.deleteEventConnectionByNodes(activeStoryId, sourceEventId, targetEventId);
+  };
+
+  // Switch active board and reload events for it
+  const handleSelectBoard = useCallback(async (boardId) => {
+    if (!activeStoryId || boardId === activeBoardId) return;
+    setActiveBoardId(boardId);
+    const eventsRes = await ApiService.getEvents(activeStoryId, boardId);
+    if (eventsRes.data) setEvents(eventsRes.data);
+    const connsRes = await ApiService.getEventConnections(activeStoryId);
+    if (connsRes.data) setEventConnections(connsRes.data);
+  }, [activeStoryId, activeBoardId]);
+
+  // ==========================================
+  // BOARD HANDLERS
+  // ==========================================
+  const handleCreateBoard = async (name, parentBoardId = null) => {
+    if (!activeStoryId) return;
+    const siblings = boards.filter((b) => b.parent_board_id === (parentBoardId || null));
+    const position = siblings.length;
+    const { data, error } = await ApiService.createBoard(activeStoryId, {
+      name,
+      parentBoardId,
+      position,
+    });
+    if (!error && data) {
+      const updatedBoards = [...boards, data];
+      setBoards(updatedBoards);
+      // Auto-select the new board
+      handleSelectBoard(data.id);
+    }
+  };
+
+  const handleRenameBoard = async (boardId, newName) => {
+    const { data, error } = await ApiService.updateBoard(boardId, { name: newName });
+    if (!error && data) {
+      setBoards((prev) => prev.map((b) => (b.id === boardId ? data : b)));
+    }
+  };
+
+  const handleChangeBoardColor = async (boardId, color) => {
+    const { data, error } = await ApiService.updateBoard(boardId, { color });
+    if (!error && data) {
+      setBoards((prev) => prev.map((b) => (b.id === boardId ? data : b)));
+    }
+  };
+
+  const handleDeleteBoard = async (board) => {
+    const hasChildren = boards.some((b) => b.parent_board_id === board.id);
+    const eventsInBoard = events.filter((ev) => ev.board_id === board.id).length;
+    const msg = hasChildren
+      ? `¿Eliminar "${board.name}" y todos sus sub-tableros? Los eventos quedarán sin tablero asignado.`
+      : eventsInBoard > 0
+      ? `¿Eliminar "${board.name}"? Contiene ${eventsInBoard} evento(s) que quedarán sin tablero.`
+      : `¿Eliminar el tablero "${board.name}"?`;
+    if (!window.confirm(msg)) return;
+    const { error } = await ApiService.deleteBoard(board.id);
+    if (!error) {
+      const remaining = boards.filter((b) => b.id !== board.id && b.parent_board_id !== board.id);
+      setBoards(remaining);
+      // If deleted board was active, switch to first remaining root board
+      if (activeBoardId === board.id) {
+        const nextBoard = remaining.find((b) => !b.parent_board_id);
+        if (nextBoard) {
+          handleSelectBoard(nextBoard.id);
+        } else {
+          setActiveBoardId(null);
+          setEvents([]);
+        }
+      }
+    }
+  };
 
   // ==========================================
   // STORY HANDLERS
@@ -111,7 +250,7 @@ export default function DashboardPage() {
     });
     if (!error && data) {
       await loadStories();
-      setActiveStoryId(data.id);
+      changeActiveStory(data.id);
     }
   };
 
@@ -209,7 +348,8 @@ export default function DashboardPage() {
         backupNote
       );
       if (!error) {
-        await loadStoryData(activeStoryId);
+        const eventsRes = await ApiService.getEvents(activeStoryId, activeBoardId);
+        if (eventsRes.data) setEvents(eventsRes.data);
         setEventModalOpen(false);
       }
     } else {
@@ -218,10 +358,12 @@ export default function DashboardPage() {
           ...eventData,
           story_id: activeStoryId,
         },
-        characterIds
+        characterIds,
+        activeBoardId
       );
       if (!error) {
-        await loadStoryData(activeStoryId);
+        const eventsRes = await ApiService.getEvents(activeStoryId, activeBoardId);
+        if (eventsRes.data) setEvents(eventsRes.data);
         setEventModalOpen(false);
       }
     }
@@ -253,9 +395,10 @@ export default function DashboardPage() {
       pos_y: (Number(originalEvent.pos_y) || 100) + offset.y,
     };
 
-    const { error } = await ApiService.createEvent(eventPayload, charIds);
+    const { error } = await ApiService.createEvent(eventPayload, charIds, activeBoardId);
     if (!error) {
-      await loadStoryData(activeStoryId);
+      const eventsRes = await ApiService.getEvents(activeStoryId, activeBoardId);
+      if (eventsRes.data) setEvents(eventsRes.data);
     }
   };
 
@@ -263,12 +406,16 @@ export default function DashboardPage() {
     if (window.confirm('¿Seguro que deseas eliminar este evento de la línea de tiempo?')) {
       const { error } = await ApiService.deleteEvent(eventId);
       if (!error) {
-        await loadStoryData(activeStoryId);
+        const eventsRes = await ApiService.getEvents(activeStoryId, activeBoardId);
+        if (eventsRes.data) setEvents(eventsRes.data);
       }
     }
   };
 
   const handleNodeDragStop = async (eventId, newX, newY) => {
+    setEvents((prev) =>
+      prev.map((ev) => (ev.id === eventId ? { ...ev, pos_x: newX, pos_y: newY } : ev))
+    );
     await ApiService.saveEventPosition(eventId, {
       pos_x: newX,
       pos_y: newY,
@@ -363,13 +510,23 @@ export default function DashboardPage() {
           story={activeStory}
           characters={characters}
           events={events}
+          boards={boards}
+          activeBoardId={activeBoardId}
           onOpenStorySelector={() => setStoryModalOpen(true)}
           onOpenCharactersDrawer={() => setCharDrawerOpen(true)}
-          onOpenCreateEvent={() => {
+          onOpenCreateEvent={(boardId) => {
             setSelectedEvent(null);
+            // If boardId is provided, the modal should default to that board
+            // Currently EventModal doesn't take boardId, but it will be handled when saving
+            // In a real fix, we would pass boardId to EventModal state
             setEventModalOpen(true);
           }}
           onUpdateStoryCover={handleUpdateStoryCover}
+          onSelectBoard={handleSelectBoard}
+          onCreateBoard={handleCreateBoard}
+          onRenameBoard={handleRenameBoard}
+          onDeleteBoard={handleDeleteBoard}
+          onChangeBoardColor={handleChangeBoardColor}
         />
 
         {/* Center Canvas Area */}
@@ -377,6 +534,10 @@ export default function DashboardPage() {
           <TimelineCanvas
             events={events}
             characters={characters}
+            eventConnections={eventConnections}
+            activeBoardName={boards.find((b) => b.id === activeBoardId)?.name || null}
+            onCreateConnection={handleCreateConnection}
+            onDeleteConnection={handleDeleteConnection}
             onOpenCreateEvent={() => {
               setSelectedEvent(null);
               setEventModalOpen(true);
@@ -400,7 +561,7 @@ export default function DashboardPage() {
         onClose={() => setStoryModalOpen(false)}
         stories={stories}
         activeStoryId={activeStoryId}
-        onSelectStory={(id) => setActiveStoryId(id)}
+        onSelectStory={(id) => changeActiveStory(id)}
         onCreateStory={handleCreateStory}
         onUpdateStory={handleUpdateStory}
         onDeleteStory={handleDeleteStory}

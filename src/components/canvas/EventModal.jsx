@@ -89,7 +89,7 @@ export default function EventModal({
         title: title.trim().substring(0, APP_CONFIG.EVENT_TITLE_MAX_LENGTH),
         summary: summary.trim(),
         details: details.trim(),
-        order_index: parseFloat(orderIndex) || 1.0,
+        order_index: event?.order_index || 1.0,
         importance_level: importanceLevel,
         color_tag: colorTag,
       },
@@ -132,18 +132,7 @@ export default function EventModal({
         </Box>
 
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              label="Orden Secuencial (Posición Narrativa)"
-              type="number"
-              inputProps={{ step: '0.1', min: '0' }}
-              value={orderIndex}
-              onChange={(e) => setOrderIndex(e.target.value)}
-              fullWidth
-              helperText="Estructura episódica basada en orden, no en fechas reales (RF-4.1)"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12}>
             <TextField
               select
               label="Nivel de Relevancia"

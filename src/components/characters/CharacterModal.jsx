@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -9,12 +9,14 @@ import {
   Switch,
   Divider,
   Grid,
+  Tooltip,
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import ColorLensIcon from '@mui/icons-material/ColorLens';
 import CustomModal from '../common/CustomModal';
 import CustomButton from '../common/CustomButton';
-import { CHARACTER_ARCHETYPES } from '../../constants/constants';
+import { CHARACTER_ARCHETYPES, CHARACTER_COLOR_PALETTE } from '../../constants/constants';
 
 export default function CharacterModal({
   open,
@@ -29,8 +31,11 @@ export default function CharacterModal({
   const [roleArchetype, setRoleArchetype] = useState('Protagonista');
   const [biography, setBiography] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [colorTag, setColorTag] = useState('');
   const [isTemplate, setIsTemplate] = useState(false);
   const [cloneSuffix, setCloneSuffix] = useState(' (Versión Alterna)');
+
+  const colorInputRef = useRef(null);
 
   useEffect(() => {
     if (character) {
@@ -38,12 +43,14 @@ export default function CharacterModal({
       setRoleArchetype(character.role_archetype || 'Protagonista');
       setBiography(character.biography || '');
       setAvatarUrl(character.avatar_url || '');
+      setColorTag(character.color_tag || '');
       setIsTemplate(Boolean(character.is_template));
     } else {
       setName('');
       setRoleArchetype('Protagonista');
       setBiography('');
       setAvatarUrl('');
+      setColorTag('');
       setIsTemplate(false);
     }
     setCloneSuffix(' (Versión Alterna)');
@@ -64,6 +71,7 @@ export default function CharacterModal({
         role_archetype: roleArchetype,
         biography: biography.trim(),
         avatar_url: avatarUrl.trim(),
+        color_tag: colorTag,
         is_template: isTemplate,
       });
     }
@@ -89,12 +97,21 @@ export default function CharacterModal({
       maxWidth="sm"
     >
       <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-        {/* Preview Avatar */}
+        {/* Preview Avatar & Image URL */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, p: 1.5, bgcolor: 'background.subtle', borderRadius: 2 }}>
           <Avatar
             src={avatarUrl}
             alt={name || 'Avatar'}
-            sx={{ width: 64, height: 64, bgcolor: 'primary.main', fontSize: '1.5rem', fontWeight: 700 }}
+            sx={{
+              width: 64,
+              height: 64,
+              bgcolor: colorTag || 'primary.main',
+              color: '#ffffff',
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              boxShadow: colorTag ? `0 0 12px ${colorTag}66` : 'none',
+              transition: 'all 0.2s ease',
+            }}
           >
             {name ? name.charAt(0).toUpperCase() : <PersonIcon />}
           </Avatar>
@@ -105,15 +122,119 @@ export default function CharacterModal({
               value={avatarUrl}
               onChange={(e) => setAvatarUrl(e.target.value)}
               fullWidth
-              helperText="Enlace a una imagen para la tarjeta y la línea de tiempo (RF-3.2)"
+              helperText="Si no tienes foto, se usará el color distintivo en el avatar"
             />
+          </Box>
+        </Box>
+
+        {/* Color Tag Picker (Optional Character Color) */}
+        <Box sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+              Color Distintivo del Personaje (Opcional - Pinta su tarjeta y avatar)
+            </Typography>
+            {colorTag && (
+              <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: colorTag, fontWeight: 700 }}>
+                {colorTag.toUpperCase()}
+              </Typography>
+            )}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Tooltip title="Sin color personalizado (por defecto)">
+              <Box
+                onClick={() => setColorTag('')}
+                sx={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  bgcolor: 'background.subtle',
+                  border: '2px solid',
+                  borderColor: !colorTag ? 'primary.main' : 'divider',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  color: 'text.secondary',
+                }}
+              >
+                ✕
+              </Box>
+            </Tooltip>
+
+            {CHARACTER_COLOR_PALETTE.map((color) => {
+              const isSelected = colorTag?.toLowerCase() === color.toLowerCase();
+              return (
+                <Box
+                  key={color}
+                  onClick={() => setColorTag(color)}
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    bgcolor: color,
+                    cursor: 'pointer',
+                    border: '3px solid',
+                    borderColor: isSelected ? 'primary.main' : 'transparent',
+                    boxShadow: isSelected ? `0 0 0 2px ${color}` : 'none',
+                    transition: 'transform 0.1s ease',
+                    '&:hover': {
+                      transform: 'scale(1.15)',
+                    },
+                  }}
+                />
+              );
+            })}
+
+            {/* Custom Color Picker Button & Input */}
+            <Tooltip title="Seleccionar color personalizado (Hex / Rueda de color)">
+              <Box
+                onClick={() => colorInputRef.current?.click()}
+                sx={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  background: colorTag && !CHARACTER_COLOR_PALETTE.includes(colorTag)
+                    ? colorTag
+                    : 'conic-gradient(from 180deg, red, yellow, lime, cyan, blue, magenta, red)',
+                  cursor: 'pointer',
+                  border: '2px solid',
+                  borderColor: colorTag && !CHARACTER_COLOR_PALETTE.includes(colorTag) ? 'primary.main' : 'divider',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.15)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  '&:hover': { transform: 'scale(1.15)' },
+                }}
+              >
+                <ColorLensIcon sx={{ fontSize: 16, color: '#ffffff', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }} />
+                <input
+                  ref={colorInputRef}
+                  type="color"
+                  value={colorTag || '#8c6d53'}
+                  onChange={(e) => setColorTag(e.target.value)}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    opacity: 0,
+                    cursor: 'pointer',
+                  }}
+                />
+              </Box>
+            </Tooltip>
           </Box>
         </Box>
 
         {isCloneMode ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Typography variant="body2" color="text.secondary">
-              Se clonará la ficha completa de <strong>{character?.name}</strong> incluyendo biografía y arquetipo.
+              Se clonará la ficha completa de <strong>{character?.name}</strong> incluyendo biografía, arquetipo y color distintivo.
             </Typography>
             <TextField
               label="Sufijo o nuevo identificador"

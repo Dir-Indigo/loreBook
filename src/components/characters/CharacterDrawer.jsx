@@ -19,6 +19,7 @@ import {
   ListItemText,
   ListItemSecondaryAction,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
 import PersonIcon from '@mui/icons-material/Person';
@@ -152,20 +153,31 @@ export default function CharacterDrawer({
                 elevation={0}
                 sx={{
                   p: 1.8,
-                  border: 1,
-                  borderColor: 'divider',
-                  borderRadius: 2,
-                  bgcolor: 'background.paper',
+                  border: '1.5px solid',
+                  borderColor: char.color_tag ? alpha(char.color_tag, 0.4) : 'divider',
+                  borderRadius: 2.5,
+                  bgcolor: char.color_tag ? alpha(char.color_tag, 0.12) : 'background.paper',
+                  background: char.color_tag
+                    ? `linear-gradient(135deg, ${alpha(char.color_tag, 0.16)} 0%, ${alpha(char.color_tag, 0.04)} 100%)`
+                    : 'background.paper',
+                  boxShadow: char.color_tag ? `0 2px 10px ${alpha(char.color_tag, 0.15)}` : 'none',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 1,
+                  transition: 'all 0.2s ease',
                 }}
               >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                   <Avatar
                     src={char.avatar_url}
                     alt={char.name}
-                    sx={{ width: 44, height: 44, bgcolor: 'primary.main', fontWeight: 600 }}
+                    sx={{
+                      width: 44,
+                      height: 44,
+                      bgcolor: char.color_tag || 'primary.main',
+                      color: '#ffffff',
+                      fontWeight: 600,
+                    }}
                   >
                     {char.name?.charAt(0)}
                   </Avatar>

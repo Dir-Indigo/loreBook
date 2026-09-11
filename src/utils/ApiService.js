@@ -177,6 +177,7 @@ export const ApiService = {
         role_archetype: original.role_archetype,
         biography: original.biography,
         avatar_url: original.avatar_url,
+        color_tag: original.color_tag,
         is_template: isTemplate,
         parent_character_id: original.id,
         attributes: original.attributes || {},
@@ -221,29 +222,39 @@ export const ApiService = {
   // ==========================================
   // TIMELINE EVENTS & POSITIONS (RF-4.1 - RF-4.6)
   // ==========================================
-  async getEvents(storyId) {
-    return executeBridge('GET_TIMELINE_EVENTS', `public.timeline_events?story_id=${storyId}`, async () => {
-      return await supabase
+  async getEvents(storyId, boardId = null) {
+    const endpoint = boardId
+      ? `public.timeline_events?story_id=${storyId}&board_id=${boardId}`
+      : `public.timeline_events?story_id=${storyId}`;
+    return executeBridge('GET_TIMELINE_EVENTS', endpoint, async () => {
+      let query = supabase
         .from('timeline_events')
         .select(`
           *,
           event_characters (
             id,
             role_in_event,
-            character:character_id (id, name, avatar_url, role_archetype)
+            character:character_id (id, name, avatar_url, role_archetype, color_tag)
           ),
           event_versions (id, version_number, note, created_at)
         `)
         .eq('story_id', storyId)
         .order('order_index', { ascending: true });
-    }, { storyId });
+
+      if (boardId) {
+        query = query.eq('board_id', boardId);
+      }
+
+      return await query;
+    }, { storyId, boardId });
   },
 
-  async createEvent(eventData, characterIds = []) {
+  async createEvent(eventData, characterIds = [], boardId = null) {
+    const payload = boardId ? { ...eventData, board_id: boardId } : eventData;
     return executeBridge('CREATE_TIMELINE_EVENT', 'public.timeline_events', async () => {
       const { data: newEvent, error: eventErr } = await supabase
         .from('timeline_events')
-        .insert([eventData])
+        .insert([payload])
         .select()
         .single();
 
@@ -269,7 +280,7 @@ export const ApiService = {
       }]);
 
       return { data: newEvent, error: null };
-    }, { eventData, characterIds });
+    }, { eventData, characterIds, boardId });
   },
 
   async updateEvent(eventId, updates, characterIds = null, createBackup = false, backupNote = '') {
@@ -349,6 +360,114 @@ export const ApiService = {
         .delete()
         .eq('id', eventId);
     }, { eventId });
+  },
+
+  // ==========================================
+  // EVENT CONNECTIONS / CABLES (DAG Multi-branching)
+  // ==========================================
+  async getEventConnections(storyId) {
+    return executeBridge('GET_EVENT_CONNECTIONS', `public.event_connections?story_id=${storyId}`, async () => {
+      return await supabase
+        .from('event_connections')
+        .select('*')
+        .eq('story_id', storyId);
+    }, { storyId });
+  },
+
+  async createEventConnection(storyId, sourceEventId, targetEventId) {
+    return executeBridge('CREATE_EVENT_CONNECTION', 'public.event_connections', async () => {
+      return await supabase
+        .from('event_connections')
+        .insert([{
+          story_id: storyId,
+          source_event_id: sourceEventId,
+          target_event_id: targetEventId,
+        }])
+        .select()
+        .single();
+    }, { storyId, sourceEventId, targetEventId });
+  },
+
+  async deleteEventConnection(connectionId) {
+    return executeBridge('DELETE_EVENT_CONNECTION', `public.event_connections/${connectionId}`, async () => {
+      return await supabase
+        .from('event_connections')
+        .delete()
+        .eq('id', connectionId);
+    }, { connectionId });
+  },
+
+  async deleteEventConnectionByNodes(storyId, sourceEventId, targetEventId) {
+    return executeBridge('DELETE_EVENT_CONNECTION_BY_NODES', `public.event_connections?nodes`, async () => {
+      return await supabase
+        .from('event_connections')
+        .delete()
+        .eq('story_id', storyId)
+        .eq('source_event_id', sourceEventId)
+        .eq('target_event_id', targetEventId);
+    }, { storyId, sourceEventId, targetEventId });
+  },
+
+  // ==========================================
+  // NARRATIVE BOARDS (Líneas Narrativas)
+  // ==========================================
+
+  /**
+   * Get all boards for a story (flat list; tree is built in the UI)
+   */
+  async getBoards(storyId) {
+    return executeBridge('GET_BOARDS', `public.narrative_boards?story_id=${storyId}`, async () => {
+      return await supabase
+        .from('narrative_boards')
+        .select('*')
+        .eq('story_id', storyId)
+        .order('position', { ascending: true })
+        .order('created_at', { ascending: true });
+    }, { storyId });
+  },
+
+  async createBoard(storyId, { name = 'Nuevo tablero', parentBoardId = null, color = '#8c6d53', position = 0 } = {}) {
+    return executeBridge('CREATE_BOARD', 'public.narrative_boards', async () => {
+      return await supabase
+        .from('narrative_boards')
+        .insert([{ story_id: storyId, parent_board_id: parentBoardId, name, color, position }])
+        .select()
+        .single();
+    }, { storyId, name, parentBoardId, color, position });
+  },
+
+  async updateBoard(boardId, updates) {
+    return executeBridge('UPDATE_BOARD', `public.narrative_boards/${boardId}`, async () => {
+      return await supabase
+        .from('narrative_boards')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', boardId)
+        .select()
+        .single();
+    }, { boardId, updates });
+  },
+
+  async deleteBoard(boardId) {
+    return executeBridge('DELETE_BOARD', `public.narrative_boards/${boardId}`, async () => {
+      return await supabase
+        .from('narrative_boards')
+        .delete()
+        .eq('id', boardId);
+    }, { boardId });
+  },
+
+  /**
+   * Move a timeline event to a different narrative board
+   */
+  async moveEventToBoard(eventId, newBoardId) {
+    return executeBridge('MOVE_EVENT_TO_BOARD', `public.timeline_events/${eventId}/board`, async () => {
+      return await supabase
+        .from('timeline_events')
+        .update({ board_id: newBoardId, updated_at: new Date().toISOString() })
+        .eq('id', eventId)
+        .select()
+        .single();
+    }, { eventId, newBoardId });
   },
 
   // ==========================================
