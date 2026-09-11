@@ -6,16 +6,10 @@ import {
   MenuItem,
   FormControlLabel,
   Switch,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
   IconButton,
-  Divider,
   Paper,
   Chip,
   Tooltip,
-  Avatar,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -23,7 +17,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import LayersIcon from '@mui/icons-material/Layers';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ImageIcon from '@mui/icons-material/Image';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 import CustomModal from '../common/CustomModal';
 import CustomButton from '../common/CustomButton';
 
@@ -273,24 +267,37 @@ export default function StoryModal({
             </Box>
           </Paper>
         ) : (
-          /* Stories List */
-          <List sx={{ p: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          /* Stories Carousel */
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'row',
+              gap: 2,
+              overflowX: 'auto',
+              pb: 3,
+              px: 1,
+              '&::-webkit-scrollbar': { height: 6 },
+              '&::-webkit-scrollbar-track': { bgcolor: 'background.subtle', borderRadius: 2 },
+              '&::-webkit-scrollbar-thumb': { bgcolor: 'divider', borderRadius: 2, '&:hover': { bgcolor: 'primary.main' } },
+            }}
+          >
             {stories.length === 0 ? (
               <Box
                 sx={{
-                  p: 4,
+                  p: 6,
+                  width: '100%',
                   textAlign: 'center',
                   bgcolor: 'background.subtle',
-                  borderRadius: 2,
-                  border: 1,
+                  borderRadius: 3,
+                  border: '1px dashed',
                   borderColor: 'divider',
                 }}
               >
-                <LayersIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
-                <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                <LayersIcon sx={{ fontSize: 50, color: 'text.disabled', mb: 2 }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
                   Aún no tienes historias creadas
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
                   Comienza creando tu primera historia o universo literario.
                 </Typography>
                 <CustomButton
@@ -303,134 +310,110 @@ export default function StoryModal({
             ) : (
               stories.map((story) => {
                 const isSelected = story.id === activeStoryId;
+                
+                // Calculate dynamic width:
+                // Narrower percentages to avoid the "too wide" look.
+                const itemCount = stories.length;
+                let dynamicWidth = '200px';
+                if (itemCount === 1) {
+                  dynamicWidth = '40%';
+                } else if (itemCount === 2) {
+                  dynamicWidth = '30%';
+                } else if (itemCount >= 3) {
+                  dynamicWidth = '25%';
+                }
+
                 return (
                   <Paper
                     key={story.id}
-                    elevation={0}
+                    elevation={isSelected ? 4 : 1}
                     sx={{
-                      p: 2,
-                      border: 1.5,
-                      borderColor: isSelected ? 'primary.main' : 'divider',
-                      borderRadius: 2,
+                      minWidth: '200px', // Prevent becoming too small
+                      width: dynamicWidth,
+                      maxWidth: '280px', // Prevent becoming too wide
+                      display: 'flex',
+                      flexDirection: 'column',
+                      borderRadius: 3,
+                      overflow: 'hidden',
                       bgcolor: 'background.paper',
-                      transition: 'all 0.15s ease',
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      border: isSelected ? '2px solid' : '1px solid',
+                      borderColor: isSelected ? 'primary.main' : 'divider',
                       '&:hover': {
+                        transform: 'translateY(-4px)',
+                        boxShadow: 6,
                         borderColor: 'primary.light',
                       },
                     }}
                   >
-                    <ListItem disablePadding>
-                      {story.cover_url && (
-                        <Box
-                          sx={{
-                            width: 54,
-                            height: 54,
-                            borderRadius: 1.5,
-                            mr: 2,
-                            flexShrink: 0,
-                            backgroundImage: `url(${story.cover_url})`,
-                            backgroundSize: 'cover',
-                            backgroundPosition: 'center',
-                            border: 1,
-                            borderColor: 'divider',
-                          }}
-                        />
-                      )}
-                      <ListItemText
-                        primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, mb: 0.5, flexWrap: 'wrap' }}>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                              {story.title}
-                            </Typography>
-                            {isSelected && (
-                              <Chip
-                                icon={<CheckCircleIcon fontSize="small" />}
-                                label="Activa"
-                                size="small"
-                                color="primary"
-                                sx={{ height: 22, fontSize: '0.7rem' }}
-                              />
-                            )}
-                            {story.is_universe_root && (
-                              <Chip
-                                icon={<LayersIcon fontSize="small" />}
-                                label="Universo Matriz"
-                                size="small"
-                                color="secondary"
-                                variant="outlined"
-                                sx={{ height: 22, fontSize: '0.7rem' }}
-                              />
-                            )}
-                            {story.universe && (
-                              <Chip
-                                label={`Universo: ${story.universe.title}`}
-                                size="small"
-                                variant="outlined"
-                                sx={{ height: 22, fontSize: '0.7rem' }}
-                              />
-                            )}
-                            {story.genre && (
-                              <Chip
-                                label={story.genre}
-                                size="small"
-                                sx={{ height: 22, fontSize: '0.7rem', bgcolor: 'background.subtle' }}
-                              />
-                            )}
-                          </Box>
-                        }
-                        secondary={
-                          <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            sx={{
-                              display: '-webkit-box',
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: 'vertical',
-                              overflow: 'hidden',
-                            }}
-                          >
-                            {story.synopsis || 'Sin descripción disponible.'}
-                          </Typography>
-                        }
-                      />
-                      <ListItemSecondaryAction sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                        {!isSelected && (
-                          <CustomButton
-                            size="small"
-                            variant="outlined"
-                            onClick={() => {
-                              onSelectStory(story.id);
-                              onClose();
-                            }}
-                          >
-                            Cargar en Lienzo
-                          </CustomButton>
-                        )}
-                        <Tooltip title="Editar detalles y portada">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleStartEdit(story)}
-                            sx={{ color: 'text.secondary' }}
-                          >
-                            <EditOutlinedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Eliminar historia">
-                          <IconButton
-                            size="small"
-                            onClick={() => onDeleteStory(story.id)}
-                            sx={{ color: 'error.main' }}
-                          >
-                            <DeleteOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </ListItemSecondaryAction>
-                    </ListItem>
+                    {/* Cover image area - Significantly reduced height */}
+                    <Box
+                      sx={{
+                        height: 160,
+                        width: '100%',
+                        bgcolor: 'background.subtle',
+                        position: 'relative',
+                        backgroundImage: story.cover_url ? `url(${story.cover_url})` : 'none',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {!story.cover_url && <MenuBookIcon sx={{ fontSize: 50, color: 'text.disabled', opacity: 0.5 }} />}
+                      {/* Gradient overlay for text legibility */}
+                      <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '40%', background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)' }} />
+                    </Box>
+
+                    {/* Content area - More compact */}
+                    <Box sx={{ p: 1.5, flexGrow: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.2 }} noWrap>
+                        {story.title}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          height: 32,
+                        }}
+                      >
+                        {story.synopsis || 'Sin descripción disponible.'}
+                      </Typography>
+                      
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 'auto', pt: 1 }}>
+                        {story.is_universe_root && <Chip label="Universo" size="small" color="secondary" sx={{ height: 18, fontSize: '0.6rem' }} />}
+                        {story.genre && <Chip label={story.genre} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.6rem' }} />}
+                      </Box>
+                    </Box>
+
+                    {/* Actions - More compact */}
+                    <Box sx={{ p: 1, pt: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Tooltip title="Editar">
+                        <IconButton size="small" onClick={() => handleStartEdit(story)}>
+                          <EditOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <CustomButton
+                        size="small"
+                        variant={isSelected ? 'contained' : 'outlined'}
+                        onClick={() => {
+                          onSelectStory(story.id);
+                          onClose();
+                        }}
+                      >
+                        {isSelected ? 'Activo' : 'Cargar'}
+                      </CustomButton>
+                    </Box>
                   </Paper>
                 );
               })
             )}
-          </List>
+          </Box>
         )}
       </Box>
     </CustomModal>

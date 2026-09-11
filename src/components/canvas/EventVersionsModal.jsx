@@ -15,6 +15,7 @@ import RestoreIcon from '@mui/icons-material/Restore';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import CustomModal from '../common/CustomModal';
 import CustomButton from '../common/CustomButton';
+import CustomHelpTooltip from '../common/CustomHelpTooltip';
 
 export default function EventVersionsModal({
   open,
@@ -29,15 +30,27 @@ export default function EventVersionsModal({
     <CustomModal
       open={open}
       onClose={onClose}
-      title="Historial de Versiones del Evento"
-      subtitle={`Copias de seguridad registradas para: "${eventTitle || ''}"`}
+      title="Historial de Versiones (Snapshots)"
+      subtitle={`Copias de seguridad de: "${eventTitle || ''}"`}
       icon={HistoryIcon}
       maxWidth="sm"
     >
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Typography variant="body2" color="text.secondary">
-          Puedes revisar los estados anteriores guardados y restaurar cualquier versión con un solo clic (RF-4.6).
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
+          <Typography variant="body2" color="text.secondary">
+            Revisa estados previos del evento.
+          </Typography>
+          <CustomHelpTooltip
+            title="¿Qué es el historial de versiones?"
+            content={
+              <>
+                Aquí encontrarás los estados previos guardados de este evento. 
+                <br /><br />
+                <strong>Acción irreversible:</strong> Al presionar "Restaurar", el estado actual del evento se reemplazará por esta versión.
+              </>
+            }
+          />
+        </Box>
 
         {loading ? (
           <Box sx={{ p: 4, display: 'flex', justifyContent: 'center' }}>
@@ -47,7 +60,7 @@ export default function EventVersionsModal({
           <Box sx={{ p: 4, textAlign: 'center', bgcolor: 'background.subtle', borderRadius: 2 }}>
             <HistoryIcon sx={{ fontSize: 36, color: 'text.disabled', mb: 1 }} />
             <Typography variant="body2" color="text.secondary">
-              No hay versiones históricas adicionales registradas para este evento.
+              No hay versiones históricas registradas para este evento.
             </Typography>
           </Box>
         ) : (
@@ -68,14 +81,14 @@ export default function EventVersionsModal({
                     border: 1,
                     borderColor: isLatest ? 'primary.main' : 'divider',
                     borderRadius: 2,
-                    bgcolor: 'background.paper',
+                    bgcolor: isLatest ? 'primary.50' : 'background.paper',
                   }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Chip
                         icon={<BookmarkIcon fontSize="inherit" />}
-                        label={`Versión ${ver.version_number}`}
+                        label={isLatest ? 'Versión Actual / Último respaldo' : `Versión ${ver.version_number}`}
                         size="small"
                         color={isLatest ? 'primary' : 'default'}
                         sx={{ fontWeight: 700 }}
@@ -102,18 +115,15 @@ export default function EventVersionsModal({
                     </Typography>
                   )}
 
-                  <Box sx={{ p: 1.2, bgcolor: 'background.subtle', borderRadius: 1.5, mt: 1 }}>
+                  <Box sx={{ p: 1.2, bgcolor: 'background.paper', borderRadius: 1.5, mt: 1, border: 1, borderColor: 'divider' }}>
                     <Typography variant="caption" sx={{ fontWeight: 700, display: 'block' }}>
-                      Título guardado: {snapshot.title || 'Sin título'}
+                      Título: {snapshot.title || 'Sin título'}
                     </Typography>
                     {snapshot.summary && (
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.3 }}>
                         {snapshot.summary}
                       </Typography>
                     )}
-                    <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.3 }}>
-                      Orden Secuencial: #{snapshot.order_index} | Posición: ({Math.round(snapshot.pos_x || 0)}, {Math.round(snapshot.pos_y || 0)})
-                    </Typography>
                   </Box>
                 </Paper>
               );

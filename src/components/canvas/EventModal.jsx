@@ -243,7 +243,14 @@ export default function EventModal({
 
         {/* Versioning options if editing (RF-4.6) */}
         {isEditing && (
-          <Box sx={{ p: 1.5, bgcolor: 'background.subtle', borderRadius: 2, border: 1, borderColor: 'divider' }}>
+          <Box sx={{ p: 2, bgcolor: 'background.subtle', borderRadius: 2, border: 1, borderColor: 'divider' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <BookmarkBorderIcon color="primary" fontSize="small" />
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                Protección de cambios (Respaldo)
+              </Typography>
+            </Box>
+            
             <FormControlLabel
               control={
                 <Switch
@@ -253,25 +260,21 @@ export default function EventModal({
                 />
               }
               label={
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Crear copia de seguridad histórica antes de guardar
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Te permitirá restaurar el estado anterior en cualquier momento (RF-4.6)
-                  </Typography>
-                </Box>
+                <Typography variant="body2">
+                  Guardar copia de seguridad antes de aplicar cambios
+                </Typography>
               }
             />
+            
             {createBackup && (
               <TextField
                 label="Nota del respaldo (opcional)"
-                placeholder="Ej: Estado antes de cambiar el giro dramático"
+                placeholder="Ej: Ajustando la motivación del personaje"
                 value={backupNote}
                 onChange={(e) => setBackupNote(e.target.value)}
                 size="small"
                 fullWidth
-                sx={{ mt: 1.5 }}
+                sx={{ mt: 1.5, bgcolor: 'background.paper' }}
               />
             )}
           </Box>
