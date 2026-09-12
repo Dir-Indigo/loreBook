@@ -21,6 +21,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import CheckIcon from '@mui/icons-material/Check';
 import DashboardIcon from '@mui/icons-material/Dashboard';
+import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import LayersIcon from '@mui/icons-material/Layers';
 import { useLoreTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -165,6 +166,23 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
           )}
 
           {/* Theme Selector (RF-5.4, RF-5.5) */}
+          {activeStory && (
+            <Tooltip title="Gestión avanzada de personajes">
+              <IconButton
+                onClick={() => router.push(`/characters/${activeStory.id}`)}
+                size="small"
+                sx={{
+                  border: 1,
+                  borderColor: 'divider',
+                  borderRadius: 1.5,
+                  p: 0.8,
+                }}
+              >
+                <PeopleOutlineIcon fontSize="small" color="action" />
+              </IconButton>
+            </Tooltip>
+          )}
+
           <Tooltip title="Cambiar Paleta de Color Mate">
             <IconButton
               onClick={handleOpenThemeMenu}

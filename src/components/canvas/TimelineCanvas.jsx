@@ -181,8 +181,11 @@ export default function TimelineCanvas({
 
   // Sync state when props change
   useEffect(() => {
-    setNodes(initialNodes);
-  }, [initialNodes, setNodes]);
+    // Only update if not currently dragging to avoid overwriting user changes
+    if (!isDraggingRef.current) {
+        setNodes(initialNodes);
+    }
+  }, [initialNodes]); // Removed setNodes from dependency array as it is stable
 
   useEffect(() => {
     setEdges(initialEdges);
@@ -307,14 +310,27 @@ export default function TimelineCanvas({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedNodeId, events, onDuplicateEvent]);
 
+  const isDraggingRef = useRef(false);
+
+  // Handle Drag Start
+  const handleNodeDragStart = useCallback(() => {
+    isDraggingRef.current = true;
+  }, []);
+
   // Handle Drag End to persist (X, Y) coordinates
   const handleNodeDragStop = useCallback(
     (event, node) => {
+      isDraggingRef.current = false;
+      // Update local ReactFlow state optimistically to prevent snap-back
+      setNodes((nds) => 
+        nds.map((n) => (n.id === node.id ? { ...n, position: node.position } : n))
+      );
+
       if (onNodeDragStop) {
         onNodeDragStop(node.id, node.position.x, node.position.y);
       }
     },
-    [onNodeDragStop]
+    [onNodeDragStop, setNodes]
   );
 
   const handleMove = useCallback((evt, viewport) => {
@@ -486,6 +502,7 @@ export default function TimelineCanvas({
         edgesReconnectable={true}
         reconnectRadius={30}
         onEdgesDelete={handleEdgesDelete}
+        onNodeDragStart={handleNodeDragStart}
         onNodeDragStop={handleNodeDragStop}
         onSelectionChange={onSelectionChange}
         onMove={handleMove}

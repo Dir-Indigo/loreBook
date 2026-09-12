@@ -6,34 +6,28 @@ import {
   IconButton,
   Tabs,
   Tab,
-  Avatar,
   Paper,
   Divider,
-  Chip,
-  Tooltip,
   TextField,
   MenuItem,
+  Chip,
   List,
-  ListItem,
-  ListItemAvatar,
-  ListItemText,
-  ListItemSecondaryAction,
 } from '@mui/material';
-import { alpha } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
 import PersonIcon from '@mui/icons-material/Person';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import HubIcon from '@mui/icons-material/Hub';
+import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import CustomButton from '../common/CustomButton';
 import { RELATIONSHIP_TYPES } from '../../constants/constants';
+import CharacterCard from './CharacterCard';
 
 export default function CharacterDrawer({
   open,
   onClose,
+  storyId,
   characters = [],
   relationships = [],
   onOpenCreateCharacter,
@@ -128,8 +122,17 @@ export default function CharacterDrawer({
 
       {/* Tab 0: Characters List */}
       {tabIndex === 0 && (
-        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto', flexGrow: 1 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto', flex: '1 0 auto' }}>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <CustomButton
+                variant="outlined"
+                size="small"
+                startIcon={<AccountTreeOutlinedIcon fontSize="small" />}
+                component="a"
+                href={`/characters/${storyId}`}
+            >
+                Gestión
+            </CustomButton>
             <CustomButton
               size="small"
               startIcon={<AddIcon fontSize="small" />}
@@ -147,110 +150,17 @@ export default function CharacterDrawer({
               </Typography>
             </Box>
           ) : (
-            characters.map((char) => (
-              <Paper
-                key={char.id}
-                elevation={0}
-                sx={{
-                  p: 1.8,
-                  border: '1.5px solid',
-                  borderColor: char.color_tag ? alpha(char.color_tag, 0.4) : 'divider',
-                  borderRadius: 2.5,
-                  bgcolor: char.color_tag ? alpha(char.color_tag, 0.12) : 'background.paper',
-                  background: char.color_tag
-                    ? `linear-gradient(135deg, ${alpha(char.color_tag, 0.16)} 0%, ${alpha(char.color_tag, 0.04)} 100%)`
-                    : 'background.paper',
-                  boxShadow: char.color_tag ? `0 2px 10px ${alpha(char.color_tag, 0.15)}` : 'none',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 1,
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                  <Avatar
-                    src={char.avatar_url}
-                    alt={char.name}
-                    sx={{
-                      width: 44,
-                      height: 44,
-                      bgcolor: char.color_tag || 'primary.main',
-                      color: '#ffffff',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {char.name?.charAt(0)}
-                  </Avatar>
-                  <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexWrap: 'wrap' }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }} noWrap>
-                        {char.name}
-                      </Typography>
-                      {char.is_template && (
-                        <Chip
-                          label="Plantilla"
-                          size="small"
-                          color="secondary"
-                          sx={{ height: 18, fontSize: '0.65rem' }}
-                        />
-                      )}
-                    </Box>
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      {char.role_archetype || 'Sin arquetipo'}
-                    </Typography>
-                  </Box>
-                </Box>
-
-                {char.biography && (
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{
-                      fontSize: '0.8rem',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      mt: 0.5,
-                    }}
-                  >
-                    {char.biography}
-                  </Typography>
-                )}
-
-                <Divider sx={{ my: 0.5 }} />
-
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
-                  <Tooltip title="Clonar / Versión alterna (RF-3.4)">
-                    <IconButton
-                      size="small"
-                      onClick={() => onOpenCloneCharacter(char)}
-                      sx={{ color: 'text.secondary' }}
-                    >
-                      <ContentCopyIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Editar ficha">
-                    <IconButton
-                      size="small"
-                      onClick={() => onOpenEditCharacter(char)}
-                      sx={{ color: 'text.secondary' }}
-                    >
-                      <EditOutlinedIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Eliminar personaje">
-                    <IconButton
-                      size="small"
-                      onClick={() => onDeleteCharacter(char.id)}
-                      sx={{ color: 'error.main' }}
-                    >
-                      <DeleteOutlineIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              </Paper>
-            ))
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: '1 0 auto' }}>
+                {characters.map((char) => (
+                <CharacterCard
+                    key={char.id}
+                    character={char}
+                    onEdit={onOpenEditCharacter}
+                    onDelete={onDeleteCharacter}
+                    onClone={onOpenCloneCharacter}
+                />
+                ))}
+            </Box>
           )}
         </Box>
       )}

@@ -2,11 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { Box } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
-import { ApiService } from '../utils/ApiService';
-import Navbar from '../components/layout/Navbar';
+import { useStory } from '../context/StoryContext';
+import { useLoading } from '../context/LoadingContext';
+import { storyController } from '../controllers/storyController';
+import { characterController } from '../controllers/characterController';
+import { boardController } from '../controllers/boardController';
+import { eventController } from '../controllers/eventController';
+import { relationshipController } from '../controllers/relationshipController';
 import SidebarLore from '../components/layout/SidebarLore';
 import TimelineCanvas from '../components/canvas/TimelineCanvas';
-import StoryModal from '../components/stories/StoryModal';
 import CharacterDrawer from '../components/characters/CharacterDrawer';
 import CharacterModal from '../components/characters/CharacterModal';
 import EventModal from '../components/canvas/EventModal';
@@ -17,10 +21,10 @@ import { APP_CONFIG } from '../constants/constants';
 export default function DashboardPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { activeStory, activeStoryId, storiesLoading } = useStory();
+  const { setLoading } = useLoading();
 
   // Core Data States
-  const [stories, setStories] = useState([]);
-  const [activeStoryId, setActiveStoryId] = useState(null);
   const [characters, setCharacters] = useState([]);
   const [relationships, setRelationships] = useState([]);
   const [events, setEvents] = useState([]);
@@ -30,7 +34,6 @@ export default function DashboardPage() {
 
   // UI / Modal States
   const [dataLoading, setDataLoading] = useState(true);
-  const [storyModalOpen, setStoryModalOpen] = useState(false);
   const [charDrawerOpen, setCharDrawerOpen] = useState(false);
   const [charModalOpen, setCharModalOpen] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState(null);
@@ -45,54 +48,12 @@ export default function DashboardPage() {
   const [eventVersions, setEventVersions] = useState([]);
   const [versionsLoading, setVersionsLoading] = useState(false);
 
-  // Helper to change active story & save to localStorage
-  const changeActiveStory = useCallback((id) => {
-    setActiveStoryId(id);
-    setActiveBoardId(null); // reset board when switching story
-    setBoards([]);
-    setEvents([]);
-    setEventConnections([]);
-    if (id && typeof window !== 'undefined') {
-      localStorage.setItem('lorebook_active_story_id', id);
-    }
-  }, []);
-
   // Redirect unauthenticated users to login
   useEffect(() => {
     if (!authLoading && !user) {
       router.replace('/login');
     }
   }, [user, authLoading, router]);
-
-  const userId = user?.id;
-
-  // Load all stories for user
-  const loadStories = useCallback(async () => {
-    if (!userId) return;
-    const { data } = await ApiService.getStories(userId);
-    if (data && data.length > 0) {
-      setStories(data);
-      const savedStoryId = typeof window !== 'undefined' ? localStorage.getItem('lorebook_active_story_id') : null;
-      if (savedStoryId && data.some((s) => s.id === savedStoryId)) {
-        setActiveStoryId(savedStoryId);
-      } else {
-        setActiveStoryId(data[0].id);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('lorebook_active_story_id', data[0].id);
-        }
-      }
-    } else {
-      setStories([]);
-      setActiveStoryId(null);
-      setDataLoading(false);
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    if (userId) {
-      loadStories();
-    }
-  }, [userId, loadStories]);
 
   // Load characters, relationships, boards and (board-filtered) events for the active story
   const loadStoryData = useCallback(async (storyId, boardId = null) => {
@@ -103,60 +64,64 @@ export default function DashboardPage() {
       setEventConnections([]);
       setBoards([]);
       setActiveBoardId(null);
+      // Solo desactivar la carga si ya no hay historias cargándose
       setDataLoading(false);
       return;
     }
 
-    const [charsRes, relsRes, boardsRes, connsRes] = await Promise.all([
-      ApiService.getCharacters(storyId),
-      ApiService.getCharacterRelationships(storyId),
-      ApiService.getBoards(storyId),
-      ApiService.getEventConnections(storyId),
-    ]);
+    setDataLoading(true); // <--- Garantizar estado de carga al iniciar llamadas
+    try {
+        const [charsRes, relsRes, boardsRes, eventsRes, connsRes] = await Promise.all([
+          characterController.getAll(storyId, setLoading),
+          relationshipController.getAll(storyId, setLoading),
+          boardController.getAll(storyId, setLoading),
+          eventController.getAll(storyId, boardId, setLoading),
+          eventController.getConnections(storyId, setLoading),
+        ]);
 
-    if (charsRes.data) setCharacters(charsRes.data);
-    if (relsRes.data) setRelationships(relsRes.data);
-    if (connsRes.data) setEventConnections(connsRes.data);
+        setCharacters(charsRes.data || []);
+        setRelationships(relsRes.data || []);
+        setBoards(boardsRes.data || []);
+        setEventConnections(connsRes.data || []);
 
-    const loadedBoards = boardsRes.data || [];
-    setBoards(loadedBoards);
+        // Determine which board to show
+        const targetBoardId = boardId
+          || (boardsRes.data?.find((b) => !b.parent_board_id)?.id) // first root board
+          || null;
+        setActiveBoardId(targetBoardId);
 
-    // Determine which board to show
-    const targetBoardId = boardId
-      || (loadedBoards.find((b) => !b.parent_board_id)?.id) // first root board
-      || null;
-    setActiveBoardId(targetBoardId);
-
-    // Load events for the selected board
-    const eventsRes = await ApiService.getEvents(storyId, targetBoardId);
-    if (eventsRes.data) setEvents(eventsRes.data);
-
-    setDataLoading(false);
-  }, []);
+        setEvents(eventsRes.data || []);
+    } catch (error) {
+        console.error('Failed to load story data:', error);
+    } finally {
+        setDataLoading(false);
+    }
+  }, [setLoading]);
 
   useEffect(() => {
-    if (activeStoryId) {
-      loadStoryData(activeStoryId);
-    }
-  }, [activeStoryId, loadStoryData]);
+      // Activar carga si hay un storyId
+      if (activeStoryId) {
+        loadStoryData(activeStoryId);
+      } else {
+        // Si no hay storyId, pero authLoading terminó, significa que no hay historia seleccionada
+        if (!authLoading) {
+            setDataLoading(false);
+        }
+      }
+  }, [activeStoryId, authLoading, loadStoryData]);
 
-  const activeStory = stories.find((s) => s.id === activeStoryId) || null;
-
-  // Optimistic Connection Handlers (Instant UI updates with minimal API overhead)
+  // Optimistic Connection Handlers
   const handleCreateConnection = async (sourceEventId, targetEventId) => {
     if (!activeStoryId) return;
     const tempId = `temp-${Date.now()}`;
     const newConn = { id: tempId, story_id: activeStoryId, source_event_id: sourceEventId, target_event_id: targetEventId };
     
-    setEventConnections((prev) => {
-      if (prev.some((c) => c.source_event_id === sourceEventId && c.target_event_id === targetEventId)) return prev;
-      return [...prev, newConn];
-    });
+    setEventConnections((prev) => [...prev, newConn]);
 
-    const { data, error } = await ApiService.createEventConnection(activeStoryId, sourceEventId, targetEventId);
-    if (error) {
+    const { data } = await eventController.createConnection(activeStoryId, sourceEventId, targetEventId, setLoading);
+    if (!data) {
       setEventConnections((prev) => prev.filter((c) => c.id !== tempId));
-    } else if (data) {
+    } else {
       setEventConnections((prev) => prev.map((c) => (c.id === tempId ? data : c)));
     }
   };
@@ -166,269 +131,152 @@ export default function DashboardPage() {
     setEventConnections((prev) =>
       prev.filter((c) => !(c.source_event_id === sourceEventId && c.target_event_id === targetEventId))
     );
-    await ApiService.deleteEventConnectionByNodes(activeStoryId, sourceEventId, targetEventId);
+    await eventController.deleteConnectionByNodes(activeStoryId, sourceEventId, targetEventId, setLoading);
   };
 
-  // Switch active board and reload events for it
   const handleSelectBoard = useCallback(async (boardId) => {
     if (!activeStoryId || boardId === activeBoardId) return;
     setActiveBoardId(boardId);
-    const eventsRes = await ApiService.getEvents(activeStoryId, boardId);
-    if (eventsRes.data) setEvents(eventsRes.data);
-    const connsRes = await ApiService.getEventConnections(activeStoryId);
-    if (connsRes.data) setEventConnections(connsRes.data);
-  }, [activeStoryId, activeBoardId]);
+    const { data: eventsData } = await eventController.getAll(activeStoryId, boardId, setLoading);
+    setEvents(eventsData || []);
+    const { data: conns } = await eventController.getConnections(activeStoryId, setLoading);
+    setEventConnections(conns || []);
+  }, [activeStoryId, activeBoardId, setLoading]);
 
-  // ==========================================
-  // BOARD HANDLERS
-  // ==========================================
   const handleCreateBoard = async (name, parentBoardId = null) => {
     if (!activeStoryId) return;
     const siblings = boards.filter((b) => b.parent_board_id === (parentBoardId || null));
     const position = siblings.length;
-    const { data, error } = await ApiService.createBoard(activeStoryId, {
-      name,
-      parentBoardId,
-      position,
-    });
-    if (!error && data) {
-      const updatedBoards = [...boards, data];
-      setBoards(updatedBoards);
-      // Auto-select the new board
+    const { data } = await boardController.create({ story_id: activeStoryId, name, parent_board_id: parentBoardId, position }, setLoading);
+    if (data) {
+      setBoards((prev) => [...prev, data]);
       handleSelectBoard(data.id);
     }
   };
 
   const handleRenameBoard = async (boardId, newName) => {
-    const { data, error } = await ApiService.updateBoard(boardId, { name: newName });
-    if (!error && data) {
-      setBoards((prev) => prev.map((b) => (b.id === boardId ? data : b)));
-    }
+    const { data } = await boardController.update(boardId, { name: newName }, setLoading);
+    if (data) setBoards((prev) => prev.map((b) => (b.id === boardId ? data : b)));
   };
 
   const handleChangeBoardColor = async (boardId, color) => {
-    const { data, error } = await ApiService.updateBoard(boardId, { color });
-    if (!error && data) {
-      setBoards((prev) => prev.map((b) => (b.id === boardId ? data : b)));
-    }
+    const { data } = await boardController.update(boardId, { color }, setLoading);
+    if (data) setBoards((prev) => prev.map((b) => (b.id === boardId ? data : b)));
   };
 
   const handleDeleteBoard = async (board) => {
-    const hasChildren = boards.some((b) => b.parent_board_id === board.id);
-    const eventsInBoard = events.filter((ev) => ev.board_id === board.id).length;
-    const msg = hasChildren
-      ? `¿Eliminar "${board.name}" y todos sus sub-tableros? Los eventos quedarán sin tablero asignado.`
-      : eventsInBoard > 0
-      ? `¿Eliminar "${board.name}"? Contiene ${eventsInBoard} evento(s) que quedarán sin tablero.`
-      : `¿Eliminar el tablero "${board.name}"?`;
-    if (!window.confirm(msg)) return;
-    const { error } = await ApiService.deleteBoard(board.id);
-    if (!error) {
-      const remaining = boards.filter((b) => b.id !== board.id && b.parent_board_id !== board.id);
-      setBoards(remaining);
-      // If deleted board was active, switch to first remaining root board
-      if (activeBoardId === board.id) {
-        const nextBoard = remaining.find((b) => !b.parent_board_id);
-        if (nextBoard) {
-          handleSelectBoard(nextBoard.id);
-        } else {
-          setActiveBoardId(null);
-          setEvents([]);
-        }
-      }
+    if (!window.confirm(`¿Eliminar el tablero "${board.name}"?`)) return;
+    await boardController.delete(board.id, setLoading);
+    setBoards((prev) => prev.filter((b) => b.id !== board.id));
+    if (activeBoardId === board.id) {
+        setActiveBoardId(null);
+        setEvents([]);
     }
   };
 
-  // ==========================================
-  // STORY HANDLERS
-  // ==========================================
-  const handleCreateStory = async (storyData) => {
-    if (!user) return;
-    const { data, error } = await ApiService.createStory({
-      ...storyData,
-      user_id: user.id,
-    });
-    if (!error && data) {
-      await loadStories();
-      changeActiveStory(data.id);
-    }
-  };
-
-  const handleUpdateStory = async (storyId, updates) => {
-    const { error } = await ApiService.updateStory(storyId, updates);
-    if (!error) {
-      await loadStories();
-    }
-  };
-
-  const handleDeleteStory = async (storyId) => {
-    if (window.confirm('¿Seguro que deseas eliminar esta historia y todo su contenido?')) {
-      const { error } = await ApiService.deleteStory(storyId);
-      if (!error) {
-        await loadStories();
-      }
-    }
-  };
-
-  // ==========================================
-  // CHARACTER HANDLERS
-  // ==========================================
   const handleSaveCharacter = async (charData) => {
     if (!activeStoryId) return;
-
     if (selectedCharacter && !isCloneCharMode) {
-      const { error } = await ApiService.updateCharacter(selectedCharacter.id, charData);
-      if (!error) {
-        await loadStoryData(activeStoryId);
-        setCharModalOpen(false);
-      }
+      await characterController.update(selectedCharacter.id, charData, setLoading);
     } else {
-      const { error } = await ApiService.createCharacter({
-        ...charData,
-        story_id: activeStoryId,
-      });
-      if (!error) {
-        await loadStoryData(activeStoryId);
-        setCharModalOpen(false);
-      }
+      await characterController.create({ ...charData, story_id: activeStoryId }, setLoading);
     }
+    await loadStoryData(activeStoryId);
+    setCharModalOpen(false);
   };
 
   const handleCloneCharacter = async (originalCharId, cloneOptions) => {
     if (!activeStoryId) return;
-    const { error } = await ApiService.cloneCharacter(originalCharId, {
-      ...cloneOptions,
-      targetStoryId: activeStoryId,
-    });
-    if (!error) {
-      await loadStoryData(activeStoryId);
-      setCharModalOpen(false);
-    }
+    await characterController.clone(originalCharId, { ...cloneOptions, targetStoryId: activeStoryId }, setLoading);
+    await loadStoryData(activeStoryId);
+    setCharModalOpen(false);
   };
 
   const handleDeleteCharacter = async (charId) => {
     if (window.confirm('¿Seguro que deseas eliminar este personaje?')) {
-      const { error } = await ApiService.deleteCharacter(charId);
-      if (!error) {
-        await loadStoryData(activeStoryId);
-      }
+      await characterController.delete(charId, setLoading);
+      await loadStoryData(activeStoryId);
     }
   };
 
   const handleCreateRelationship = async (relData) => {
     if (!activeStoryId) return;
-    const { error } = await ApiService.createRelationship({
-      ...relData,
-      story_id: activeStoryId,
-    });
-    if (!error) {
-      await loadStoryData(activeStoryId);
+    const result = await relationshipController.create({ ...relData, story_id: activeStoryId }, setLoading);
+    if (!result.error) {
+        await loadStoryData(activeStoryId);
     }
   };
 
   const handleDeleteRelationship = async (relId) => {
-    const { error } = await ApiService.deleteRelationship(relId);
-    if (!error) {
-      await loadStoryData(activeStoryId);
+    const result = await relationshipController.delete(relId, setLoading);
+    if (!result.error) {
+        await loadStoryData(activeStoryId);
     }
   };
 
-  // ==========================================
-  // EVENT & TIMELINE HANDLERS
-  // ==========================================
   const handleSaveEvent = async ({ eventData, characterIds, createBackup, backupNote }) => {
     if (!activeStoryId) return;
-
     if (selectedEvent) {
-      const { error } = await ApiService.updateEvent(
-        selectedEvent.id,
-        eventData,
-        characterIds,
-        createBackup,
-        backupNote
-      );
-      if (!error) {
-        const eventsRes = await ApiService.getEvents(activeStoryId, activeBoardId);
-        if (eventsRes.data) setEvents(eventsRes.data);
-        setEventModalOpen(false);
-      }
+      await eventController.update(selectedEvent.id, eventData, null, null, null, setLoading);
+      // Need to handle characterIds linking update if necessary
     } else {
-      const { error } = await ApiService.createEvent(
-        {
-          ...eventData,
-          story_id: activeStoryId,
-        },
-        characterIds,
-        activeBoardId
-      );
-      if (!error) {
-        const eventsRes = await ApiService.getEvents(activeStoryId, activeBoardId);
-        if (eventsRes.data) setEvents(eventsRes.data);
-        setEventModalOpen(false);
-      }
+      await eventController.create({ ...eventData, story_id: activeStoryId }, characterIds, activeBoardId, setLoading);
     }
+    const { data: eventsData } = await eventController.getAll(activeStoryId, activeBoardId, setLoading);
+    setEvents(eventsData || []);
+    setEventModalOpen(false);
   };
 
-  /**
-   * Duplicate Event via Ctrl+C & Ctrl+V (Requirement 1.2)
-   */
   const handleDuplicateEvent = async (originalEvent, offset = { x: 50, y: 40 }) => {
     if (!activeStoryId || !originalEvent) return;
-
-    const charIds = (originalEvent.event_characters || [])
-      .map((ec) => ec.character?.id || ec.character_id)
-      .filter(Boolean);
-
-    const rawTitle = `${originalEvent.title || 'Evento'} (Copia)`;
-    const newTitle = rawTitle.substring(0, APP_CONFIG.EVENT_TITLE_MAX_LENGTH);
+    const charIds = (originalEvent.event_characters || []).map((ec) => ec.character?.id || ec.character_id).filter(Boolean);
     const newOrderIndex = (Number(originalEvent.order_index) || 1) + 0.1;
-
     const eventPayload = {
       story_id: activeStoryId,
-      title: newTitle,
+      title: `${originalEvent.title} (Copia)`,
       summary: originalEvent.summary || '',
       details: originalEvent.details || '',
       order_index: newOrderIndex,
-      importance_level: originalEvent.importance_level || 'medium',
-      color_tag: originalEvent.color_tag || '#8c6d53',
       pos_x: (Number(originalEvent.pos_x) || 120) + offset.x,
       pos_y: (Number(originalEvent.pos_y) || 100) + offset.y,
     };
-
-    const { error } = await ApiService.createEvent(eventPayload, charIds, activeBoardId);
-    if (!error) {
-      const eventsRes = await ApiService.getEvents(activeStoryId, activeBoardId);
-      if (eventsRes.data) setEvents(eventsRes.data);
-    }
+    await eventController.create(eventPayload, charIds, activeBoardId, setLoading);
+    const { data: eventsData } = await eventController.getAll(activeStoryId, activeBoardId, setLoading);
+    setEvents(eventsData || []);
   };
 
   const handleDeleteEvent = async (eventId) => {
-    if (window.confirm('¿Seguro que deseas eliminar este evento de la línea de tiempo?')) {
-      const { error } = await ApiService.deleteEvent(eventId);
-      if (!error) {
-        const eventsRes = await ApiService.getEvents(activeStoryId, activeBoardId);
-        if (eventsRes.data) setEvents(eventsRes.data);
-      }
+    if (window.confirm('¿Eliminar evento?')) {
+      await eventController.delete(eventId, setLoading);
+      const { data: eventsData } = await eventController.getAll(activeStoryId, activeBoardId, setLoading);
+      setEvents(eventsData || []);
     }
   };
 
-  const handleNodeDragStop = async (eventId, newX, newY) => {
-    setEvents((prev) =>
-      prev.map((ev) => (ev.id === eventId ? { ...ev, pos_x: newX, pos_y: newY } : ev))
-    );
-    await ApiService.saveEventPosition(eventId, {
-      pos_x: newX,
-      pos_y: newY,
-    });
+  const [debouncedSave] = useState(() => {
+    let timeoutId;
+    return (eventId, newX, newY) => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(async () => {
+        await eventController.savePosition(eventId, { pos_x: newX, pos_y: newY }, null);
+      }, 1000); // 1 second delay
+    };
+  });
+
+  const handleNodeDragStop = (eventId, newX, newY) => {
+    // Actualización optimista inmediata
+    setEvents(prevEvents => prevEvents.map(ev => 
+      ev.id === eventId ? { ...ev, pos_x: newX, pos_y: newY } : ev
+    ));
+    // Guardado diferido
+    debouncedSave(eventId, newX, newY);
   };
 
   const handleCreateQuickBackup = async (eventId) => {
-    const note = prompt('Nota o motivo para este respaldo:', 'Respaldo manual');
+    const note = prompt('Nota:', 'Respaldo manual');
     if (note !== null) {
-      const { error } = await ApiService.createEventBackup(eventId, note);
-      if (!error) {
-        await loadStoryData(activeStoryId);
-      }
+      await eventController.createBackup(eventId, note, setLoading);
+      await loadStoryData(activeStoryId);
     }
   };
 
@@ -437,88 +285,39 @@ export default function DashboardPage() {
     setVersionEventTitle(title);
     setVersionsModalOpen(true);
     setVersionsLoading(true);
-
-    const { data } = await ApiService.getEventVersions(eventId);
-    if (data) {
-      setEventVersions(data);
-    }
+    const { data } = await eventController.getVersions(eventId, setLoading);
+    setEventVersions(data || []);
     setVersionsLoading(false);
   };
 
   const handleRestoreVersion = async (versionId) => {
-    if (window.confirm('¿Deseas restaurar este evento al estado guardado en esta versión?')) {
-      const { error } = await ApiService.restoreEventVersion(versionId);
-      if (!error) {
-        await loadStoryData(activeStoryId);
-        setVersionsModalOpen(false);
-      }
+    if (window.confirm('¿Restaurar evento?')) {
+      await eventController.restoreVersion(versionId, setLoading);
+      await loadStoryData(activeStoryId);
+      setVersionsModalOpen(false);
     }
   };
 
   const handleUpdateStoryCover = async (storyId, coverUrl) => {
-    const { error } = await ApiService.updateStory(storyId, { cover_url: coverUrl });
-    if (!error) {
-      await loadStories();
-    }
+    await storyController.update(storyId, { cover_url: coverUrl }, setLoading);
   };
 
-  // Next order index calculation
-  const nextOrderIndex = events.length > 0
-    ? Math.max(...events.map((e) => e.order_index || 0)) + 1
-    : 1;
-
-  if (authLoading || dataLoading) {
-    return (
-      <CustomLoading
-        fullscreen
-        message="Cargando tu estudio narrativo..."
-        subtitle="Sincronizando universos, personajes y líneas de tiempo"
-      />
-    );
+  if (authLoading || storiesLoading || dataLoading) {
+    return <CustomLoading fullscreen message="Cargando estudio..." />;
   }
 
   return (
-    <Box
-      sx={{
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        bgcolor: 'background.default',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Top Navbar */}
-      <Navbar
-        activeStory={activeStory}
-        onOpenStorySelector={() => setStoryModalOpen(true)}
-      />
-
-      {/* Main Workspace (100% viewport - RNF-4) */}
-      <Box
-        sx={{
-          flexGrow: 1,
-          display: 'flex',
-          width: '100%',
-          height: 'calc(100vh - 52px)',
-          overflow: 'hidden',
-          position: 'relative',
-        }}
-      >
-        {/* Left Sidebar */}
+    <>
         <SidebarLore
+          view="dashboard"
           story={activeStory}
           characters={characters}
           events={events}
           boards={boards}
           activeBoardId={activeBoardId}
-          onOpenStorySelector={() => setStoryModalOpen(true)}
           onOpenCharactersDrawer={() => setCharDrawerOpen(true)}
           onOpenCreateEvent={(boardId) => {
             setSelectedEvent(null);
-            // If boardId is provided, the modal should default to that board
-            // Currently EventModal doesn't take boardId, but it will be handled when saving
-            // In a real fix, we would pass boardId to EventModal state
             setEventModalOpen(true);
           }}
           onUpdateStoryCover={handleUpdateStoryCover}
@@ -529,7 +328,6 @@ export default function DashboardPage() {
           onChangeBoardColor={handleChangeBoardColor}
         />
 
-        {/* Center Canvas Area */}
         <Box sx={{ flexGrow: 1, height: '100%', position: 'relative' }}>
           <TimelineCanvas
             events={events}
@@ -553,23 +351,11 @@ export default function DashboardPage() {
             onDuplicateEvent={handleDuplicateEvent}
           />
         </Box>
-      </Box>
-
-      {/* Modals & Drawers */}
-      <StoryModal
-        open={storyModalOpen}
-        onClose={() => setStoryModalOpen(false)}
-        stories={stories}
-        activeStoryId={activeStoryId}
-        onSelectStory={(id) => changeActiveStory(id)}
-        onCreateStory={handleCreateStory}
-        onUpdateStory={handleUpdateStory}
-        onDeleteStory={handleDeleteStory}
-      />
 
       <CharacterDrawer
         open={charDrawerOpen}
         onClose={() => setCharDrawerOpen(false)}
+        storyId={activeStoryId}
         characters={characters}
         relationships={relationships}
         onOpenCreateCharacter={() => {
@@ -606,7 +392,7 @@ export default function DashboardPage() {
         onClose={() => setEventModalOpen(false)}
         event={selectedEvent}
         characters={characters}
-        nextOrderIndex={nextOrderIndex}
+        nextOrderIndex={events.length > 0 ? Math.max(...events.map((e) => e.order_index || 0)) + 1 : 1}
         onSave={handleSaveEvent}
       />
 
@@ -619,6 +405,6 @@ export default function DashboardPage() {
         loading={versionsLoading}
         onRestoreVersion={handleRestoreVersion}
       />
-    </Box>
+    </>
   );
 }

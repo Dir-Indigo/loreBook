@@ -17,19 +17,32 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const currentProfileIdRef = React.useRef(null); // <--- Añadido para rastrear el ID ya cargado
 
   const fetchProfile = useCallback(async (userId) => {
     if (!userId) {
       setProfile(null);
+      currentProfileIdRef.current = null;
       return null;
     }
-    const { data, error } = await ApiService.getProfile(userId);
+    // Evitar peticiones HTTP duplicadas para el mismo usuario
+    if (currentProfileIdRef.current === userId) {
+      return profile;
+    }
+    currentProfileIdRef.current = userId;
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
     if (!error && data) {
       setProfile(data);
       return data;
+    } else {
+      currentProfileIdRef.current = null; // Resetear en caso de fallo
     }
     return null;
-  }, []);
+  }, [profile]);
 
   useEffect(() => {
     let mounted = true;
@@ -57,18 +70,15 @@ export const AuthProvider = ({ children }) => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        setUser((prevUser) => {
-          if (prevUser?.id === session.user.id) return prevUser;
-          return session.user;
-        });
-        setProfile((prevProfile) => {
-          if (prevProfile?.id === session.user.id) return prevProfile;
-          fetchProfile(session.user.id);
-          return prevProfile;
-        });
+        setUser(session.user);
+        // Evitar el uso de fetchProfile dentro del callback puro de setProfile
+        if (currentProfileIdRef.current !== session.user.id) {
+            await fetchProfile(session.user.id);
+        }
       } else {
         setUser(null);
         setProfile(null);
+        currentProfileIdRef.current = null;
       }
       setLoading(false);
     });

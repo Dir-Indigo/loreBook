@@ -17,6 +17,7 @@ import ColorLensIcon from '@mui/icons-material/ColorLens';
 import CustomModal from '../common/CustomModal';
 import CustomButton from '../common/CustomButton';
 import { CHARACTER_ARCHETYPES, CHARACTER_COLOR_PALETTE } from '../../constants/constants';
+import CustomSpinner from '../common/CustomSpinner';
 
 export default function CharacterModal({
   open,
@@ -24,7 +25,6 @@ export default function CharacterModal({
   character = null,
   onSave,
   onClone,
-  loading = false,
   isCloneMode = false,
 }) {
   const [name, setName] = useState('');
@@ -97,6 +97,7 @@ export default function CharacterModal({
       maxWidth="sm"
     >
       <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+        {/* ... (keep existing form fields) ... */}
         {/* Preview Avatar & Image URL */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, p: 1.5, bgcolor: 'background.subtle', borderRadius: 2 }}>
           <Avatar
@@ -307,19 +308,17 @@ export default function CharacterModal({
             </Box>
           }
         />
-
+        
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.5, mt: 1 }}>
           <CustomButton
             variant="outlined"
             color="inherit"
             onClick={onClose}
-            disabled={loading}
           >
             Cancelar
           </CustomButton>
           <CustomButton
             type="submit"
-            loading={loading}
             startIcon={isCloneMode ? <ContentCopyIcon fontSize="small" /> : undefined}
           >
             {isCloneMode ? 'Confirmar Clonación' : character ? 'Guardar Cambios' : 'Crear Personaje'}
