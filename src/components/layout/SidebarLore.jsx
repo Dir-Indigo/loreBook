@@ -208,6 +208,8 @@ export default function SidebarLore({
         </Typography>
 
         {view === 'dashboard' && (
+          
+          
             <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
                 <CustomButton
                     variant={hasCover ? "contained" : "outlined"}
@@ -252,6 +254,46 @@ export default function SidebarLore({
       </Box>
 
       {/* Conditional Content */}
+      <Box
+        sx={{
+          p: 1.5,
+          pb: 0.5,
+          px: 2,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+          <AccountTreeOutlinedIcon sx={{ fontSize: 14, color: "text.secondary" }} />
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: "uppercase" }}>
+            Lineas Narrativas
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{
+              fontSize: "0.65rem",
+              color: "text.disabled",
+              bgcolor: "background.subtle",
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 0.8,
+              px: 0.6,
+            }}
+          >
+            {boards.length}
+          </Typography>
+        </Box>
+        <Tooltip title="Crear nuevo tablero raiz">
+          <IconButton
+            size="small"
+            onClick={() => handleRequestCreateBoard(null)}
+            sx={{ color: "primary.main", p: 0.3 }}
+          >
+            <AddIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>/mode
       <Box sx={{ flexGrow: 1, overflowY: "auto", px: 1, pb: 2 }}>
         {view === 'dashboard' ? (
             rootBoards.map((board) => (
