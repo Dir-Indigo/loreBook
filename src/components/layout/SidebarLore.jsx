@@ -124,14 +124,17 @@ export default function SidebarLore({
                     </Badge>
                 </IconButton>
                 </Tooltip>
-                <Tooltip title="Crear Evento" placement="right">
-                <IconButton
-                    size="small"
-                    onClick={onOpenCreateEvent}
-                    sx={{ bgcolor: "primary.main", color: "#fff", "&:hover": { bgcolor: "primary.dark" } }}
-                >
-                    <AddIcon fontSize="small" />
-                </IconButton>
+                <Tooltip title={activeBoardId ? "Crear Evento" : "Necesitas una Línea Principal"} placement="right">
+                <span>
+                  <IconButton
+                      size="small"
+                      onClick={() => onOpenCreateEvent && onOpenCreateEvent(activeBoardId)}
+                      disabled={!activeBoardId}
+                      sx={{ bgcolor: activeBoardId ? "primary.main" : "action.disabledBackground", color: activeBoardId ? "#fff" : "text.disabled", "&:hover": { bgcolor: activeBoardId ? "primary.dark" : "action.disabledBackground" } }}
+                  >
+                      <AddIcon fontSize="small" />
+                  </IconButton>
+                </span>
                 </Tooltip>
             </>
         )}
@@ -249,6 +252,27 @@ export default function SidebarLore({
                 >
                     Personajes ({characters.length})
                 </CustomButton>
+                <CustomButton
+                    variant={hasCover ? "contained" : "outlined"}
+                    size="small"
+                    fullWidth
+                    startIcon={<AddIcon fontSize="small" />}
+                    onClick={() => onOpenCreateEvent && onOpenCreateEvent(activeBoardId)}
+                    disabled={!activeBoardId}
+                    sx={{
+                        fontSize: "0.74rem",
+                        py: 0.45,
+                        fontWeight: 700,
+                        bgcolor: hasCover ? "rgba(255, 255, 255, 0.18)" : undefined,
+                        color: hasCover ? "#ffffff" : undefined,
+                        borderColor: hasCover ? "rgba(255, 255, 255, 0.35)" : undefined,
+                        opacity: activeBoardId ? 1 : 0.6,
+                        backdropFilter: hasCover ? "blur(6px)" : "none",
+                        "&:hover": { bgcolor: hasCover ? "rgba(255, 255, 255, 0.32)" : undefined },
+                    }}
+                >
+                    Evento
+                </CustomButton>
             </Box>
         )}
       </Box>
@@ -293,7 +317,7 @@ export default function SidebarLore({
             <AddIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-      </Box>/mode
+      </Box>
       <Box sx={{ flexGrow: 1, overflowY: "auto", px: 1, pb: 2 }}>
         {view === 'dashboard' ? (
             rootBoards.map((board) => (

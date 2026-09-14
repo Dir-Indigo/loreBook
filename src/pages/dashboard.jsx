@@ -55,6 +55,31 @@ export default function DashboardPage() {
     }
   }, [user, authLoading, router]);
 
+  const ensurePrimaryBoard = useCallback(async (storyId = activeStoryId) => {
+    if (!storyId) return null;
+
+    const currentBoards = boards.length ? boards : [];
+    const primaryBoard = currentBoards.find((b) => !b.parent_board_id) || null;
+    if (primaryBoard) {
+      setActiveBoardId(primaryBoard.id);
+      return primaryBoard.id;
+    }
+
+    const { data, error } = await boardController.create({
+      story_id: storyId,
+      name: 'Línea principal',
+      parent_board_id: null,
+      position: 0,
+      color: '#8c6d53',
+    }, setLoading);
+
+    if (error || !data) return null;
+
+    setBoards((prev) => [...prev, data]);
+    setActiveBoardId(data.id);
+    return data.id;
+  }, [activeStoryId, boards, setLoading]);
+
   // Load characters, relationships, boards and (board-filtered) events for the active story
   const loadStoryData = useCallback(async (storyId, boardId = null) => {
     if (!storyId) {
@@ -64,37 +89,49 @@ export default function DashboardPage() {
       setEventConnections([]);
       setBoards([]);
       setActiveBoardId(null);
-      // Solo desactivar la carga si ya no hay historias cargándose
       setDataLoading(false);
       return;
     }
 
-    setDataLoading(true); // <--- Garantizar estado de carga al iniciar llamadas
+    setDataLoading(true);
     try {
-        const [charsRes, relsRes, boardsRes, eventsRes, connsRes] = await Promise.all([
-          characterController.getAll(storyId, setLoading),
-          relationshipController.getAll(storyId, setLoading),
-          boardController.getAll(storyId, setLoading),
-          eventController.getAll(storyId, boardId, setLoading),
-          eventController.getConnections(storyId, setLoading),
-        ]);
+      const [charsRes, relsRes, boardsRes, connsRes] = await Promise.all([
+        characterController.getAll(storyId, setLoading),
+        relationshipController.getAll(storyId, setLoading),
+        boardController.getAll(storyId, setLoading),
+        eventController.getConnections(storyId, setLoading),
+      ]);
 
-        setCharacters(charsRes.data || []);
-        setRelationships(relsRes.data || []);
-        setBoards(boardsRes.data || []);
-        setEventConnections(connsRes.data || []);
+      const existingBoards = boardsRes.data || [];
+      let targetBoardId = boardId || existingBoards.find((b) => !b.parent_board_id)?.id || null;
 
-        // Determine which board to show
-        const targetBoardId = boardId
-          || (boardsRes.data?.find((b) => !b.parent_board_id)?.id) // first root board
-          || null;
-        setActiveBoardId(targetBoardId);
+      if (!targetBoardId) {
+        const { data: createdBoard, error } = await boardController.create({
+          story_id: storyId,
+          name: 'Línea principal',
+          parent_board_id: null,
+          position: 0,
+          color: '#8c6d53',
+        }, setLoading);
 
-        setEvents(eventsRes.data || []);
+        if (!error && createdBoard) {
+          existingBoards.push(createdBoard);
+          targetBoardId = createdBoard.id;
+        }
+      }
+
+      setCharacters(charsRes.data || []);
+      setRelationships(relsRes.data || []);
+      setBoards(existingBoards);
+      setEventConnections(connsRes.data || []);
+      setActiveBoardId(targetBoardId);
+
+      const { data: eventsData } = await eventController.getAll(storyId, targetBoardId, setLoading);
+      setEvents(eventsData || []);
     } catch (error) {
-        console.error('Failed to load story data:', error);
+      console.error('Failed to load story data:', error);
     } finally {
-        setDataLoading(false);
+      setDataLoading(false);
     }
   }, [setLoading]);
 
@@ -150,7 +187,9 @@ export default function DashboardPage() {
     const { data } = await boardController.create({ story_id: activeStoryId, name, parent_board_id: parentBoardId, position }, setLoading);
     if (data) {
       setBoards((prev) => [...prev, data]);
-      handleSelectBoard(data.id);
+      setActiveBoardId(data.id);
+      const { data: eventsData } = await eventController.getAll(activeStoryId, data.id, setLoading);
+      setEvents(eventsData || []);
     }
   };
 
@@ -167,10 +206,23 @@ export default function DashboardPage() {
   const handleDeleteBoard = async (board) => {
     if (!window.confirm(`¿Eliminar el tablero "${board.name}"?`)) return;
     await boardController.delete(board.id, setLoading);
-    setBoards((prev) => prev.filter((b) => b.id !== board.id));
+
+    const remainingBoards = boards.filter((b) => b.id !== board.id);
+    setBoards(remainingBoards);
+
     if (activeBoardId === board.id) {
+      const fallbackId = remainingBoards.some((b) => !b.parent_board_id)
+        ? remainingBoards.find((b) => !b.parent_board_id)?.id
+        : await ensurePrimaryBoard(activeStoryId);
+
+      if (fallbackId) {
+        setActiveBoardId(fallbackId);
+        const { data: fallbackEvents } = await eventController.getAll(activeStoryId, fallbackId, setLoading);
+        setEvents(fallbackEvents || []);
+      } else {
         setActiveBoardId(null);
         setEvents([]);
+      }
     }
   };
 
@@ -216,13 +268,25 @@ export default function DashboardPage() {
 
   const handleSaveEvent = async ({ eventData, characterIds, createBackup, backupNote }) => {
     if (!activeStoryId) return;
+
+    let resolvedBoardId = activeBoardId;
+    if (!resolvedBoardId) {
+      resolvedBoardId = await ensurePrimaryBoard(activeStoryId);
+    }
+
+    if (!resolvedBoardId) {
+      window.alert('Primero crea una línea narrativa principal antes de guardar eventos.');
+      return;
+    }
+
     if (selectedEvent) {
       await eventController.update(selectedEvent.id, eventData, null, null, null, setLoading);
-      // Need to handle characterIds linking update if necessary
     } else {
-      await eventController.create({ ...eventData, story_id: activeStoryId }, characterIds, activeBoardId, setLoading);
+      await eventController.create({ ...eventData, story_id: activeStoryId }, characterIds, resolvedBoardId, setLoading);
     }
-    const { data: eventsData } = await eventController.getAll(activeStoryId, activeBoardId, setLoading);
+
+    setActiveBoardId(resolvedBoardId);
+    const { data: eventsData } = await eventController.getAll(activeStoryId, resolvedBoardId, setLoading);
     setEvents(eventsData || []);
     setEventModalOpen(false);
   };
@@ -302,6 +366,22 @@ export default function DashboardPage() {
     await storyController.update(storyId, { cover_url: coverUrl }, setLoading);
   };
 
+  const openCreateEventModal = useCallback(async (boardId = activeBoardId) => {
+    let resolvedBoardId = boardId || activeBoardId;
+    if (!resolvedBoardId) {
+      resolvedBoardId = await ensurePrimaryBoard(activeStoryId);
+    }
+
+    if (!resolvedBoardId) {
+      window.alert('Primero crea una línea narrativa principal para guardar eventos.');
+      return;
+    }
+
+    setActiveBoardId(resolvedBoardId);
+    setSelectedEvent(null);
+    setEventModalOpen(true);
+  }, [activeBoardId, activeStoryId, ensurePrimaryBoard]);
+
   if (authLoading || storiesLoading || dataLoading) {
     return <CustomLoading fullscreen message="Cargando estudio..." />;
   }
@@ -316,10 +396,7 @@ export default function DashboardPage() {
           boards={boards}
           activeBoardId={activeBoardId}
           onOpenCharactersDrawer={() => setCharDrawerOpen(true)}
-          onOpenCreateEvent={(boardId) => {
-            setSelectedEvent(null);
-            setEventModalOpen(true);
-          }}
+          onOpenCreateEvent={openCreateEventModal}
           onUpdateStoryCover={handleUpdateStoryCover}
           onSelectBoard={handleSelectBoard}
           onCreateBoard={handleCreateBoard}
