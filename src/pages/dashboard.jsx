@@ -4,6 +4,7 @@ import { Box, Dialog, DialogTitle, DialogContent, DialogActions, Typography, Sna
 import { useAuth } from '../context/AuthContext';
 import { useStory } from '../context/StoryContext';
 import { useLoading } from '../context/LoadingContext';
+import { useWorkspace } from '../context/WorkspaceContext';
 import { storyController } from '../controllers/storyController';
 import { characterController } from '../controllers/characterController';
 import { boardController } from '../controllers/boardController';
@@ -25,14 +26,23 @@ export default function DashboardPage() {
   const { activeStory, activeStoryId, storiesLoading } = useStory();
   const { setLoading } = useLoading();
 
-  // Core Data States
-  const [characters, setCharacters] = useState([]);
-  const [relationships, setRelationships] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [allEvents, setAllEvents] = useState([]);
-  const [eventConnections, setEventConnections] = useState([]);
-  const [boards, setBoards] = useState([]);
-  const [activeBoardId, setActiveBoardId] = useState(null);
+  const {
+    characters,
+    setCharacters,
+    relationships,
+    setRelationships,
+    events,
+    setEvents,
+    allEvents,
+    setAllEvents,
+    eventConnections,
+    setEventConnections,
+    boards,
+    setBoards,
+    activeBoardId,
+    setActiveBoardId,
+    resetWorkspace,
+  } = useWorkspace();
 
   // UI / Modal States
   const [dataLoading, setDataLoading] = useState(true);
@@ -87,13 +97,7 @@ export default function DashboardPage() {
   // Load characters, relationships, boards and (board-filtered) events for the active story
   const loadStoryData = useCallback(async (storyId, boardId = null) => {
     if (!storyId) {
-      setCharacters([]);
-      setRelationships([]);
-      setEvents([]);
-      setAllEvents([]);
-      setEventConnections([]);
-      setBoards([]);
-      setActiveBoardId(null);
+      resetWorkspace();
       setDataLoading(false);
       return;
     }

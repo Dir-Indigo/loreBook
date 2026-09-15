@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { LoreThemeProvider } from '../context/ThemeContext';
 import { AuthProvider } from '../context/AuthContext';
 import { StoryProvider } from '../context/StoryContext';
+import { WorkspaceProvider } from '../context/WorkspaceContext';
 import { LoadingProvider } from '../context/LoadingContext';
 import MainLayout from '../components/layout/MainLayout';
 import '../styles/globals.css';
@@ -17,11 +18,13 @@ export default function App({ Component, pageProps }) {
       <AuthProvider>
         <LoadingProvider>
           <StoryProvider>
-            <LoreThemeProvider>
-              <MainLayout>
-                <Component {...pageProps} />
-              </MainLayout>
-            </LoreThemeProvider>
+            <WorkspaceProvider>
+              <LoreThemeProvider>
+                <MainLayout>
+                  <Component {...pageProps} />
+                </MainLayout>
+              </LoreThemeProvider>
+            </WorkspaceProvider>
           </StoryProvider>
         </LoadingProvider>
       </AuthProvider>
