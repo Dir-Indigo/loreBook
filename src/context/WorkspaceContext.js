@@ -1,8 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { boardController } from '../controllers/boardController';
-import { eventController } from '../controllers/eventController';
-import { characterController } from '../controllers/characterController';
-import { relationshipController } from '../controllers/relationshipController';
+import { ApiService } from '../utils/ApiService';
 
 const WorkspaceContext = createContext(null);
 
@@ -46,11 +43,11 @@ export const WorkspaceProvider = ({ children }) => {
 
     try {
       const [charsRes, relsRes, boardsRes, treeEventsRes, connsRes] = await Promise.all([
-        characterController.getAll(storyId, setLoading),
-        relationshipController.getAll(storyId, setLoading),
-        boardController.getAll(storyId, setLoading),
-        eventController.getTree(storyId, setLoading),
-        eventController.getConnections(storyId, setLoading),
+        ApiService.characters.getAll(storyId, setLoading),
+        ApiService.relationships.getAll(storyId, setLoading),
+        ApiService.boards.getAll(storyId, setLoading),
+        ApiService.events.getTree(storyId, setLoading),
+        ApiService.events.getConnections(storyId, setLoading),
       ]);
 
       const existingBoards = boardsRes.data || [];
@@ -58,7 +55,7 @@ export const WorkspaceProvider = ({ children }) => {
       let targetBoardId = boardId || existingBoards.find((b) => !b.parent_board_id)?.id || null;
 
       if (!targetBoardId) {
-        const { data: createdBoard, error } = await boardController.create({
+        const { data: createdBoard, error } = await ApiService.boards.create({
           story_id: storyId,
           name: 'Línea principal',
           parent_board_id: null,
@@ -79,7 +76,7 @@ export const WorkspaceProvider = ({ children }) => {
       setEventConnections(connsRes.data || []);
       setActiveBoardId(targetBoardId);
 
-      const { data: activeEvents } = await eventController.getAll(storyId, targetBoardId, setLoading);
+      const { data: activeEvents } = await ApiService.events.getAll(storyId, targetBoardId, setLoading);
       setEvents(activeEvents || []);
 
       return { data: { boards: existingBoards, activeBoardId: targetBoardId, events: activeEvents || [] }, error: null };
@@ -101,7 +98,7 @@ export const WorkspaceProvider = ({ children }) => {
       return primaryBoard.id;
     }
 
-    const { data, error } = await boardController.create({
+    const { data, error } = await ApiService.boards.create({
       story_id: storyId,
       name: 'Línea principal',
       parent_board_id: null,
@@ -122,8 +119,8 @@ export const WorkspaceProvider = ({ children }) => {
     setActiveBoardId(boardId);
 
     const [{ data: eventsData }, { data: connsData }] = await Promise.all([
-      eventController.getAll(storyId, boardId, setLoading),
-      reloadConnections ? eventController.getConnections(storyId, setLoading) : Promise.resolve({ data: eventConnections }),
+      ApiService.events.getAll(storyId, boardId, setLoading),
+      reloadConnections ? ApiService.events.getConnections(storyId, setLoading) : Promise.resolve({ data: eventConnections }),
     ]);
 
     setEvents(eventsData || []);
@@ -137,7 +134,7 @@ export const WorkspaceProvider = ({ children }) => {
   const createBoard = useCallback(async ({ storyId, name, parentBoardId = null, position, color = '#8c6d53', setLoading }) => {
     if (!storyId || !name) return { data: null, error: new Error('Story ID and name are required') };
 
-    const { data, error } = await boardController.create({
+    const { data, error } = await ApiService.boards.create({
       story_id: storyId,
       name,
       parent_board_id: parentBoardId,
@@ -150,7 +147,7 @@ export const WorkspaceProvider = ({ children }) => {
     setBoards((prev) => [...prev, data]);
     setActiveBoardId(data.id);
 
-    const { data: eventsData } = await eventController.getAll(storyId, data.id, setLoading);
+    const { data: eventsData } = await ApiService.events.getAll(storyId, data.id, setLoading);
     setEvents(eventsData || []);
 
     return { data, error: null };
@@ -159,7 +156,7 @@ export const WorkspaceProvider = ({ children }) => {
   const updateBoard = useCallback(async ({ boardId, patch, setLoading }) => {
     if (!boardId) return { data: null, error: new Error('Board ID is required') };
 
-    const { data, error } = await boardController.update(boardId, patch, setLoading);
+    const { data, error } = await ApiService.boards.update(boardId, patch, setLoading);
     if (error || !data) return { data: null, error };
 
     setBoards((prev) => prev.map((board) => (board.id === boardId ? data : board)));
@@ -172,7 +169,7 @@ export const WorkspaceProvider = ({ children }) => {
       return { data: [], error: null };
     }
 
-    const { data: boardEvents, error } = await eventController.getAll(storyId, boardId, setLoading);
+    const { data: boardEvents, error } = await ApiService.events.getAll(storyId, boardId, setLoading);
     if (error) {
       return { data: [], error };
     }
@@ -184,7 +181,7 @@ export const WorkspaceProvider = ({ children }) => {
   const deleteBoard = useCallback(async ({ storyId, boardId, setLoading }) => {
     if (!storyId || !boardId) return { data: null, error: new Error('Story ID and board ID are required') };
 
-    const { data, error } = await boardController.delete(boardId, setLoading);
+    const { data, error } = await ApiService.boards.delete(boardId, setLoading);
     if (error) return { data: null, error };
 
     const remainingBoards = boards.filter((board) => board.id !== boardId);
@@ -219,7 +216,7 @@ export const WorkspaceProvider = ({ children }) => {
     };
     setEventConnections((current) => [...current, optimisticConnection]);
 
-    const result = await eventController.createConnection(storyId, sourceEventId, targetEventId, setLoading);
+    const result = await ApiService.events.createConnection(storyId, sourceEventId, targetEventId, setLoading);
     if (result.error || !result.data) {
       setEventConnections((current) => current.filter((connection) => connection.id !== temporaryId));
       return result;
@@ -237,7 +234,7 @@ export const WorkspaceProvider = ({ children }) => {
     setEventConnections((current) => current.filter((connection) => (
       connection.source_event_id !== sourceEventId || connection.target_event_id !== targetEventId
     )));
-    return eventController.deleteConnectionByNodes(storyId, sourceEventId, targetEventId, setLoading);
+    return ApiService.events.deleteConnection({ storyId, source: sourceEventId, target: targetEventId }, setLoading);
   }, []);
 
   const saveEvent = useCallback(async ({ storyId, eventData, characterIds, createBackup, backupNote, selectedEventId, setLoading }) => {
@@ -250,8 +247,8 @@ export const WorkspaceProvider = ({ children }) => {
     if (!resolvedBoardId) return { data: null, error: new Error('A primary board is required') };
 
     const result = selectedEventId
-      ? await eventController.update(selectedEventId, eventData, characterIds, createBackup, backupNote, setLoading)
-      : await eventController.create({ ...eventData, story_id: storyId }, characterIds, resolvedBoardId, setLoading);
+      ? await ApiService.events.update(selectedEventId, eventData, characterIds, createBackup, backupNote, setLoading)
+      : await ApiService.events.create({ ...eventData, story_id: storyId }, characterIds, resolvedBoardId, setLoading);
 
     if (result.error) return result;
 
@@ -267,7 +264,7 @@ export const WorkspaceProvider = ({ children }) => {
   const deleteEvent = useCallback(async ({ storyId, boardId, eventId, setLoading }) => {
     if (!storyId || !eventId) return { data: null, error: new Error('Story ID and event ID are required') };
 
-    const result = await eventController.delete(eventId, setLoading);
+    const result = await ApiService.events.delete(eventId, setLoading);
     if (result.error) return result;
 
     await refreshBoardEvents({ storyId, boardId, setLoading });
@@ -295,7 +292,7 @@ export const WorkspaceProvider = ({ children }) => {
       pos_x: (Number(originalEvent.pos_x) || 120) + offset.x,
       pos_y: (Number(originalEvent.pos_y) || 100) + offset.y,
     };
-    const result = await eventController.create(eventData, characterIds, boardId, setLoading);
+    const result = await ApiService.events.create(eventData, characterIds, boardId, setLoading);
     if (result.error || !result.data) return { ...result, ids: [] };
 
     const { data: boardEvents } = await refreshBoardEvents({ storyId, boardId, setLoading });
@@ -317,7 +314,7 @@ export const WorkspaceProvider = ({ children }) => {
       const characterIds = (originalEvent.event_characters || [])
         .map((eventCharacter) => eventCharacter.character?.id || eventCharacter.character_id)
         .filter(Boolean);
-      const { data, error } = await eventController.create({
+      const { data, error } = await ApiService.events.create({
         story_id: storyId,
         title: `${originalEvent.title} (Copia)`,
         summary: originalEvent.summary || '',
@@ -345,15 +342,15 @@ export const WorkspaceProvider = ({ children }) => {
   }, [events, refreshBoardEvents]);
 
   const getEventDetails = useCallback(async ({ eventId, setLoading }) => (
-    eventController.getById(eventId, setLoading)
+    ApiService.events.getById(eventId, setLoading)
   ), []);
 
   const saveEventPosition = useCallback(async ({ eventId, position, setLoading }) => (
-    eventController.savePosition(eventId, position, setLoading)
+    ApiService.events.savePosition(eventId, position, setLoading)
   ), []);
 
   const createEventBackup = useCallback(async ({ storyId, eventId, note, setLoading }) => {
-    const result = await eventController.createBackup(eventId, note, setLoading);
+    const result = await ApiService.events.createBackup(eventId, note, setLoading);
     if (!result.error && storyId) {
       await loadStoryData({ storyId, setLoading });
     }
@@ -361,11 +358,11 @@ export const WorkspaceProvider = ({ children }) => {
   }, [loadStoryData]);
 
   const getEventVersions = useCallback(async ({ eventId, setLoading }) => (
-    eventController.getVersions(eventId, setLoading)
+    ApiService.events.getVersions(eventId, setLoading)
   ), []);
 
   const restoreEventVersion = useCallback(async ({ storyId, versionId, setLoading }) => {
-    const result = await eventController.restoreVersion(versionId, setLoading);
+    const result = await ApiService.events.restoreVersion(versionId, setLoading);
     if (!result.error && storyId) {
       await loadStoryData({ storyId, setLoading });
     }
@@ -376,10 +373,10 @@ export const WorkspaceProvider = ({ children }) => {
     if (!storyId) return { data: null, error: new Error('Story ID is required') };
 
     const result = selectedCharacterId && !isCloneMode
-      ? await characterController.update(selectedCharacterId, charData, setLoading)
+      ? await ApiService.characters.update(selectedCharacterId, charData, setLoading)
       : isCloneMode && cloneOptions
-        ? await characterController.clone(selectedCharacterId, { ...cloneOptions, targetStoryId: storyId }, setLoading)
-        : await characterController.create({ ...charData, story_id: storyId }, setLoading);
+        ? await ApiService.characters.clone(selectedCharacterId, { ...cloneOptions, targetStoryId: storyId }, setLoading)
+        : await ApiService.characters.create({ ...charData, story_id: storyId }, setLoading);
 
     if (!result?.error) {
       await loadStoryData({ storyId, setLoading });
@@ -391,7 +388,7 @@ export const WorkspaceProvider = ({ children }) => {
   const deleteCharacter = useCallback(async ({ storyId, charId, setLoading }) => {
     if (!storyId || !charId) return { data: null, error: new Error('Story ID and character ID are required') };
 
-    const result = await characterController.delete(charId, setLoading);
+    const result = await ApiService.characters.delete(charId, setLoading);
     if (!result?.error) {
       await loadStoryData({ storyId, setLoading });
     }
@@ -408,7 +405,7 @@ export const WorkspaceProvider = ({ children }) => {
     )));
 
     const results = await Promise.all(selectedIds.map((characterId) =>
-      characterController.update(characterId, { is_global: isGlobal }, setLoading)
+      ApiService.characters.update(characterId, { is_global: isGlobal }, setLoading)
     ));
 
     if (results.some((result) => result.error)) {
@@ -422,7 +419,7 @@ export const WorkspaceProvider = ({ children }) => {
   const createRelationship = useCallback(async ({ storyId, relData, setLoading }) => {
     if (!storyId) return { data: null, error: new Error('Story ID is required') };
 
-    const result = await relationshipController.create({ ...relData, story_id: storyId }, setLoading);
+    const result = await ApiService.relationships.create({ ...relData, story_id: storyId }, setLoading);
     if (!result?.error) {
       await loadStoryData({ storyId, setLoading });
     }
@@ -432,7 +429,7 @@ export const WorkspaceProvider = ({ children }) => {
   const deleteRelationship = useCallback(async ({ storyId, relId, setLoading }) => {
     if (!storyId || !relId) return { data: null, error: new Error('Story ID and relationship ID are required') };
 
-    const result = await relationshipController.delete(relId, setLoading);
+    const result = await ApiService.relationships.delete(relId, setLoading);
     if (!result?.error) {
       await loadStoryData({ storyId, setLoading });
     }
