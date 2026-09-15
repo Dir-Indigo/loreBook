@@ -4,7 +4,7 @@ import { Box, Typography, Button, Container, Grid, Divider, Tabs, Tab } from '@m
 import { useAuth } from '../../context/AuthContext';
 import { useStory } from '../../context/StoryContext';
 import { useLoading } from '../../context/LoadingContext'; // Add global loading
-import { characterController } from '../../controllers/characterController'; // Add controller
+import { ApiService } from '../../utils/ApiService';
 import SidebarLore from '../../components/layout/SidebarLore';
 import CustomLoading from '../../components/common/CustomLoading';
 import SelectionActionBar from '../../components/common/SelectionActionBar';
@@ -32,7 +32,7 @@ export default function CharacterManagementPage() {
     if (!router.isReady || !story_id) return;
     setDataLoading(true);
     try {
-        const result = await characterController.getAll(story_id, setLoading);
+        const result = await ApiService.characters.getAll(story_id, setLoading);
         setCharacters(result.data || []);
     } catch (e) {
         console.error(e);
@@ -49,8 +49,11 @@ export default function CharacterManagementPage() {
 
   const handleDelete = async (charId) => {
     if (window.confirm('¿Seguro que deseas eliminar este personaje?')) {
-        await characterController.delete(charId, setLoading);
-        await loadData();
+        const result = await ApiService.characters.delete(charId, setLoading);
+        if (!result.error) {
+          setCharacters((current) => current.filter((character) => character.id !== charId));
+          setSelectedCharacterIds((current) => current.filter((id) => id !== charId));
+        }
     }
   };
 
@@ -74,7 +77,7 @@ export default function CharacterManagementPage() {
     )));
 
     const results = await Promise.all(selectedIds.map((characterId) =>
-      characterController.update(characterId, { is_global: isGlobal }, setLoading)
+      ApiService.characters.update(characterId, { is_global: isGlobal }, setLoading)
     ));
 
     if (results.some((result) => result.error)) {
@@ -94,26 +97,33 @@ export default function CharacterManagementPage() {
 
   const handleCloneCharacter = async (originalCharId, cloneOptions) => {
     if (!story_id) return;
-    await characterController.clone(originalCharId, {
+    const result = await ApiService.characters.clone(originalCharId, {
         ...cloneOptions,
         targetStoryId: story_id,
     }, setLoading);
-    await loadData();
+    if (!result.error && result.data) {
+      setCharacters((current) => [...current, result.data].sort((a, b) => a.name.localeCompare(b.name)));
+    }
     setCharModalOpen(false);
   };
 
   const handleSaveCharacter = async (charData) => {
     if (!story_id) return;
-    
-    if (selectedCharacter && !isCloneCharMode) {
-        await characterController.update(selectedCharacter.id, charData, setLoading);
-    } else {
-        await characterController.create({
-            ...charData,
-            story_id: story_id,
+
+    const result = selectedCharacter && !isCloneCharMode
+      ? await ApiService.characters.update(selectedCharacter.id, charData, setLoading)
+      : await ApiService.characters.create({
+          ...charData,
+          story_id,
         }, setLoading);
+
+    if (!result.error && result.data) {
+      setCharacters((current) => selectedCharacter && !isCloneCharMode
+        ? current.map((character) => character.id === selectedCharacter.id ? result.data : character)
+        : [...current, result.data].sort((a, b) => a.name.localeCompare(b.name)));
+    } else {
+      return;
     }
-    await loadData();
     setCharModalOpen(false);
   };
 
@@ -132,7 +142,7 @@ export default function CharacterManagementPage() {
   }, [visibleCharacters]);
 
   if (authLoading || dataLoading) {
-    return <CustomLoading fullscreen message="Cargando..." />;
+    return <CustomLoading fullscreen message="Cargando personajes..." />;
   }
 
   return (
