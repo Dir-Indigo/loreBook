@@ -7,7 +7,6 @@ import { useLoading } from '../context/LoadingContext';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { storyController } from '../controllers/storyController';
 import { characterController } from '../controllers/characterController';
-import { boardController } from '../controllers/boardController';
 import { eventController } from '../controllers/eventController';
 import { relationshipController } from '../controllers/relationshipController';
 import SidebarLore from '../components/layout/SidebarLore';
@@ -42,6 +41,18 @@ export default function DashboardPage() {
     activeBoardId,
     setActiveBoardId,
     resetWorkspace,
+    loadStoryData,
+    ensurePrimaryBoard,
+    selectBoard,
+    createBoard,
+    updateBoard,
+    deleteBoard,
+    refreshBoardEvents,
+    saveCharacter,
+    deleteCharacter,
+    updateCharactersGlobal,
+    createRelationship,
+    deleteRelationship,
   } = useWorkspace();
 
   // UI / Modal States
@@ -69,94 +80,17 @@ export default function DashboardPage() {
     }
   }, [user, authLoading, router]);
 
-  const ensurePrimaryBoard = useCallback(async (storyId = activeStoryId) => {
-    if (!storyId) return null;
-
-    const currentBoards = boards.length ? boards : [];
-    const primaryBoard = currentBoards.find((b) => !b.parent_board_id) || null;
-    if (primaryBoard) {
-      setActiveBoardId(primaryBoard.id);
-      return primaryBoard.id;
-    }
-
-    const { data, error } = await boardController.create({
-      story_id: storyId,
-      name: 'Línea principal',
-      parent_board_id: null,
-      position: 0,
-      color: '#8c6d53',
-    }, setLoading);
-
-    if (error || !data) return null;
-
-    setBoards((prev) => [...prev, data]);
-    setActiveBoardId(data.id);
-    return data.id;
-  }, [activeStoryId, boards, setLoading]);
-
-  // Load characters, relationships, boards and (board-filtered) events for the active story
-  const loadStoryData = useCallback(async (storyId, boardId = null) => {
-    if (!storyId) {
-      resetWorkspace();
-      setDataLoading(false);
-      return;
-    }
-
-    setDataLoading(true);
-    try {
-      const [charsRes, relsRes, boardsRes, treeEventsRes, connsRes] = await Promise.all([
-        characterController.getAll(storyId, setLoading),
-        relationshipController.getAll(storyId, setLoading),
-        boardController.getAll(storyId, setLoading),
-        eventController.getTree(storyId, setLoading),
-        eventController.getConnections(storyId, setLoading),
-      ]);
-
-      const existingBoards = boardsRes.data || [];
-      const loadedEvents = treeEventsRes.data || [];
-      let targetBoardId = boardId || existingBoards.find((b) => !b.parent_board_id)?.id || null;
-
-      if (!targetBoardId) {
-        const { data: createdBoard, error } = await boardController.create({
-          story_id: storyId,
-          name: 'Línea principal',
-          parent_board_id: null,
-          position: 0,
-          color: '#8c6d53',
-        }, setLoading);
-
-        if (!error && createdBoard) {
-          existingBoards.push(createdBoard);
-          targetBoardId = createdBoard.id;
-        }
-      }
-
-      setCharacters(charsRes.data || []);
-      setRelationships(relsRes.data || []);
-      setBoards(existingBoards);
-      setAllEvents(loadedEvents);
-      setEventConnections(connsRes.data || []);
-      setActiveBoardId(targetBoardId);
-      const { data: activeEvents } = await eventController.getAll(storyId, targetBoardId, setLoading);
-      setEvents(activeEvents || []);
-    } catch (error) {
-      console.error('Failed to load story data:', error);
-    } finally {
-      setDataLoading(false);
-    }
-  }, [setLoading]);
-
   useEffect(() => {
       // Activar carga si hay un storyId
       if (activeStoryId) {
-        loadStoryData(activeStoryId);
+        loadStoryData({ storyId: activeStoryId, setLoading, setDataLoading });
       } else {
         // Si no hay storyId, pero authLoading terminó, significa que no hay historia seleccionada
         if (!authLoading) {
             setDataLoading(false);
         }
       }
-  }, [activeStoryId, authLoading, loadStoryData]);
+  }, [activeStoryId, authLoading, loadStoryData, setLoading]);
 
   // Optimistic Connection Handlers
   const handleCreateConnection = async (sourceEventId, targetEventId) => {
@@ -184,34 +118,28 @@ export default function DashboardPage() {
 
   const handleSelectBoard = useCallback(async (boardId) => {
     if (!activeStoryId || boardId === activeBoardId) return;
-    setActiveBoardId(boardId);
-    const { data: eventsData } = await eventController.getAll(activeStoryId, boardId, setLoading);
-    setEvents(eventsData || []);
-    const { data: conns } = await eventController.getConnections(activeStoryId, setLoading);
-    setEventConnections(conns || []);
-  }, [activeStoryId, activeBoardId, setLoading]);
+    await selectBoard({ storyId: activeStoryId, boardId, setLoading });
+  }, [activeStoryId, activeBoardId, selectBoard, setLoading]);
 
   const handleCreateBoard = async (name, parentBoardId = null) => {
     if (!activeStoryId) return;
     const siblings = boards.filter((b) => b.parent_board_id === (parentBoardId || null));
     const position = siblings.length;
-    const { data } = await boardController.create({ story_id: activeStoryId, name, parent_board_id: parentBoardId, position }, setLoading);
-    if (data) {
-      setBoards((prev) => [...prev, data]);
-      setActiveBoardId(data.id);
-      const { data: eventsData } = await eventController.getAll(activeStoryId, data.id, setLoading);
-      setEvents(eventsData || []);
-    }
+    await createBoard({
+      storyId: activeStoryId,
+      name,
+      parentBoardId,
+      position,
+      setLoading,
+    });
   };
 
   const handleRenameBoard = async (boardId, newName) => {
-    const { data } = await boardController.update(boardId, { name: newName }, setLoading);
-    if (data) setBoards((prev) => prev.map((b) => (b.id === boardId ? data : b)));
+    await updateBoard({ boardId, patch: { name: newName }, setLoading });
   };
 
   const handleChangeBoardColor = async (boardId, color) => {
-    const { data } = await boardController.update(boardId, { color }, setLoading);
-    if (data) setBoards((prev) => prev.map((b) => (b.id === boardId ? data : b)));
+    await updateBoard({ boardId, patch: { color }, setLoading });
   };
 
   const handleDeleteBoard = async (board) => {
@@ -219,25 +147,7 @@ export default function DashboardPage() {
       title: 'Eliminar carpeta',
       message: `¿Eliminar la carpeta "${board.name}"?`,
       onConfirm: async () => {
-        await boardController.delete(board.id, setLoading);
-
-        const remainingBoards = boards.filter((b) => b.id !== board.id);
-        setBoards(remainingBoards);
-        setAllEvents((current) => current.filter((event) => event.board_id !== board.id));
-
-        if (activeBoardId === board.id) {
-          const fallbackId = remainingBoards.some((b) => !b.parent_board_id)
-            ? remainingBoards.find((b) => !b.parent_board_id)?.id
-            : await ensurePrimaryBoard(activeStoryId);
-
-          if (fallbackId) {
-            setActiveBoardId(fallbackId);
-            setEvents(allEvents.filter((event) => event.board_id === fallbackId));
-          } else {
-            setActiveBoardId(null);
-            setEvents([]);
-          }
-        }
+        await deleteBoard({ storyId: activeStoryId, boardId: board.id, setLoading });
         setPendingConfirmation(null);
       }
     });
@@ -245,19 +155,26 @@ export default function DashboardPage() {
 
   const handleSaveCharacter = async (charData) => {
     if (!activeStoryId) return;
-    if (selectedCharacter && !isCloneCharMode) {
-      await characterController.update(selectedCharacter.id, charData, setLoading);
-    } else {
-      await characterController.create({ ...charData, story_id: activeStoryId }, setLoading);
-    }
-    await loadStoryData(activeStoryId);
+    await saveCharacter({
+      storyId: activeStoryId,
+      charData,
+      selectedCharacterId: selectedCharacter?.id || null,
+      isCloneMode: isCloneCharMode,
+      cloneOptions: null,
+      setLoading,
+    });
     setCharModalOpen(false);
   };
 
   const handleCloneCharacter = async (originalCharId, cloneOptions) => {
     if (!activeStoryId) return;
-    await characterController.clone(originalCharId, { ...cloneOptions, targetStoryId: activeStoryId }, setLoading);
-    await loadStoryData(activeStoryId);
+    await saveCharacter({
+      storyId: activeStoryId,
+      selectedCharacterId: originalCharId,
+      isCloneMode: true,
+      cloneOptions,
+      setLoading,
+    });
     setCharModalOpen(false);
   };
 
@@ -267,8 +184,7 @@ export default function DashboardPage() {
       title: 'Eliminar personaje',
       message: `¿Eliminar el personaje "${character?.name || ''}"?`,
       onConfirm: async () => {
-        await characterController.delete(charId, setLoading);
-        await loadStoryData(activeStoryId);
+        await deleteCharacter({ storyId: activeStoryId, charId, setLoading });
         setPendingConfirmation(null);
       },
     });
@@ -276,35 +192,19 @@ export default function DashboardPage() {
 
   const handleSetCharactersGlobal = async (characterIds, isGlobal) => {
     if (!characterIds?.length) return;
-    const previousCharacters = characters;
-    const selectedIds = [...characterIds];
-    setCharacters((current) => current.map((character) => (
-      selectedIds.includes(character.id) ? { ...character, is_global: isGlobal } : character
-    )));
-
-    const results = await Promise.all(selectedIds.map((characterId) =>
-      characterController.update(characterId, { is_global: isGlobal }, setLoading)
-    ));
-
-    if (results.some((result) => result.error)) {
-      setCharacters(previousCharacters);
+    const { error } = await updateCharactersGlobal({ storyId: activeStoryId, characterIds, isGlobal, setLoading });
+    if (error) {
       setFeedback('No se pudo actualizar uno o más personajes.');
     }
   };
 
   const handleCreateRelationship = async (relData) => {
     if (!activeStoryId) return;
-    const result = await relationshipController.create({ ...relData, story_id: activeStoryId }, setLoading);
-    if (!result.error) {
-        await loadStoryData(activeStoryId);
-    }
+    await createRelationship({ storyId: activeStoryId, relData, setLoading });
   };
 
   const handleDeleteRelationship = async (relId) => {
-    const result = await relationshipController.delete(relId, setLoading);
-    if (!result.error) {
-        await loadStoryData(activeStoryId);
-    }
+    await deleteRelationship({ storyId: activeStoryId, relId, setLoading });
   };
 
   const handleSaveEvent = async ({ eventData, characterIds, createBackup, backupNote }) => {
@@ -312,7 +212,7 @@ export default function DashboardPage() {
 
     let resolvedBoardId = activeBoardId;
     if (!resolvedBoardId) {
-      resolvedBoardId = await ensurePrimaryBoard(activeStoryId);
+      resolvedBoardId = await ensurePrimaryBoard({ storyId: activeStoryId, setLoading });
     }
 
     if (!resolvedBoardId) {
@@ -330,8 +230,7 @@ export default function DashboardPage() {
     }
 
     setActiveBoardId(resolvedBoardId);
-    const { data: eventsData } = await eventController.getAll(activeStoryId, resolvedBoardId, setLoading);
-    setEvents(eventsData || []);
+    const { data: eventsData } = await refreshBoardEvents({ storyId: activeStoryId, boardId: resolvedBoardId, setLoading });
     setAllEvents((current) => selectedEvent
       ? current.map((event) => event.id === selectedEvent.id ? { ...event, ...eventData } : event)
       : [...current, ...(eventsData || []).filter((event) => !current.some((item) => item.id === event.id))]);
@@ -356,8 +255,7 @@ export default function DashboardPage() {
       pos_y: (Number(originalEvent.pos_y) || 100) + offset.y,
     };
     const { data } = await eventController.create(eventPayload, charIds, activeBoardId, setLoading);
-    const { data: eventsData } = await eventController.getAll(activeStoryId, activeBoardId, setLoading);
-    setEvents(eventsData || []);
+    await refreshBoardEvents({ storyId: activeStoryId, boardId: activeBoardId, setLoading });
     setAllEvents((current) => data ? [...current, data] : current);
     return data?.id ? [data.id] : [];
   };
@@ -392,8 +290,7 @@ export default function DashboardPage() {
       }
     }
 
-    const { data: eventsData } = await eventController.getAll(activeStoryId, activeBoardId, setLoading);
-    setEvents(eventsData || []);
+    const { data: eventsData } = await refreshBoardEvents({ storyId: activeStoryId, boardId: activeBoardId, setLoading });
     setAllEvents((current) => {
       const created = eventsData || [];
       return current.map((event) => created.find((item) => item.id === event.id) || event)
@@ -409,8 +306,7 @@ export default function DashboardPage() {
       message: `¿Eliminar el evento "${eventToDelete?.title || ''}"?`,
       onConfirm: async () => {
       await eventController.delete(eventId, setLoading);
-      const { data: eventsData } = await eventController.getAll(activeStoryId, activeBoardId, setLoading);
-      setEvents(eventsData || []);
+      await refreshBoardEvents({ storyId: activeStoryId, boardId: activeBoardId, setLoading });
       setAllEvents((current) => current.filter((event) => event.id !== eventId));
       setPendingConfirmation(null);
       },
@@ -446,7 +342,7 @@ export default function DashboardPage() {
     const note = prompt('Nota:', 'Respaldo manual');
     if (note !== null) {
       await eventController.createBackup(eventId, note, setLoading);
-      await loadStoryData(activeStoryId);
+      await loadStoryData({ storyId: activeStoryId, setLoading });
     }
   };
 
@@ -466,7 +362,7 @@ export default function DashboardPage() {
       message: '¿Restaurar esta versión del evento?',
       onConfirm: async () => {
         await eventController.restoreVersion(versionId, setLoading);
-        await loadStoryData(activeStoryId);
+        await loadStoryData({ storyId: activeStoryId, setLoading });
         setVersionsModalOpen(false);
         setPendingConfirmation(null);
       },
@@ -486,7 +382,7 @@ export default function DashboardPage() {
   const openCreateEventModal = useCallback(async (boardId = activeBoardId) => {
     let resolvedBoardId = boardId || activeBoardId;
     if (!resolvedBoardId) {
-      resolvedBoardId = await ensurePrimaryBoard(activeStoryId);
+      resolvedBoardId = await ensurePrimaryBoard({ storyId: activeStoryId, setLoading });
     }
 
     if (!resolvedBoardId) {
