@@ -50,7 +50,9 @@ export const ApiService = {
     delete: (id, setLoading) => bridge('DELETE_BOARD', 'public.narrative_boards', boardController.delete, setLoading, id),
   },
   events: {
+    getTree: (storyId, setLoading) => bridge('GET_EVENT_TREE', 'public.timeline_events', eventController.getTree, setLoading, storyId),
     getAll: (storyId, boardId, setLoading) => bridge('GET_EVENTS', 'public.timeline_events', eventController.getAll, setLoading, storyId, boardId),
+    getById: (id, setLoading) => bridge('GET_EVENT', 'public.timeline_events', eventController.getById, setLoading, id),
     create: (data, chars, boardId, setLoading) => bridge('CREATE_EVENT', 'public.timeline_events', eventController.create, setLoading, data, chars, boardId),
     update: (id, data, charIds, backup, note, setLoading) => bridge('UPDATE_EVENT', 'public.timeline_events', eventController.update, setLoading, id, data, charIds, backup, note),
     delete: (id, setLoading) => bridge('DELETE_EVENT', 'public.timeline_events', eventController.delete, setLoading, id),

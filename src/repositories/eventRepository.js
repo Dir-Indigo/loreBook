@@ -1,18 +1,46 @@
 import { supabase } from '../utils/supabaseClient';
 
 export const eventRepository = {
-  getAll: (storyId, boardId) => {
-    let query = supabase.from('timeline_events').select(`
+  getTree: (storyId) => supabase
+    .from('timeline_events')
+    .select(`
+      id,
+      story_id,
+      board_id,
+      title,
+      order_index,
+      color_tag,
+      importance_level,
+      event_characters (
+        id,
+        character:character_id (id, name, color_tag)
+      )
+    `)
+    .eq('story_id', storyId)
+    .order('order_index', { ascending: true }),
+  getAll: (storyId, boardId, includeVersions = false) => {
+    const eventSelect = `
       *,
       event_characters (
         id,
         role_in_event,
         character:character_id (id, name, avatar_url, role_archetype, color_tag)
-      ),
-      event_versions (id, version_number, note, created_at)
-    `).eq('story_id', storyId).order('order_index', { ascending: true });
+      )${includeVersions ? ', event_versions (id, version_number, note, created_at)' : ''}
+    `;
+    let query = supabase.from('timeline_events').select(eventSelect).eq('story_id', storyId).order('order_index', { ascending: true });
     if (boardId) query = query.eq('board_id', boardId);
     return query;
+  },
+  getById: (eventId, includeVersions = false) => {
+    const eventSelect = `
+      *,
+      event_characters (
+        id,
+        role_in_event,
+        character:character_id (id, name, avatar_url, role_archetype, color_tag)
+      )${includeVersions ? ', event_versions (id, version_number, note, created_at)' : ''}
+    `;
+    return supabase.from('timeline_events').select(eventSelect).eq('id', eventId).single();
   },
   create: (data) => supabase.from('timeline_events').insert([data]).select().single(),
   update: (id, data) => supabase.from('timeline_events').update({ ...data, updated_at: new Date().toISOString() }).eq('id', id).select().single(),

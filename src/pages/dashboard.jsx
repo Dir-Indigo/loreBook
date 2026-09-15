@@ -100,16 +100,16 @@ export default function DashboardPage() {
 
     setDataLoading(true);
     try {
-      const [charsRes, relsRes, boardsRes, allEventsRes, connsRes] = await Promise.all([
+      const [charsRes, relsRes, boardsRes, treeEventsRes, connsRes] = await Promise.all([
         characterController.getAll(storyId, setLoading),
         relationshipController.getAll(storyId, setLoading),
         boardController.getAll(storyId, setLoading),
-        eventController.getAll(storyId, null, setLoading),
+        eventController.getTree(storyId, setLoading),
         eventController.getConnections(storyId, setLoading),
       ]);
 
       const existingBoards = boardsRes.data || [];
-      const loadedEvents = allEventsRes.data || [];
+      const loadedEvents = treeEventsRes.data || [];
       let targetBoardId = boardId || existingBoards.find((b) => !b.parent_board_id)?.id || null;
 
       if (!targetBoardId) {
@@ -133,7 +133,8 @@ export default function DashboardPage() {
       setAllEvents(loadedEvents);
       setEventConnections(connsRes.data || []);
       setActiveBoardId(targetBoardId);
-      setEvents(loadedEvents.filter((event) => event.board_id === targetBoardId));
+      const { data: activeEvents } = await eventController.getAll(storyId, targetBoardId, setLoading);
+      setEvents(activeEvents || []);
     } catch (error) {
       console.error('Failed to load story data:', error);
     } finally {
@@ -472,6 +473,12 @@ export default function DashboardPage() {
     await storyController.update(storyId, { cover_url: coverUrl }, setLoading);
   };
 
+  const handleOpenEditEvent = async (event) => {
+    const { data: completeEvent } = await eventController.getById(event.id, setLoading);
+    setSelectedEvent(completeEvent || event);
+    setEventModalOpen(true);
+  };
+
   const openCreateEventModal = useCallback(async (boardId = activeBoardId) => {
     let resolvedBoardId = boardId || activeBoardId;
     if (!resolvedBoardId) {
@@ -510,10 +517,7 @@ export default function DashboardPage() {
           onRenameBoard={handleRenameBoard}
           onDeleteBoard={handleDeleteBoard}
           onChangeBoardColor={handleChangeBoardColor}
-          onOpenEditEvent={(event) => {
-            setSelectedEvent(event);
-            setEventModalOpen(true);
-          }}
+          onOpenEditEvent={handleOpenEditEvent}
           onDeleteEvent={handleDeleteEvent}
         />
 
@@ -529,10 +533,7 @@ export default function DashboardPage() {
               setSelectedEvent(null);
               setEventModalOpen(true);
             }}
-            onOpenEditEvent={(event) => {
-              setSelectedEvent(event);
-              setEventModalOpen(true);
-            }}
+            onOpenEditEvent={handleOpenEditEvent}
             onDeleteEvent={handleDeleteEvent}
             onOpenVersions={handleOpenVersions}
             onCreateBackup={handleCreateQuickBackup}

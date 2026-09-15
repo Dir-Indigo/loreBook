@@ -2,8 +2,18 @@ import { eventRepository } from '../repositories/eventRepository';
 import { supabase } from '../utils/supabaseClient';
 
 export const eventService = {
-  getAll: async (storyId, boardId) => {
-    const { data, error } = await eventRepository.getAll(storyId, boardId);
+  getTree: async (storyId) => {
+    const { data, error } = await eventRepository.getTree(storyId);
+    if (error) throw error;
+    return data;
+  },
+  getAll: async (storyId, boardId, includeVersions = false) => {
+    const { data, error } = await eventRepository.getAll(storyId, boardId, includeVersions);
+    if (error) throw error;
+    return data;
+  },
+  getById: async (eventId, includeVersions = false) => {
+    const { data, error } = await eventRepository.getById(eventId, includeVersions);
     if (error) throw error;
     return data;
   },

@@ -14,7 +14,9 @@ const handleLoading = async (promise, setLoading) => {
 };
 
 export const eventController = {
-    getAll: async (storyId, boardId, setLoading) => handleLoading(eventService.getAll(storyId, boardId), setLoading),
+  getTree: async (storyId, setLoading) => handleLoading(eventService.getTree(storyId), setLoading),
+  getAll: async (storyId, boardId, setLoading, includeVersions = false) => handleLoading(eventService.getAll(storyId, boardId, includeVersions), setLoading),
+  getById: async (eventId, setLoading, includeVersions = false) => handleLoading(eventService.getById(eventId, includeVersions), setLoading),
     create: async (eventData, characterIds, boardId, setLoading) => handleLoading(eventService.create(eventData, characterIds, boardId), setLoading),
     update: async (id, data, characterIds, createBackup, backupNote, setLoading) => handleLoading(eventService.update(id, data, characterIds, createBackup, backupNote), setLoading),
     delete: async (id, setLoading) => handleLoading(eventService.delete(id), setLoading),
