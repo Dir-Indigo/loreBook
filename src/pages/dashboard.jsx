@@ -5,10 +5,6 @@ import { useAuth } from '../context/AuthContext';
 import { useStory } from '../context/StoryContext';
 import { useLoading } from '../context/LoadingContext';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { storyController } from '../controllers/storyController';
-import { characterController } from '../controllers/characterController';
-import { eventController } from '../controllers/eventController';
-import { relationshipController } from '../controllers/relationshipController';
 import SidebarLore from '../components/layout/SidebarLore';
 import TimelineCanvas from '../components/canvas/TimelineCanvas';
 import CharacterDrawer from '../components/characters/CharacterDrawer';
@@ -17,30 +13,24 @@ import EventModal from '../components/canvas/EventModal';
 import EventVersionsModal from '../components/canvas/EventVersionsModal';
 import CustomLoading from '../components/common/CustomLoading';
 import CustomButton from '../components/common/CustomButton';
-import { APP_CONFIG } from '../constants/constants';
 
 export default function DashboardPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { activeStory, activeStoryId, storiesLoading } = useStory();
+  const { activeStory, activeStoryId, storiesLoading, updateStory } = useStory();
   const { setLoading } = useLoading();
 
   const {
     characters,
-    setCharacters,
     relationships,
-    setRelationships,
     events,
     setEvents,
     allEvents,
     setAllEvents,
     eventConnections,
-    setEventConnections,
     boards,
-    setBoards,
     activeBoardId,
     setActiveBoardId,
-    resetWorkspace,
     loadStoryData,
     ensurePrimaryBoard,
     selectBoard,
@@ -48,6 +38,17 @@ export default function DashboardPage() {
     updateBoard,
     deleteBoard,
     refreshBoardEvents,
+    createConnection,
+    deleteConnection,
+    saveEvent,
+    deleteEvent,
+    duplicateEvent,
+    duplicateEvents,
+    getEventDetails,
+    saveEventPosition,
+    createEventBackup,
+    getEventVersions,
+    restoreEventVersion,
     saveCharacter,
     deleteCharacter,
     updateCharactersGlobal,
@@ -94,26 +95,11 @@ export default function DashboardPage() {
 
   // Optimistic Connection Handlers
   const handleCreateConnection = async (sourceEventId, targetEventId) => {
-    if (!activeStoryId) return;
-    const tempId = `temp-${Date.now()}`;
-    const newConn = { id: tempId, story_id: activeStoryId, source_event_id: sourceEventId, target_event_id: targetEventId };
-    
-    setEventConnections((prev) => [...prev, newConn]);
-
-    const { data } = await eventController.createConnection(activeStoryId, sourceEventId, targetEventId, setLoading);
-    if (!data) {
-      setEventConnections((prev) => prev.filter((c) => c.id !== tempId));
-    } else {
-      setEventConnections((prev) => prev.map((c) => (c.id === tempId ? data : c)));
-    }
+    await createConnection({ storyId: activeStoryId, sourceEventId, targetEventId, setLoading });
   };
 
   const handleDeleteConnection = async (sourceEventId, targetEventId) => {
-    if (!activeStoryId) return;
-    setEventConnections((prev) =>
-      prev.filter((c) => !(c.source_event_id === sourceEventId && c.target_event_id === targetEventId))
-    );
-    await eventController.deleteConnectionByNodes(activeStoryId, sourceEventId, targetEventId, setLoading);
+    await deleteConnection({ storyId: activeStoryId, sourceEventId, targetEventId, setLoading });
   };
 
   const handleSelectBoard = useCallback(async (boardId) => {
@@ -208,95 +194,44 @@ export default function DashboardPage() {
   };
 
   const handleSaveEvent = async ({ eventData, characterIds, createBackup, backupNote }) => {
-    if (!activeStoryId) return;
-
-    let resolvedBoardId = activeBoardId;
-    if (!resolvedBoardId) {
-      resolvedBoardId = await ensurePrimaryBoard({ storyId: activeStoryId, setLoading });
-    }
-
-    if (!resolvedBoardId) {
-      setFeedback('Primero crea una línea narrativa principal antes de guardar eventos.');
-      return;
-    }
-
-    const result = selectedEvent
-      ? await eventController.update(selectedEvent.id, eventData, characterIds, createBackup, backupNote, setLoading)
-      : await eventController.create({ ...eventData, story_id: activeStoryId }, characterIds, resolvedBoardId, setLoading);
+    const result = await saveEvent({
+      storyId: activeStoryId,
+      eventData,
+      characterIds,
+      createBackup,
+      backupNote,
+      selectedEventId: selectedEvent?.id,
+      setLoading,
+    });
 
     if (result.error) {
-      setFeedback(`No se pudo guardar el evento: ${result.error.message || 'error desconocido'}`);
+      setFeedback(result.error.message === 'A primary board is required'
+        ? 'Primero crea una línea narrativa principal antes de guardar eventos.'
+        : `No se pudo guardar el evento: ${result.error.message || 'error desconocido'}`);
       return;
     }
 
-    setActiveBoardId(resolvedBoardId);
-    const { data: eventsData } = await refreshBoardEvents({ storyId: activeStoryId, boardId: resolvedBoardId, setLoading });
-    setAllEvents((current) => selectedEvent
-      ? current.map((event) => event.id === selectedEvent.id ? { ...event, ...eventData } : event)
-      : [...current, ...(eventsData || []).filter((event) => !current.some((item) => item.id === event.id))]);
     setEventModalOpen(false);
   };
 
   const handleDuplicateEvent = async (originalEvent, offset = { x: 50, y: 40 }) => {
-    if (!activeStoryId || !originalEvent) return;
-    const charIds = (originalEvent.event_characters || []).map((ec) => ec.character?.id || ec.character_id).filter(Boolean);
-    const newOrderIndex = events.length > 0
-      ? Math.max(...events.map((event) => Number(event.order_index) || 0)) + 1
-      : 1;
-    const eventPayload = {
-      story_id: activeStoryId,
-      title: `${originalEvent.title} (Copia)`,
-      summary: originalEvent.summary || '',
-      details: originalEvent.details || '',
-      color_tag: originalEvent.color_tag || '#8d7b68',
-      importance_level: originalEvent.importance_level || 'medium',
-      order_index: newOrderIndex,
-      pos_x: (Number(originalEvent.pos_x) || 120) + offset.x,
-      pos_y: (Number(originalEvent.pos_y) || 100) + offset.y,
-    };
-    const { data } = await eventController.create(eventPayload, charIds, activeBoardId, setLoading);
-    await refreshBoardEvents({ storyId: activeStoryId, boardId: activeBoardId, setLoading });
-    setAllEvents((current) => data ? [...current, data] : current);
-    return data?.id ? [data.id] : [];
+    const result = await duplicateEvent({
+      storyId: activeStoryId,
+      boardId: activeBoardId,
+      originalEvent,
+      offset,
+      setLoading,
+    });
+    return result.ids;
   };
 
   const handleDuplicateEvents = async (originalEvents) => {
-    if (!activeStoryId || !activeBoardId || !originalEvents?.length) return [];
-
-    let nextOrderIndex = events.length > 0
-      ? Math.max(...events.map((event) => Number(event.order_index) || 0)) + 1
-      : 1;
-    const createdIds = [];
-
-    for (const [index, originalEvent] of originalEvents.entries()) {
-      const charIds = (originalEvent.event_characters || [])
-        .map((ec) => ec.character?.id || ec.character_id)
-        .filter(Boolean);
-      const { data, error } = await eventController.create({
-        story_id: activeStoryId,
-        title: `${originalEvent.title} (Copia)`,
-        summary: originalEvent.summary || '',
-        details: originalEvent.details || '',
-        color_tag: originalEvent.color_tag || '#8d7b68',
-        importance_level: originalEvent.importance_level || 'medium',
-        order_index: nextOrderIndex,
-        pos_x: (Number(originalEvent.pos_x) || 120) + 50 + (index * 20),
-        pos_y: (Number(originalEvent.pos_y) || 100) + 40 + (index * 20),
-      }, charIds, activeBoardId, setLoading);
-
-      if (!error && data?.id) {
-        createdIds.push(data.id);
-        nextOrderIndex += 1;
-      }
-    }
-
-    const { data: eventsData } = await refreshBoardEvents({ storyId: activeStoryId, boardId: activeBoardId, setLoading });
-    setAllEvents((current) => {
-      const created = eventsData || [];
-      return current.map((event) => created.find((item) => item.id === event.id) || event)
-        .concat(created.filter((item) => !current.some((event) => event.id === item.id)));
+    return duplicateEvents({
+      storyId: activeStoryId,
+      boardId: activeBoardId,
+      originalEvents,
+      setLoading,
     });
-    return createdIds;
   };
 
   const handleDeleteEvent = async (eventId) => {
@@ -305,9 +240,7 @@ export default function DashboardPage() {
       title: 'Eliminar evento',
       message: `¿Eliminar el evento "${eventToDelete?.title || ''}"?`,
       onConfirm: async () => {
-      await eventController.delete(eventId, setLoading);
-      await refreshBoardEvents({ storyId: activeStoryId, boardId: activeBoardId, setLoading });
-      setAllEvents((current) => current.filter((event) => event.id !== eventId));
+      await deleteEvent({ storyId: activeStoryId, boardId: activeBoardId, eventId, setLoading });
       setPendingConfirmation(null);
       },
     });
@@ -318,7 +251,7 @@ export default function DashboardPage() {
     return (eventId, newX, newY) => {
       if (timeoutIds.has(eventId)) clearTimeout(timeoutIds.get(eventId));
       timeoutIds.set(eventId, setTimeout(async () => {
-        await eventController.savePosition(eventId, { pos_x: newX, pos_y: newY }, null);
+        await saveEventPosition({ eventId, position: { pos_x: newX, pos_y: newY }, setLoading: null });
         timeoutIds.delete(eventId);
       }, 1000));
     };
@@ -341,8 +274,7 @@ export default function DashboardPage() {
   const handleCreateQuickBackup = async (eventId) => {
     const note = prompt('Nota:', 'Respaldo manual');
     if (note !== null) {
-      await eventController.createBackup(eventId, note, setLoading);
-      await loadStoryData({ storyId: activeStoryId, setLoading });
+      await createEventBackup({ storyId: activeStoryId, eventId, note, setLoading });
     }
   };
 
@@ -351,7 +283,7 @@ export default function DashboardPage() {
     setVersionEventTitle(title);
     setVersionsModalOpen(true);
     setVersionsLoading(true);
-    const { data } = await eventController.getVersions(eventId, setLoading);
+    const { data } = await getEventVersions({ eventId, setLoading });
     setEventVersions(data || []);
     setVersionsLoading(false);
   };
@@ -361,8 +293,7 @@ export default function DashboardPage() {
       title: 'Restaurar versión',
       message: '¿Restaurar esta versión del evento?',
       onConfirm: async () => {
-        await eventController.restoreVersion(versionId, setLoading);
-        await loadStoryData({ storyId: activeStoryId, setLoading });
+        await restoreEventVersion({ storyId: activeStoryId, versionId, setLoading });
         setVersionsModalOpen(false);
         setPendingConfirmation(null);
       },
@@ -370,11 +301,11 @@ export default function DashboardPage() {
   };
 
   const handleUpdateStoryCover = async (storyId, coverUrl) => {
-    await storyController.update(storyId, { cover_url: coverUrl }, setLoading);
+    await updateStory(storyId, { cover_url: coverUrl });
   };
 
   const handleOpenEditEvent = async (event) => {
-    const { data: completeEvent } = await eventController.getById(event.id, setLoading);
+    const { data: completeEvent } = await getEventDetails({ eventId: event.id, setLoading });
     setSelectedEvent(completeEvent || event);
     setEventModalOpen(true);
   };

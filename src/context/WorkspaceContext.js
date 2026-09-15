@@ -207,6 +207,171 @@ export const WorkspaceProvider = ({ children }) => {
     return { data, error: null };
   }, [activeBoardId, boards, ensurePrimaryBoard, refreshBoardEvents]);
 
+  const createConnection = useCallback(async ({ storyId, sourceEventId, targetEventId, setLoading }) => {
+    if (!storyId) return { data: null, error: new Error('Story ID is required') };
+
+    const temporaryId = `temp-${Date.now()}`;
+    const optimisticConnection = {
+      id: temporaryId,
+      story_id: storyId,
+      source_event_id: sourceEventId,
+      target_event_id: targetEventId,
+    };
+    setEventConnections((current) => [...current, optimisticConnection]);
+
+    const result = await eventController.createConnection(storyId, sourceEventId, targetEventId, setLoading);
+    if (result.error || !result.data) {
+      setEventConnections((current) => current.filter((connection) => connection.id !== temporaryId));
+      return result;
+    }
+
+    setEventConnections((current) => current.map((connection) => (
+      connection.id === temporaryId ? result.data : connection
+    )));
+    return result;
+  }, []);
+
+  const deleteConnection = useCallback(async ({ storyId, sourceEventId, targetEventId, setLoading }) => {
+    if (!storyId) return { data: null, error: new Error('Story ID is required') };
+
+    setEventConnections((current) => current.filter((connection) => (
+      connection.source_event_id !== sourceEventId || connection.target_event_id !== targetEventId
+    )));
+    return eventController.deleteConnectionByNodes(storyId, sourceEventId, targetEventId, setLoading);
+  }, []);
+
+  const saveEvent = useCallback(async ({ storyId, eventData, characterIds, createBackup, backupNote, selectedEventId, setLoading }) => {
+    if (!storyId) return { data: null, error: new Error('Story ID is required') };
+
+    let resolvedBoardId = activeBoardId;
+    if (!resolvedBoardId) {
+      resolvedBoardId = await ensurePrimaryBoard({ storyId, setLoading });
+    }
+    if (!resolvedBoardId) return { data: null, error: new Error('A primary board is required') };
+
+    const result = selectedEventId
+      ? await eventController.update(selectedEventId, eventData, characterIds, createBackup, backupNote, setLoading)
+      : await eventController.create({ ...eventData, story_id: storyId }, characterIds, resolvedBoardId, setLoading);
+
+    if (result.error) return result;
+
+    setActiveBoardId(resolvedBoardId);
+    const { data: boardEvents } = await refreshBoardEvents({ storyId, boardId: resolvedBoardId, setLoading });
+    setAllEvents((current) => selectedEventId
+      ? current.map((event) => event.id === selectedEventId ? { ...event, ...eventData } : event)
+      : [...current, ...(boardEvents || []).filter((event) => !current.some((item) => item.id === event.id))]);
+
+    return result;
+  }, [activeBoardId, ensurePrimaryBoard, refreshBoardEvents]);
+
+  const deleteEvent = useCallback(async ({ storyId, boardId, eventId, setLoading }) => {
+    if (!storyId || !eventId) return { data: null, error: new Error('Story ID and event ID are required') };
+
+    const result = await eventController.delete(eventId, setLoading);
+    if (result.error) return result;
+
+    await refreshBoardEvents({ storyId, boardId, setLoading });
+    setAllEvents((current) => current.filter((event) => event.id !== eventId));
+    return result;
+  }, [refreshBoardEvents]);
+
+  const duplicateEvent = useCallback(async ({ storyId, boardId, originalEvent, offset = { x: 50, y: 40 }, setLoading }) => {
+    if (!storyId || !boardId || !originalEvent) return { data: null, error: null, ids: [] };
+
+    const characterIds = (originalEvent.event_characters || [])
+      .map((eventCharacter) => eventCharacter.character?.id || eventCharacter.character_id)
+      .filter(Boolean);
+    const nextOrderIndex = events.length > 0
+      ? Math.max(...events.map((event) => Number(event.order_index) || 0)) + 1
+      : 1;
+    const eventData = {
+      story_id: storyId,
+      title: `${originalEvent.title} (Copia)`,
+      summary: originalEvent.summary || '',
+      details: originalEvent.details || '',
+      color_tag: originalEvent.color_tag || '#8d7b68',
+      importance_level: originalEvent.importance_level || 'medium',
+      order_index: nextOrderIndex,
+      pos_x: (Number(originalEvent.pos_x) || 120) + offset.x,
+      pos_y: (Number(originalEvent.pos_y) || 100) + offset.y,
+    };
+    const result = await eventController.create(eventData, characterIds, boardId, setLoading);
+    if (result.error || !result.data) return { ...result, ids: [] };
+
+    const { data: boardEvents } = await refreshBoardEvents({ storyId, boardId, setLoading });
+    setAllEvents((current) => current.concat(
+      (boardEvents || []).filter((event) => !current.some((item) => item.id === event.id))
+    ));
+    return { ...result, ids: [result.data.id] };
+  }, [events, refreshBoardEvents]);
+
+  const duplicateEvents = useCallback(async ({ storyId, boardId, originalEvents, setLoading }) => {
+    if (!storyId || !boardId || !originalEvents?.length) return [];
+
+    let nextOrderIndex = events.length > 0
+      ? Math.max(...events.map((event) => Number(event.order_index) || 0)) + 1
+      : 1;
+    const createdIds = [];
+
+    for (const [index, originalEvent] of originalEvents.entries()) {
+      const characterIds = (originalEvent.event_characters || [])
+        .map((eventCharacter) => eventCharacter.character?.id || eventCharacter.character_id)
+        .filter(Boolean);
+      const { data, error } = await eventController.create({
+        story_id: storyId,
+        title: `${originalEvent.title} (Copia)`,
+        summary: originalEvent.summary || '',
+        details: originalEvent.details || '',
+        color_tag: originalEvent.color_tag || '#8d7b68',
+        importance_level: originalEvent.importance_level || 'medium',
+        order_index: nextOrderIndex,
+        pos_x: (Number(originalEvent.pos_x) || 120) + 50 + (index * 20),
+        pos_y: (Number(originalEvent.pos_y) || 100) + 40 + (index * 20),
+      }, characterIds, boardId, setLoading);
+
+      if (!error && data?.id) {
+        createdIds.push(data.id);
+        nextOrderIndex += 1;
+      }
+    }
+
+    const { data: boardEvents } = await refreshBoardEvents({ storyId, boardId, setLoading });
+    setAllEvents((current) => (boardEvents || []).reduce((updatedEvents, event) => (
+      updatedEvents.some((item) => item.id === event.id)
+        ? updatedEvents.map((item) => item.id === event.id ? event : item)
+        : [...updatedEvents, event]
+    ), current));
+    return createdIds;
+  }, [events, refreshBoardEvents]);
+
+  const getEventDetails = useCallback(async ({ eventId, setLoading }) => (
+    eventController.getById(eventId, setLoading)
+  ), []);
+
+  const saveEventPosition = useCallback(async ({ eventId, position, setLoading }) => (
+    eventController.savePosition(eventId, position, setLoading)
+  ), []);
+
+  const createEventBackup = useCallback(async ({ storyId, eventId, note, setLoading }) => {
+    const result = await eventController.createBackup(eventId, note, setLoading);
+    if (!result.error && storyId) {
+      await loadStoryData({ storyId, setLoading });
+    }
+    return result;
+  }, [loadStoryData]);
+
+  const getEventVersions = useCallback(async ({ eventId, setLoading }) => (
+    eventController.getVersions(eventId, setLoading)
+  ), []);
+
+  const restoreEventVersion = useCallback(async ({ storyId, versionId, setLoading }) => {
+    const result = await eventController.restoreVersion(versionId, setLoading);
+    if (!result.error && storyId) {
+      await loadStoryData({ storyId, setLoading });
+    }
+    return result;
+  }, [loadStoryData]);
+
   const saveCharacter = useCallback(async ({ storyId, charData, selectedCharacterId = null, isCloneMode = false, cloneOptions = null, setLoading }) => {
     if (!storyId) return { data: null, error: new Error('Story ID is required') };
 
@@ -298,6 +463,17 @@ export const WorkspaceProvider = ({ children }) => {
       updateBoard,
       deleteBoard,
       refreshBoardEvents,
+      createConnection,
+      deleteConnection,
+      saveEvent,
+      deleteEvent,
+      duplicateEvent,
+      duplicateEvents,
+      getEventDetails,
+      saveEventPosition,
+      createEventBackup,
+      getEventVersions,
+      restoreEventVersion,
       saveCharacter,
       deleteCharacter,
       updateCharactersGlobal,
