@@ -33,6 +33,7 @@ export default function CharacterModal({
   const [avatarUrl, setAvatarUrl] = useState('');
   const [colorTag, setColorTag] = useState('');
   const [isTemplate, setIsTemplate] = useState(false);
+  const [isGlobal, setIsGlobal] = useState(false);
   const [cloneSuffix, setCloneSuffix] = useState(' (Versión Alterna)');
 
   const colorInputRef = useRef(null);
@@ -45,6 +46,7 @@ export default function CharacterModal({
       setAvatarUrl(character.avatar_url || '');
       setColorTag(character.color_tag || '');
       setIsTemplate(Boolean(character.is_template));
+      setIsGlobal(Boolean(character.is_global));
     } else {
       setName('');
       setRoleArchetype('Protagonista');
@@ -52,6 +54,7 @@ export default function CharacterModal({
       setAvatarUrl('');
       setColorTag('');
       setIsTemplate(false);
+      setIsGlobal(false);
     }
     setCloneSuffix(' (Versión Alterna)');
   }, [character, open, isCloneMode]);
@@ -73,6 +76,7 @@ export default function CharacterModal({
         avatar_url: avatarUrl.trim(),
         color_tag: colorTag,
         is_template: isTemplate,
+        is_global: isGlobal,
       });
     }
   };
@@ -304,6 +308,26 @@ export default function CharacterModal({
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 Permite clonar rápidamente este arquetipo en cualquier historia (RF-3.4)
+              </Typography>
+            </Box>
+          }
+        />
+
+        <FormControlLabel
+          control={
+            <Switch
+              checked={isGlobal}
+              onChange={(e) => setIsGlobal(e.target.checked)}
+              color="secondary"
+            />
+          }
+          label={
+            <Box>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                Personaje global
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Disponible automáticamente en todas tus historias.
               </Typography>
             </Box>
           }

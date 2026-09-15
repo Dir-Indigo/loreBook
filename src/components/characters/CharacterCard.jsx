@@ -19,9 +19,10 @@ import {
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert'; // Icono para el menú de opciones
 
-export default function CharacterCard({ character, onEdit, onDelete, onClone }) {
+export default function CharacterCard({ character, onEdit, onDelete, onClone, selectable = false, selected = false, onSelect }) {
   // Estado para controlar la apertura y cierre del menú
   const [anchorEl, setAnchorEl] = useState(null);
+  const [bounceKey, setBounceKey] = useState(0);
   const open = Boolean(anchorEl);
 
   const handleMenuClick = (event) => {
@@ -32,29 +33,48 @@ export default function CharacterCard({ character, onEdit, onDelete, onClone }) 
     setAnchorEl(null);
   };
 
+  const handleCardClick = (event) => {
+    if (!selectable || !onSelect) return;
+    setBounceKey((current) => current + 1);
+    onSelect(character.id, event);
+  };
+
   return (
     <Card
+      key={`${character.id}-${bounceKey}`}
       elevation={0}
       sx={{
         p: 2,
         position: 'relative',
-        border: '1.5px solid',
-        borderColor: character.color_tag ? alpha(character.color_tag, 0.4) : 'divider',
+        border: selected ? '2px solid' : '1px solid',
+        borderColor: selected
+          ? character.color_tag || 'primary.main'
+          : character.color_tag
+          ? alpha(character.color_tag, 0.4)
+          : 'divider',
         borderRadius: 3,
         bgcolor: character.color_tag ? alpha(character.color_tag, 0.12) : 'background.paper',
         background: character.color_tag
           ? `linear-gradient(135deg, ${alpha(character.color_tag, 0.16)} 0%, ${alpha(character.color_tag, 0.04)} 100%)`
           : 'background.paper',
-        boxShadow: 'none',
+        boxShadow: selected
+          ? `0 0 0 3px ${alpha(character.color_tag || '#8c6d53', 0.2)}`
+          : 'none',
+        animation: selected ? 'selected-character-bounce 260ms ease-out' : 'none',
         display: 'flex',
         flexDirection: 'column',
-        transition: 'all 0.2s ease',
+        cursor: selectable ? 'pointer' : 'default',
+        transition: 'border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease',
+        '&:hover': selectable ? {
+          borderColor: character.color_tag || 'primary.main',
+        } : undefined,
       }}
+      onClick={handleCardClick}
     >
       {/* Esquina superior derecha: Menú de opciones (Tres puntos) */}
       <Box sx={{ position: 'absolute', top: 12, right: 12 }}>
         <Tooltip title="Opciones">
-          <IconButton size="small" onClick={handleMenuClick}>
+          <IconButton size="small" onClick={(event) => { event.stopPropagation(); handleMenuClick(event); }}>
             <MoreVertIcon fontSize="small" />
           </IconButton>
         </Tooltip>
@@ -115,9 +135,14 @@ export default function CharacterCard({ character, onEdit, onDelete, onClone }) 
           {character.name?.charAt(0)}
         </Avatar>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 800 }} noWrap>
-            {character.name}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7, pr: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800 }} noWrap>
+              {character.name}
+            </Typography>
+            {character.is_global && (
+              <Chip label="Global" size="small" color="secondary" variant="outlined" sx={{ height: 20, fontSize: '0.62rem' }} />
+            )}
+          </Box>
           <Chip
             label={character.role_archetype || 'Sin rol'}
             size="small"

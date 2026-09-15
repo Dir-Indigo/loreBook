@@ -95,6 +95,7 @@ export default function BoardTreeItem({
   board,
   boards = [],
   events = [],
+  eventOrderMap = new Map(),
   level = 0,
   activeBoardId,
   isDefaultBoard = false,
@@ -160,9 +161,14 @@ export default function BoardTreeItem({
       <Box
         onClick={(e) => {
           e.stopPropagation();
-          // Toggle expansion on click, but also select if not already active
+          const selectingAnotherBoard = activeBoardId !== board.id;
+
           if (hasExpandableContent) {
-            setOpen((v) => !v);
+            if (selectingAnotherBoard) {
+              setOpen(true);
+            } else {
+              setOpen((v) => !v);
+            }
           }
           if (onSelect) onSelect(board);
         }}
@@ -400,7 +406,7 @@ export default function BoardTreeItem({
       </Menu>
 
       {/* Expanded Content: Sub-boards + Events */}
-      <Collapse in={open} timeout="auto">
+      <Collapse in={open} timeout="auto" sx={{ borderLeft: level > 0 ? '1px solid' : 0, borderColor: 'divider', ml: level > 0 ? 1.5 : 0 }}>
         {/* Inline Folder Creator for Sub-board */}
         {isCreatingChildHere && (
           <InlineFolderInput
@@ -411,27 +417,30 @@ export default function BoardTreeItem({
         )}
 
         {/* Sub-boards (Folders) */}
-        {children.map((child) => (
-          <BoardTreeItem
-            key={child.id}
-            board={child}
-            boards={boards}
-            events={events}
-            level={level + 1}
-            activeBoardId={activeBoardId}
-            creatingInParentId={creatingInParentId}
-            onStartCreateBoard={onStartCreateBoard}
-            onCommitCreateBoard={onCommitCreateBoard}
-            onCancelCreateBoard={onCancelCreateBoard}
-            onSelect={onSelect}
-            onRename={onRename}
-            onDelete={onDelete}
-            onChangeColor={onChangeColor}
-            onOpenCreateEventForBoard={onOpenCreateEventForBoard}
-            onOpenEditEvent={onOpenEditEvent}
-            onDeleteEvent={onDeleteEvent}
-          />
-        ))}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.2 }}>
+          {children.map((child) => (
+            <BoardTreeItem
+              key={child.id}
+              board={child}
+              boards={boards}
+              events={events}
+              eventOrderMap={eventOrderMap}
+              level={level + 1}
+              activeBoardId={activeBoardId}
+              creatingInParentId={creatingInParentId}
+              onStartCreateBoard={onStartCreateBoard}
+              onCommitCreateBoard={onCommitCreateBoard}
+              onCancelCreateBoard={onCancelCreateBoard}
+              onSelect={onSelect}
+              onRename={onRename}
+              onDelete={onDelete}
+              onChangeColor={onChangeColor}
+              onOpenCreateEventForBoard={onOpenCreateEventForBoard}
+              onOpenEditEvent={onOpenEditEvent}
+              onDeleteEvent={onDeleteEvent}
+            />
+          ))}
+        </Box>
 
         {/* Events (Files inside this folder) */}
         {boardEvents.map((ev) => (
@@ -453,7 +462,9 @@ export default function BoardTreeItem({
               borderRadius: 1.5,
               cursor: 'pointer',
               transition: 'all 0.12s ease',
+              borderLeft: '2px solid transparent',
               '&:hover': {
+                borderLeftColor: board.color || 'primary.main',
                 bgcolor: 'action.hover',
                 '& .ev-actions': { opacity: 1 },
               },
@@ -480,7 +491,7 @@ export default function BoardTreeItem({
                 flexShrink: 0,
               }}
             >
-              #{ev.order_index}
+              #{eventOrderMap.get(ev.id) ?? Math.round(Number(ev.order_index) || 1)}
             </Typography>
 
             {/* Event Title */}

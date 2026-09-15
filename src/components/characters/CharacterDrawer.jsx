@@ -20,7 +20,9 @@ import HubIcon from '@mui/icons-material/Hub';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import PublicOutlinedIcon from '@mui/icons-material/PublicOutlined';
 import CustomButton from '../common/CustomButton';
+import SelectionActionBar from '../common/SelectionActionBar';
 import { RELATIONSHIP_TYPES } from '../../constants/constants';
 import CharacterCard from './CharacterCard';
 
@@ -34,6 +36,7 @@ export default function CharacterDrawer({
   onOpenEditCharacter,
   onOpenCloneCharacter,
   onDeleteCharacter,
+  onSetCharactersGlobal,
   onCreateRelationship,
   onDeleteRelationship,
 }) {
@@ -44,6 +47,7 @@ export default function CharacterDrawer({
   const [targetId, setTargetId] = useState('');
   const [relType, setRelType] = useState('Aliado');
   const [relDesc, setRelDesc] = useState('');
+  const [selectedCharacterIds, setSelectedCharacterIds] = useState([]);
 
   const handleAddRelationship = async (e) => {
     e.preventDefault();
@@ -61,6 +65,28 @@ export default function CharacterDrawer({
     setRelType('Aliado');
     setRelDesc('');
   };
+
+  const toggleCharacterSelection = (characterId, event) => {
+    if (!event?.ctrlKey && !event?.metaKey) {
+      setSelectedCharacterIds([characterId]);
+      return;
+    }
+
+    setSelectedCharacterIds((current) => current.includes(characterId)
+      ? current.filter((id) => id !== characterId)
+      : [...current, characterId]);
+  };
+
+  const handleSetSelectedGlobal = async (isGlobal) => {
+    if (!selectedCharacterIds.length) return;
+    await onSetCharactersGlobal(selectedCharacterIds, isGlobal);
+    setSelectedCharacterIds([]);
+  };
+
+  const globalCharacters = characters.filter((character) => character.is_global);
+  const localCharacters = characters.filter(
+    (character) => !character.is_global || character.story_id === storyId
+  );
 
   return (
     <Drawer
@@ -109,7 +135,7 @@ export default function CharacterDrawer({
         <Tab
           icon={<PersonIcon fontSize="small" />}
           iconPosition="start"
-          label={`Fichas (${characters.length})`}
+          label={`Fichas (${localCharacters.length})`}
           sx={{ minHeight: 44, fontSize: '0.85rem' }}
         />
         <Tab
@@ -117,6 +143,12 @@ export default function CharacterDrawer({
           iconPosition="start"
           label={`Relaciones (${relationships.length})`}
           sx={{ minHeight: 44, fontSize: '0.85rem' }}
+        />
+        <Tab
+          icon={<PublicOutlinedIcon fontSize="small" />}
+          iconPosition="start"
+          label={`Globales (${globalCharacters.length})`}
+          sx={{ minHeight: 44, fontSize: '0.78rem' }}
         />
       </Tabs>
 
@@ -142,7 +174,7 @@ export default function CharacterDrawer({
             </CustomButton>
           </Box>
 
-          {characters.length === 0 ? (
+          {localCharacters.length === 0 ? (
             <Box sx={{ p: 4, textAlign: 'center', bgcolor: 'background.subtle', borderRadius: 2 }}>
               <PersonIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
               <Typography variant="body2" color="text.secondary">
@@ -151,10 +183,13 @@ export default function CharacterDrawer({
             </Box>
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: '1 0 auto' }}>
-                {characters.map((char) => (
+                {localCharacters.map((char) => (
                 <CharacterCard
                     key={char.id}
                     character={char}
+                    selectable
+                    selected={selectedCharacterIds.includes(char.id)}
+                    onSelect={toggleCharacterSelection}
                     onEdit={onOpenEditCharacter}
                     onDelete={onDeleteCharacter}
                     onClone={onOpenCloneCharacter}
@@ -164,6 +199,56 @@ export default function CharacterDrawer({
           )}
         </Box>
       )}
+
+      {tabIndex === 2 && (
+        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5, overflowY: 'auto', flexGrow: 1 }}>
+          {globalCharacters.length === 0 ? (
+            <Box sx={{ p: 3, textAlign: 'center', bgcolor: 'background.subtle', borderRadius: 2 }}>
+              <PublicOutlinedIcon sx={{ fontSize: 36, color: 'text.disabled', mb: 1 }} />
+              <Typography variant="body2" color="text.secondary">
+                Aún no hay personajes globales.
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {globalCharacters.map((character) => (
+                <CharacterCard
+                  key={character.id}
+                  character={character}
+                  selectable
+                  selected={selectedCharacterIds.includes(character.id)}
+                  onSelect={toggleCharacterSelection}
+                  onEdit={onOpenEditCharacter}
+                  onDelete={onDeleteCharacter}
+                  onClone={onOpenCloneCharacter}
+                />
+              ))}
+            </Box>
+          )}
+        </Box>
+      )}
+
+      <SelectionActionBar
+        count={selectedCharacterIds.length}
+        onClear={() => setSelectedCharacterIds([])}
+        actions={[
+          {
+            key: 'make-global',
+            label: 'Hacer globales',
+            tooltip: 'Hacer globales',
+            icon: <PublicOutlinedIcon fontSize="small" />,
+            onClick: () => handleSetSelectedGlobal(true),
+            color: 'secondary',
+          },
+          {
+            key: 'remove-global',
+            label: 'Quitar global',
+            tooltip: 'Quitar estado global',
+            icon: <PersonIcon fontSize="small" />,
+            onClick: () => handleSetSelectedGlobal(false),
+          },
+        ]}
+      />
 
       {/* Tab 1: Relationships Map */}
       {tabIndex === 1 && (

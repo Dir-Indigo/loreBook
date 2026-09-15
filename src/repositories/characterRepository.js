@@ -1,7 +1,11 @@
 import { supabase } from '../utils/supabaseClient';
 
 export const characterRepository = {
-  getAll: (storyId) => supabase.from('characters').select('*').eq('story_id', storyId).order('name', { ascending: true }),
+  getAll: (storyId) => supabase
+    .from('characters')
+    .select('*')
+    .or(`story_id.eq.${storyId},is_global.eq.true`)
+    .order('name', { ascending: true }),
   getById: (id) => supabase.from('characters').select('*').eq('id', id).single(),
   create: (data) => supabase.from('characters').insert([data]).select().single(),
   update: (id, data) => supabase.from('characters').update(data).eq('id', id).select().single(),

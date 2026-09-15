@@ -26,6 +26,7 @@ import FlareIcon from '@mui/icons-material/Flare';
 import ViewHeadlineIcon from '@mui/icons-material/ViewHeadline';
 import ViewAgendaOutlinedIcon from '@mui/icons-material/ViewAgendaOutlined';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { APP_CONFIG } from '../../constants/constants';
 
 function EventNodeComponent({ data, selected }) {
@@ -44,6 +45,7 @@ function EventNodeComponent({ data, selected }) {
     onDelete,
     onOpenVersions,
     onCreateBackup,
+    onDuplicate,
   } = data;
 
   const [expanded, setExpanded] = useState(false);
@@ -54,6 +56,7 @@ function EventNodeComponent({ data, selected }) {
 
   // Show compact if forced compact, OR (auto and global isCompact is true, provided not forced expanded)
   const showCompact = cardMode === 'compact' ? true : cardMode === 'expanded' ? false : isCompact;
+  const isVisuallySelected = selected;
 
   const displayTitle = title.length > APP_CONFIG.EVENT_TITLE_MAX_LENGTH
     ? `${title.substring(0, APP_CONFIG.EVENT_TITLE_MAX_LENGTH)}...`
@@ -65,8 +68,10 @@ function EventNodeComponent({ data, selected }) {
       <Box
         sx={{
           bgcolor: 'background.paper',
-          border: '2px solid',
-          borderColor: selected ? 'primary.main' : colorTag || 'divider',
+          border: '3px solid',
+          borderColor: isVisuallySelected ? 'primary.main' : colorTag || 'divider',
+          // Use boxSizing to keep size consistent, subtract border width from padding
+          boxSizing: 'border-box',
           borderRadius: 2.5,
           p: 1.2,
           px: 1.5,
@@ -74,8 +79,9 @@ function EventNodeComponent({ data, selected }) {
           display: 'flex',
           flexDirection: 'column',
           gap: 0.8,
-          boxShadow: selected ? '0 0 0 2px rgba(140, 109, 83, 0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
-          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          boxShadow: isVisuallySelected ? '0 0 12px 3px rgba(140, 109, 83, 0.4)' : '0 2px 8px rgba(0,0,0,0.06)',
+          animation: isVisuallySelected ? 'selected-event-bounce 360ms ease-out' : 'none',
+          transition: 'border-color 120ms ease, box-shadow 120ms ease',
           userSelect: 'none',
           position: 'relative',
         }}
@@ -155,7 +161,7 @@ function EventNodeComponent({ data, selected }) {
                 color: 'secondary.main',
                 '&:hover': { bgcolor: 'divider' },
                 flexShrink: 0,
-                transition: 'all 0.4s ease',
+                transition: 'color 120ms ease, background-color 120ms ease, transform 120ms ease',
               }}
             >
               <ExpandMoreIcon sx={{ fontSize: 18 }} />
@@ -204,14 +210,16 @@ function EventNodeComponent({ data, selected }) {
     <Box
       sx={{
         bgcolor: 'background.paper',
-        border: '1.5px solid',
-        borderColor: selected ? 'primary.main' : 'divider',
+        border: '2.5px solid',
+        borderColor: isVisuallySelected ? 'primary.main' : 'divider',
+        boxSizing: 'border-box', // Keeps dimensions constant
         borderTop: '4px solid',
         borderTopColor: colorTag || 'primary.main',
         borderRadius: 2.5,
         width: 300,
-        boxShadow: selected ? '0 4px 16px rgba(0,0,0,0.12)' : 'none',
-        transition: 'all 0.2s ease',
+        boxShadow: isVisuallySelected ? '0 8px 24px rgba(0,0,0,0.2)' : 'none',
+        animation: isVisuallySelected ? 'selected-event-bounce 360ms ease-out' : 'none',
+        transition: 'border-color 120ms ease, box-shadow 120ms ease',
         userSelect: 'none',
         overflow: 'hidden',
         position: 'relative',
@@ -264,7 +272,8 @@ function EventNodeComponent({ data, selected }) {
             title={title}
             sx={{
               fontWeight: 700,
-              fontSize: '0.9rem',
+              fontSize: '1.0rem',
+              letterSpacing: '-0.02em',
               color: 'text.primary',
             }}
           >
@@ -281,7 +290,7 @@ function EventNodeComponent({ data, selected }) {
                 e.stopPropagation();
                 setCardMode('compact');
               }}
-              sx={{ p: 0.5, color: 'text.secondary', '&:hover': { color: 'secondary.main' }, transition: 'all 0.4s ease' }}
+              sx={{ p: 0.5, color: 'text.secondary', '&:hover': { color: 'secondary.main' }, transition: 'color 120ms ease, background-color 120ms ease, transform 120ms ease' }}
             >
               <ExpandLessIcon fontSize="small" />
             </IconButton>
@@ -389,7 +398,7 @@ function EventNodeComponent({ data, selected }) {
                 e.stopPropagation();
                 setExpanded(!expanded);
               }}
-              sx={{ p: 0.5, color: expanded ? 'primary.main' : 'text.secondary', transition: 'all 0.4s ease' }}
+              sx={{ p: 0.5, color: expanded ? 'primary.main' : 'text.secondary', transition: 'color 120ms ease, background-color 120ms ease, transform 120ms ease' }}
             >
               {expanded ? <ViewAgendaOutlinedIcon fontSize="small" /> : <ViewHeadlineIcon fontSize="small" />}
             </IconButton>
@@ -429,6 +438,18 @@ function EventNodeComponent({ data, selected }) {
             setAnchorEl(null);
           }}
         >
+          <MenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              setAnchorEl(null);
+              onDuplicate && onDuplicate(data);
+            }}
+          >
+            <ListItemIcon>
+              <ContentCopyIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primary="Duplicar" />
+          </MenuItem>
           <MenuItem
             onClick={(e) => {
               e.stopPropagation();
@@ -475,4 +496,32 @@ function EventNodeComponent({ data, selected }) {
   );
 }
 
-export default memo(EventNodeComponent);
+const areCharactersEqual = (previous = [], next = []) => {
+  if (previous.length !== next.length) return false;
+  return previous.every((character, index) => {
+    const nextCharacter = next[index];
+    return character.id === nextCharacter?.id
+      && character.name === nextCharacter?.name
+      && character.avatar_url === nextCharacter?.avatar_url
+      && character.color_tag === nextCharacter?.color_tag;
+  });
+};
+
+const areEventNodesEqual = (previous, next) => {
+  if (previous.selected !== next.selected) return false;
+
+  const previousData = previous.data;
+  const nextData = next.data;
+  return previousData.id === nextData.id
+    && previousData.title === nextData.title
+    && previousData.summary === nextData.summary
+    && previousData.details === nextData.details
+    && previousData.orderIndex === nextData.orderIndex
+    && previousData.colorTag === nextData.colorTag
+    && previousData.importanceLevel === nextData.importanceLevel
+    && previousData.versionsCount === nextData.versionsCount
+    && previousData.isCompact === nextData.isCompact
+    && areCharactersEqual(previousData.characters, nextData.characters);
+};
+
+export default memo(EventNodeComponent, areEventNodesEqual);

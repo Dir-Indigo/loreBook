@@ -11,10 +11,16 @@ export const eventService = {
     const payload = boardId ? { ...eventData, board_id: boardId } : eventData;
     const { data: newEvent, error: eventErr } = await eventRepository.create(payload);
     if (eventErr) throw eventErr;
-    if (characterIds && characterIds.length > 0) {
-        await eventRepository.createEventCharacterLink(characterIds.map(charId => ({ event_id: newEvent.id, character_id: charId })));
+    const normalizedCharacterIds = Array.isArray(characterIds)
+      ? characterIds.map((charId) => (typeof charId === 'object' ? charId.id : charId)).filter(Boolean)
+      : [];
+    if (normalizedCharacterIds.length > 0) {
+        const { error: characterLinkError } = await eventRepository.createEventCharacterLink(
+          normalizedCharacterIds.map((charId) => ({ event_id: newEvent.id, character_id: charId }))
+        );
+        if (characterLinkError) throw characterLinkError;
     }
-    await eventRepository.createVersion({ event_id: newEvent.id, version_number: 1, snapshot_data: { ...newEvent, characterIds }, note: 'Versión inicial' });
+    await eventRepository.createVersion({ event_id: newEvent.id, version_number: 1, snapshot_data: { ...newEvent, characterIds: normalizedCharacterIds }, note: 'Versión inicial' });
     return newEvent;
   },
   update: async (id, data, characterIds, createBackup, backupNote) => {
@@ -24,8 +30,17 @@ export const eventService = {
     const { data: updated, error } = await eventRepository.update(id, data);
     if (error) throw error;
     if (characterIds) {
-        await eventRepository.deleteEventCharacters(id);
-        if (characterIds.length > 0) await eventRepository.createEventCharacterLink(characterIds.map(charId => ({ event_id: id, character_id: charId })));
+        const normalizedCharacterIds = characterIds
+          .map((charId) => (typeof charId === 'object' ? charId.id : charId))
+          .filter(Boolean);
+        const { error: deleteLinksError } = await eventRepository.deleteEventCharacters(id);
+        if (deleteLinksError) throw deleteLinksError;
+        if (normalizedCharacterIds.length > 0) {
+          const { error: characterLinkError } = await eventRepository.createEventCharacterLink(
+            normalizedCharacterIds.map((charId) => ({ event_id: id, character_id: charId }))
+          );
+          if (characterLinkError) throw characterLinkError;
+        }
     }
     return updated;
   },

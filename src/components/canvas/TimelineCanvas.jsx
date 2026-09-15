@@ -48,6 +48,7 @@ export default function TimelineCanvas({
   onCreateBackup,
   onNodeDragStop,
   onDuplicateEvent,
+  onDuplicateEvents,
 }) {
   const { currentThemeConfig } = useLoreTheme();
 
@@ -59,8 +60,8 @@ export default function TimelineCanvas({
   const isCompact = manualCompact || autoCompact;
 
   // Selected node and clipboard state for Ctrl+C and Ctrl+V
-  const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const copiedEventRef = useRef(null);
+  const selectedNodeIdsRef = useRef([]);
+  const copiedEventsRef = useRef([]);
   const [snackbarInfo, setSnackbarInfo] = useState(null);
 
   // Compute sequence rank / order index for each node based on DAG connections (Topological BFS)
@@ -149,10 +150,11 @@ export default function TimelineCanvas({
           onDelete: () => onDeleteEvent(ev.id),
           onOpenVersions: () => onOpenVersions(ev.id, ev.title),
           onCreateBackup: () => onCreateBackup(ev.id),
+          onDuplicate: () => onDuplicateEvent(ev),
         },
       };
     });
-  }, [events, computedOrderMap, isCompact, onOpenEditEvent, onDeleteEvent, onOpenVersions, onCreateBackup]);
+  }, [events, computedOrderMap, isCompact, onOpenEditEvent, onDeleteEvent, onOpenVersions, onCreateBackup, onDuplicateEvent]);
 
   // Generate DAG cable vector edges from eventConnections
   const initialEdges = useMemo(() => {
@@ -179,13 +181,19 @@ export default function TimelineCanvas({
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
+  const handleNodesChange = useCallback((changes) => {
+    onNodesChange(changes.filter((change) => change.type !== 'select'));
+  }, [onNodesChange]);
+
   // Sync state when props change
   useEffect(() => {
-    // Only update if not currently dragging to avoid overwriting user changes
     if (!isDraggingRef.current) {
-        setNodes(initialNodes);
+      setNodes(initialNodes.map((node) => ({
+        ...node,
+        selected: selectedNodeIdsRef.current.includes(node.id),
+      })));
     }
-  }, [initialNodes]); // Removed setNodes from dependency array as it is stable
+  }, [initialNodes, setNodes]);
 
   useEffect(() => {
     setEdges(initialEdges);
@@ -261,14 +269,33 @@ export default function TimelineCanvas({
     [onDeleteConnection]
   );
 
-  // Track selection changes
-  const onSelectionChange = useCallback(({ nodes }) => {
-    if (nodes && nodes.length > 0) {
-      setSelectedNodeId(nodes[0].id);
-    } else {
-      setSelectedNodeId(null);
+  const commitSelection = useCallback((nextIds) => {
+    const uniqueIds = [...new Set(nextIds)];
+    selectedNodeIdsRef.current = uniqueIds;
+    setNodes((currentNodes) => currentNodes.map((currentNode) => ({
+      ...currentNode,
+      selected: uniqueIds.includes(currentNode.id),
+    })));
+  }, [setNodes]);
+
+  const handleNodeClick = useCallback((event, node) => {
+    if (!event.ctrlKey && !event.metaKey) {
+      commitSelection([node.id]);
+      return;
     }
-  }, []);
+
+    const currentIds = selectedNodeIdsRef.current;
+    const nextIds = currentIds.includes(node.id)
+      ? currentIds.filter((id) => id !== node.id)
+      : [...currentIds, node.id];
+    commitSelection(nextIds);
+  }, [commitSelection]);
+
+  const handlePaneClick = useCallback(() => {
+    if (selectedNodeIdsRef.current.length > 0) {
+      commitSelection([]);
+    }
+  }, [commitSelection]);
 
   // Handle Ctrl+C and Ctrl+V keyboard shortcuts
   useEffect(() => {
@@ -281,13 +308,14 @@ export default function TimelineCanvas({
       const isCtrlOrCmd = e.ctrlKey || e.metaKey;
 
       if (isCtrlOrCmd && (e.key === 'c' || e.key === 'C')) {
-        if (selectedNodeId) {
-          const targetEvent = events.find((ev) => ev.id === selectedNodeId);
-          if (targetEvent) {
-            copiedEventRef.current = targetEvent;
+        const committedIds = selectedNodeIdsRef.current;
+        if (committedIds.length > 0) {
+          const targetEvents = events.filter((ev) => committedIds.includes(ev.id));
+          if (targetEvents.length > 0) {
+            copiedEventsRef.current = targetEvents;
             setSnackbarInfo({
               severity: 'info',
-              message: `Evento "${targetEvent.title}" copiado. Presiona Ctrl+V para pegar una copia.`,
+              message: `${targetEvents.length} evento(s) copiado(s). Presiona Ctrl+V para pegar.`,
               icon: <ContentCopyIcon fontSize="small" />,
             });
           }
@@ -295,12 +323,23 @@ export default function TimelineCanvas({
       }
 
       if (isCtrlOrCmd && (e.key === 'v' || e.key === 'V')) {
-        if (copiedEventRef.current && onDuplicateEvent) {
-          onDuplicateEvent(copiedEventRef.current, { x: 50, y: 40 });
-          setSnackbarInfo({
-            severity: 'success',
-            message: `Copia generada en el lienzo para: "${copiedEventRef.current.title}"`,
-            icon: <ContentPasteIcon fontSize="small" />,
+        if (copiedEventsRef.current.length > 0 && (onDuplicateEvents || onDuplicateEvent)) {
+          const copiedEvents = [...copiedEventsRef.current];
+          const duplicatePromise = onDuplicateEvents
+            ? onDuplicateEvents(copiedEvents)
+            : Promise.all(copiedEvents.map((ev, index) =>
+                onDuplicateEvent(ev, { x: 50 + (index * 20), y: 40 + (index * 20) })
+              ));
+
+          Promise.resolve(duplicatePromise).then((createdIds) => {
+            if (Array.isArray(createdIds) && createdIds.length > 0) {
+              commitSelection(createdIds);
+            }
+            setSnackbarInfo({
+              severity: 'success',
+              message: `${copiedEvents.length} copia(s) generada(s).`,
+              icon: <ContentPasteIcon fontSize="small" />,
+            });
           });
         }
       }
@@ -308,7 +347,7 @@ export default function TimelineCanvas({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNodeId, events, onDuplicateEvent]);
+  }, [events, onDuplicateEvent, onDuplicateEvents, commitSelection]);
 
   const isDraggingRef = useRef(false);
 
@@ -319,15 +358,18 @@ export default function TimelineCanvas({
 
   // Handle Drag End to persist (X, Y) coordinates
   const handleNodeDragStop = useCallback(
-    (event, node) => {
+    (event, node, draggedNodes = [node]) => {
       isDraggingRef.current = false;
       // Update local ReactFlow state optimistically to prevent snap-back
-      setNodes((nds) => 
-        nds.map((n) => (n.id === node.id ? { ...n, position: node.position } : n))
+      setNodes((nds) =>
+        nds.map((currentNode) => {
+          const draggedNode = draggedNodes.find((item) => item.id === currentNode.id);
+          return draggedNode ? { ...currentNode, position: draggedNode.position } : currentNode;
+        })
       );
 
       if (onNodeDragStop) {
-        onNodeDragStop(node.id, node.position.x, node.position.y);
+        onNodeDragStop(draggedNodes);
       }
     },
     [onNodeDragStop, setNodes]
@@ -341,6 +383,7 @@ export default function TimelineCanvas({
 
   return (
     <Box
+      className="timeline-canvas"
       sx={{
         width: '100%',
         height: '100%',
@@ -493,7 +536,7 @@ export default function TimelineCanvas({
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
+        onNodesChange={handleNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={handleConnect}
         onReconnectStart={handleReconnectStart}
@@ -504,8 +547,10 @@ export default function TimelineCanvas({
         onEdgesDelete={handleEdgesDelete}
         onNodeDragStart={handleNodeDragStart}
         onNodeDragStop={handleNodeDragStop}
-        onSelectionChange={onSelectionChange}
+        onNodeClick={handleNodeClick}
+        onPaneClick={handlePaneClick}
         onMove={handleMove}
+        onlyRenderVisibleElements
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{ padding: 0.2 }}

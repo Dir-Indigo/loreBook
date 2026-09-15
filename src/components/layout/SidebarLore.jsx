@@ -29,6 +29,7 @@ export default function SidebarLore({
   story,
   characters = [],
   events = [],
+  eventConnections = [],
   boards = [],
   activeBoardId,
   onOpenStorySelector,
@@ -40,6 +41,8 @@ export default function SidebarLore({
   onRenameBoard,
   onDeleteBoard,
   onChangeBoardColor,
+  onOpenEditEvent,
+  onDeleteEvent,
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [quickCoverOpen, setQuickCoverOpen] = useState(false);
@@ -62,6 +65,54 @@ export default function SidebarLore({
     () => boards.filter((b) => !b.parent_board_id),
     [boards]
   );
+
+  const eventOrderMap = useMemo(() => {
+    const orderMap = new Map();
+    const inDegree = new Map();
+    const adjacency = new Map();
+
+    events.forEach((event) => {
+      inDegree.set(event.id, 0);
+      adjacency.set(event.id, []);
+    });
+
+    eventConnections.forEach((connection) => {
+      if (inDegree.has(connection.target_event_id)) {
+        inDegree.set(connection.target_event_id, inDegree.get(connection.target_event_id) + 1);
+      }
+      if (adjacency.has(connection.source_event_id)) {
+        adjacency.get(connection.source_event_id).push(connection.target_event_id);
+      }
+    });
+
+    const queue = [];
+    events.forEach((event) => {
+      if (inDegree.get(event.id) === 0) {
+        queue.push({ id: event.id, level: 1 });
+      }
+    });
+
+    while (queue.length > 0) {
+      const { id, level } = queue.shift();
+      const nextLevel = Math.max(orderMap.get(id) || 1, level);
+      orderMap.set(id, nextLevel);
+
+      (adjacency.get(id) || []).forEach((targetId) => {
+        const targetLevel = nextLevel + 1;
+        if (!orderMap.has(targetId) || orderMap.get(targetId) < targetLevel) {
+          queue.push({ id: targetId, level: targetLevel });
+        }
+      });
+    }
+
+    events.forEach((event, index) => {
+      if (!orderMap.has(event.id)) {
+        orderMap.set(event.id, Number(event.order_index) || index + 1);
+      }
+    });
+
+    return orderMap;
+  }, [events, eventConnections]);
 
   const handleOpenQuickCover = () => {
     setNewCoverUrl(story?.cover_url || "");
@@ -211,28 +262,7 @@ export default function SidebarLore({
         </Typography>
 
         {view === 'dashboard' && (
-          
-          
             <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
-                <CustomButton
-                    variant={hasCover ? "contained" : "outlined"}
-                    size="small"
-                    fullWidth
-                    startIcon={<LayersOutlinedIcon fontSize="small" />}
-                    onClick={onOpenStorySelector}
-                    sx={{
-                        fontSize: "0.74rem",
-                        py: 0.45,
-                        fontWeight: 700,
-                        bgcolor: hasCover ? "rgba(255, 255, 255, 0.18)" : undefined,
-                        color: hasCover ? "#ffffff" : undefined,
-                        borderColor: hasCover ? "rgba(255, 255, 255, 0.35)" : undefined,
-                        backdropFilter: hasCover ? "blur(6px)" : "none",
-                        "&:hover": { bgcolor: hasCover ? "rgba(255, 255, 255, 0.32)" : undefined },
-                    }}
-                >
-                    Historias
-                </CustomButton>
                 <CustomButton
                     variant={hasCover ? "contained" : "outlined"}
                     size="small"
@@ -326,6 +356,7 @@ export default function SidebarLore({
                   board={board}
                   boards={boards}
                   events={events}
+                  eventOrderMap={eventOrderMap}
                   level={0}
                   activeBoardId={activeBoardId}
                   onSelect={(b) => onSelectBoard && onSelectBoard(b.id)}
@@ -336,6 +367,8 @@ export default function SidebarLore({
                   onOpenCreateEventForBoard={(boardId) => {
                     onOpenCreateEvent && onOpenCreateEvent(boardId);
                   }}
+                  onOpenEditEvent={onOpenEditEvent}
+                  onDeleteEvent={onDeleteEvent}
                 />
               ))
         ) : (
