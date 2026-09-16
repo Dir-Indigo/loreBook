@@ -26,6 +26,9 @@ export default function ImageCropModal({
   imageSrc,
   onClose,
   onCropComplete,
+  aspectRatio = '1:1',
+  shape = 'circle',
+  title = null,
 }) {
   const [loadedImg, setLoadedImg] = useState(null);
   const [zoom, setZoom] = useState(1);
@@ -33,6 +36,14 @@ export default function ImageCropModal({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [processing, setProcessing] = useState(false);
+
+  const isPanoramic = aspectRatio === 'panoramic' || aspectRatio === '16:9' || aspectRatio === '2:1';
+  const cropBoxWidth = isPanoramic ? 380 : 260;
+  const cropBoxHeight = isPanoramic ? 190 : 260;
+  const targetOutputWidth = isPanoramic ? 1200 : 280;
+  const targetOutputHeight = isPanoramic ? 600 : 280;
+  const modalTitle = title || (isPanoramic ? 'Recortar Portada Panorámica' : 'Recortar y Encuadrar Avatar');
+  const frameBorderRadius = isPanoramic ? '16px' : shape === 'circle' ? '50%' : '16px';
 
   // Load HTMLImageElement when imageSrc changes
   useEffect(() => {
@@ -100,8 +111,8 @@ export default function ImageCropModal({
 
       // Compute display dimensions
       const minDisplayScale = Math.max(
-        CROP_BOX_SIZE / loadedImg.naturalWidth,
-        CROP_BOX_SIZE / loadedImg.naturalHeight
+        cropBoxWidth / loadedImg.naturalWidth,
+        cropBoxHeight / loadedImg.naturalHeight
       );
       const currentScale = minDisplayScale * zoom;
 
@@ -109,16 +120,19 @@ export default function ImageCropModal({
       const displayedHeight = loadedImg.naturalHeight * currentScale;
 
       // Center offset
-      const imageLeft = (CROP_BOX_SIZE - displayedWidth) / 2 + position.x;
-      const imageTop = (CROP_BOX_SIZE - displayedHeight) / 2 + position.y;
+      const imageLeft = (cropBoxWidth - displayedWidth) / 2 + position.x;
+      const imageTop = (cropBoxHeight - displayedHeight) / 2 + position.y;
 
       // Convert crop box coordinates back to natural image pixels
       const cropX = Math.max(0, (0 - imageLeft) / currentScale);
       const cropY = Math.max(0, (0 - imageTop) / currentScale);
-      const cropSize = Math.min(
+      const cropW = Math.min(
         loadedImg.naturalWidth - cropX,
+        cropBoxWidth / currentScale
+      );
+      const cropH = Math.min(
         loadedImg.naturalHeight - cropY,
-        CROP_BOX_SIZE / currentScale
+        cropBoxHeight / currentScale
       );
 
       const optimizedBlob = await cropAndOptimizeImage(
@@ -126,10 +140,11 @@ export default function ImageCropModal({
         {
           x: cropX,
           y: cropY,
-          width: Math.max(10, cropSize),
-          height: Math.max(10, cropSize),
+          width: Math.max(10, cropW),
+          height: Math.max(10, cropH),
         },
-        280, // High-res avatar 280x280
+        targetOutputWidth,
+        targetOutputHeight,
         0.85
       );
 
@@ -148,19 +163,19 @@ export default function ImageCropModal({
   // Base scale calculation to fit the image
   const baseScale = loadedImg
     ? Math.max(
-        CROP_BOX_SIZE / loadedImg.naturalWidth,
-        CROP_BOX_SIZE / loadedImg.naturalHeight
+        cropBoxWidth / loadedImg.naturalWidth,
+        cropBoxHeight / loadedImg.naturalHeight
       )
     : 1;
 
-  const currentDisplayWidth = loadedImg ? loadedImg.naturalWidth * baseScale * zoom : CROP_BOX_SIZE;
-  const currentDisplayHeight = loadedImg ? loadedImg.naturalHeight * baseScale * zoom : CROP_BOX_SIZE;
+  const currentDisplayWidth = loadedImg ? loadedImg.naturalWidth * baseScale * zoom : cropBoxWidth;
+  const currentDisplayHeight = loadedImg ? loadedImg.naturalHeight * baseScale * zoom : cropBoxHeight;
 
   return (
     <Dialog
       open={open}
       onClose={processing ? undefined : onClose}
-      maxWidth="xs"
+      maxWidth={isPanoramic ? 'sm' : 'xs'}
       fullWidth
       PaperProps={{
         sx: {
@@ -184,7 +199,7 @@ export default function ImageCropModal({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <CropIcon color="primary" />
           <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.05rem' }}>
-            Recortar y Encuadrar Avatar
+            {modalTitle}
           </Typography>
         </Box>
         <IconButton size="small" onClick={onClose} disabled={processing}>
@@ -194,10 +209,10 @@ export default function ImageCropModal({
 
       <DialogContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
         <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', fontSize: '0.85rem' }}>
-          Arrastra la foto para posicionarla y usa la barra para hacer zoom.
+          Arrastra la imagen para posicionarla en el encuadre y ajusta el zoom.
         </Typography>
 
-        {/* Viewport Frame with Circular / Rounded Mask */}
+        {/* Viewport Frame with Mask */}
         <Box
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
@@ -207,9 +222,10 @@ export default function ImageCropModal({
           onTouchMove={handleTouchMove}
           onTouchEnd={handleMouseUp}
           sx={{
-            width: CROP_BOX_SIZE,
-            height: CROP_BOX_SIZE,
-            borderRadius: '50%',
+            width: { xs: '100%', sm: cropBoxWidth },
+            maxWidth: cropBoxWidth,
+            height: cropBoxHeight,
+            borderRadius: frameBorderRadius,
             overflow: 'hidden',
             position: 'relative',
             bgcolor: '#1a1a1a',
@@ -233,8 +249,8 @@ export default function ImageCropModal({
                 position: 'absolute',
                 width: `${currentDisplayWidth}px`,
                 height: `${currentDisplayHeight}px`,
-                left: `${(CROP_BOX_SIZE - currentDisplayWidth) / 2 + position.x}px`,
-                top: `${(CROP_BOX_SIZE - currentDisplayHeight) / 2 + position.y}px`,
+                left: `${(cropBoxWidth - currentDisplayWidth) / 2 + position.x}px`,
+                top: `${(cropBoxHeight - currentDisplayHeight) / 2 + position.y}px`,
                 maxWidth: 'none',
                 pointerEvents: 'none',
               }}
@@ -273,7 +289,11 @@ export default function ImageCropModal({
         {/* Optimization Info Badge */}
         <Chip
           icon={<AutoFixHighIcon sx={{ fontSize: '15px !important' }} />}
-          label="Auto-optimización WebP: ~25-40 KB (Carga ultrarrápida)"
+          label={
+            isPanoramic
+              ? 'Auto-optimización WebP: ~50-80 KB (Panorámica HD ultrarrápida)'
+              : 'Auto-optimización WebP: ~25-40 KB (Carga ultrarrápida)'
+          }
           size="small"
           color="success"
           variant="outlined"
@@ -299,7 +319,7 @@ export default function ImageCropModal({
           startIcon={processing ? <CircularProgress size={18} color="inherit" /> : <CropIcon />}
           sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, px: 2.5 }}
         >
-          {processing ? 'Optimizando y Subiendo…' : 'Aplicar Recorte'}
+          {processing ? 'Optimizando y Subiendo…' : 'Aplicar Portada'}
         </Button>
       </DialogActions>
     </Dialog>

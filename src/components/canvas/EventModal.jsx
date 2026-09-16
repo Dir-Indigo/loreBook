@@ -229,7 +229,7 @@ export default function EventModal({
               px: 1,
             }}
           >
-            {showAdvanced ? 'Ocultar opciones avanzadas' : '⚙️ Más opciones (Personajes, Lore profundo, Respaldo…)'}
+            {showAdvanced ? 'Ocultar opciones avanzadas' : 'Más opciones (Personajes, Lore profundo, Respaldo…)'}
           </Button>
         </Box>
 

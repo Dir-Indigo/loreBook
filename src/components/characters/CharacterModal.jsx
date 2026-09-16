@@ -301,7 +301,7 @@ export default function CharacterModal({
                 {/* Quick Color Palette */}
                 <Grid item xs={12} sm={6} sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
                   <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center', flexWrap: 'wrap' }}>
-                    {CHARACTER_COLOR_PALETTE.slice(0, 6).map((color) => {
+                    {CHARACTER_COLOR_PALETTE.slice(0, 8).map((color) => {
                       const isSelected = colorTag?.toLowerCase() === color.toLowerCase();
                       return (
                         <Box
@@ -352,7 +352,7 @@ export default function CharacterModal({
                     px: 1,
                   }}
                 >
-                  {showAdvanced ? 'Ocultar opciones avanzadas' : '⚙️ Más opciones (Foto, Global, Plantilla, Color Hex…)'}
+                  {showAdvanced ? 'Ocultar opciones avanzadas' : 'Más opciones (Foto, Global, Plantilla, Color Hex…)'}
                 </Button>
               </Box>
 

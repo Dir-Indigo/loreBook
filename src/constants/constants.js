@@ -17,19 +17,14 @@ export const USER_ROLES = {
 
 export const CHARACTER_ARCHETYPES = [
   'Protagonista',
-  'Principal',
+  'Deuteragonista',
   'Antagonista',
-  'Secundario',
-  'Co-Protagonista',
   'Mentor',
-  'Interés Amoroso',
-  'Aliado',
-  'Guardián',
-  'Heraldo',
-  'Pícaro',
-  'Figura de Autoridad',
-  'Entidad Mítica',
+  'Secundario',
+  'Terciario',
+  'Ambiental',
 ];
+
 
 export const RELATIONSHIP_TYPES = [
   'Aliado',
@@ -51,17 +46,22 @@ export const EVENT_IMPORTANCE = [
 ];
 
 export const CHARACTER_COLOR_PALETTE = [
-  '#cbd5e1', // Gris Claro
-  '#334155', // Gris Oscuro
-  '#0f172a', // Negro
-  '#8c6d53', // Terracota / Tierra
-  '#f59e0b', // Ámbar / Dorado
-  '#dc2626', // Rojo Escarlata
-  '#ec4899', // Magenta
-  '#10b981', // Verde
-  '#06b6d4', // Cyan
-  '#1e3a8a', // Azul Noche
-  '#7c3aed', // Violeta
+  // --- PRIMARIOS MATE (Posiciones 0 a 2) ---
+  '#0284c7', // Azul Cerúleo Mate (Primario)
+  '#eab308', // Amarillo Mostaza / Dorado Mate (Primario)
+  '#be123c', // Rojo Carmesí Mate (Primario)
+
+  // --- SECUNDARIOS MATE (Posiciones 3 a 5) ---
+  '#16a34a', // Verde Hoja Mate (Secundario)
+  '#ea580c', // Naranja Terracota Mate (Secundario)
+  '#7c3aed', // Violeta / Púrpura Mate (Secundario)
+
+  // --- NEUTROS Y COMPLEMENTARIOS MATE (Posiciones 6 a 10) ---
+  '#0d9488', // Verde Azulado / Teal Mate
+  '#be185d', // Rosa Magenta Mate
+  '#854d0e', // Ocre / Tierra Mate
+  '#64748b', // Gris Pizarra Medio Mate
+  '#1e293b', // Azul Oscuro / Grafito Mate
 ];
 
 /**

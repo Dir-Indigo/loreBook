@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { useEventOrder } from '../../hooks/useEventOrder';
 import { useQuickNotes } from '../../context/QuickNotesContext';
@@ -34,14 +34,20 @@ import PeopleOutlineIcon from "@mui/icons-material/PeopleOutline";
 import LayersOutlinedIcon from "@mui/icons-material/LayersOutlined";
 import AddIcon from "@mui/icons-material/Add";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
+import LinkIcon from "@mui/icons-material/Link";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import BookmarkBorderIcon from "@mui/icons-material/BookmarkBorder";
+import { Button, ButtonGroup, CircularProgress } from "@mui/material";
 import CustomButton from "../common/CustomButton";
 import BoardTreeItem from "../sidebar/BoardTreeItem";
+import ImageCropModal from "../common/ImageCropModal";
+import { uploadStoryCover } from "../../services/storageService";
 
 export default function SidebarLore({
   view = 'dashboard',
@@ -66,10 +72,23 @@ export default function SidebarLore({
   const router = useRouter();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { notes, toggleOpen: toggleNotesPanel } = useQuickNotes();
+  const { notes, notesLoading, toggleOpen: toggleNotesPanel } = useQuickNotes();
 
   const [collapsed, setCollapsed] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState(0); // 0=Tramas, 1=Personajes, 2=Ideas, 3=Ficha
+  
+  // Persist sidebarTab
+  const [sidebarTab, setSidebarTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return parseInt(localStorage.getItem('lorebook_sidebar_tab') || '0', 10);
+    }
+    return 0;
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('lorebook_sidebar_tab', sidebarTab.toString());
+    }
+  }, [sidebarTab]);
   
   // Search states
   const [charSearch, setCharSearch] = useState("");
@@ -83,6 +102,12 @@ export default function SidebarLore({
 
   const [quickCoverOpen, setQuickCoverOpen] = useState(false);
   const [newCoverUrl, setNewCoverUrl] = useState("");
+  const [coverMode, setCoverMode] = useState("upload"); // 'upload' | 'url'
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [rawCoverImageSrc, setRawCoverImageSrc] = useState(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const coverFileInputRef = useRef(null);
+
   const [newBoardDialogOpen, setNewBoardDialogOpen] = useState(false);
   const [newBoardName, setNewBoardName] = useState("");
   const [newBoardParentId, setNewBoardParentId] = useState(null);
@@ -108,16 +133,71 @@ export default function SidebarLore({
   }, [notes, story?.id]);
 
   const filteredCharacters = useMemo(() => {
-    if (!charSearch.trim()) return characters;
+    // Filtrar personajes:
+    // Mostrar si:
+    // 1. Pertenecen específicamente a esta historia (story_id === story.id)
+    // 2. SON globales (is_global === true) Y NO tienen un story_id de otra historia.
+
+    let availableCharacters = characters.filter(c => {
+        if (c.story_id === story?.id) return true;
+        if (c.is_global && (!c.story_id || c.story_id === story?.id)) return true;
+        return false;
+    });
+
+    if (!charSearch.trim()) return availableCharacters;
     const q = charSearch.toLowerCase();
-    return characters.filter((c) => c.name.toLowerCase().includes(q) || c.role_archetype?.toLowerCase().includes(q));
-  }, [characters, charSearch]);
+    return availableCharacters.filter((c) => c.name.toLowerCase().includes(q) || c.role_archetype?.toLowerCase().includes(q));
+  }, [characters, charSearch, story?.id]);
 
   const eventOrderMap = useEventOrder(events, eventConnections);
 
   const handleOpenQuickCover = () => {
-    setNewCoverUrl(story?.cover_url || "");
+    const currentUrl = story?.cover_url || "";
+    setNewCoverUrl(currentUrl);
+    setCoverMode(currentUrl && !currentUrl.includes('supabase.co/storage') && currentUrl.startsWith('http') ? 'url' : 'upload');
     setQuickCoverOpen(true);
+  };
+
+  const handleCoverFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setRawCoverImageSrc(reader.result);
+      setCropModalOpen(true);
+      e.target.value = '';
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCropComplete = async (optimizedBlob, previewUrl) => {
+    setUploadingCover(true);
+    try {
+      const result = await uploadStoryCover(optimizedBlob, story?.id || 'new');
+      if (result?.url) {
+        setNewCoverUrl(result.url);
+        if (story && onUpdateStoryCover) {
+          await onUpdateStoryCover(story.id, result.url);
+        }
+      } else {
+        setNewCoverUrl(previewUrl);
+      }
+    } catch (err) {
+      console.error('Error uploading story cover:', err);
+      setNewCoverUrl(previewUrl);
+    } finally {
+      setUploadingCover(false);
+      setQuickCoverOpen(false);
+    }
+  };
+
+  const handleRemoveCover = async () => {
+    setNewCoverUrl("");
+    if (story && onUpdateStoryCover) {
+      await onUpdateStoryCover(story.id, null);
+    }
+    setQuickCoverOpen(false);
   };
 
   const handleSaveCover = async () => {
@@ -181,12 +261,12 @@ export default function SidebarLore({
           </IconButton>
         </Tooltip>
 
-        <Tooltip title={`Personajes (${characters.length})`} placement="right">
+        <Tooltip title={`Personajes (${filteredCharacters.length})`} placement="right">
           <IconButton
             size="small"
             onClick={() => { setSidebarTab(1); setCollapsed(false); }}
           >
-            <Badge badgeContent={characters.length} color="primary">
+            <Badge badgeContent={filteredCharacters.length} color="primary">
               <PeopleOutlineIcon fontSize="small" color={sidebarTab === 1 ? 'primary' : 'action'} />
             </Badge>
           </IconButton>
@@ -232,7 +312,7 @@ export default function SidebarLore({
   return (
     <Box
       sx={{
-        width: 320,
+        width: 340, // Aumentado ligeramente para mayor soltura visual
         height: "100%",
         bgcolor: "custom.sidebar",
         borderRight: 1,
@@ -269,57 +349,56 @@ export default function SidebarLore({
       <Box
         sx={{
           width: "100%",
-          p: 1.8,
+          p: 1.5,
           px: 2,
           position: "relative",
-          overflow: "hidden",
           borderBottom: 1,
           borderColor: "divider",
           bgcolor: hasCover ? "transparent" : "background.subtle",
           backgroundImage: hasCover
-            ? `linear-gradient(to bottom, rgba(16, 20, 26, 0.5) 0%, rgba(16, 20, 26, 0.9) 100%), url(${story.cover_url})`
+            ? `linear-gradient(to bottom, rgba(15, 23, 42, 0.6) 0%, rgba(15, 23, 42, 0.92) 100%), url(${story.cover_url})`
             : "none",
           backgroundSize: "cover",
           backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-          color: hasCover ? "#f8fafc" : "text.primary",
+          color: "#fff",
           display: "flex",
           flexDirection: "column",
-          gap: 0.8,
+          gap: 0.5,
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Chip
             size="small"
-            icon={<BookmarkBorderIcon fontSize="inherit" />}
-            label={story?.universe ? `Universo: ${story.universe.title}` : "Historia Activa"}
+            icon={<BookmarkBorderIcon style={{ fontSize: 12, color: '#fff' }} />}
+            label={story?.universe ? story.universe.title : "Historia Activa"}
             variant="outlined"
             sx={{
-              height: 20,
-              fontSize: "0.68rem",
+              height: 18,
+              fontSize: "0.62rem",
               fontWeight: 700,
-              borderColor: hasCover ? "rgba(255,255,255,0.4)" : "divider",
-              color: hasCover ? "#fff" : "primary.main",
+              borderColor: "rgba(255,255,255,0.3)",
+              color: "#fff",
+              bgcolor: "rgba(0,0,0,0.25)",
             }}
           />
           <Tooltip title="Cambiar portada">
             <IconButton
               size="small"
               onClick={handleOpenQuickCover}
-              sx={{ color: hasCover ? "#fff" : "text.secondary", p: 0.4 }}
+              sx={{ color: "rgba(255,255,255,0.8)", p: 0.2 }}
             >
-              <PhotoCameraIcon sx={{ fontSize: 16 }} />
+              <PhotoCameraIcon sx={{ fontSize: 15 }} />
             </IconButton>
           </Tooltip>
         </Box>
 
-        <Typography variant="subtitle1" sx={{ fontWeight: 800, fontSize: "1.02rem" }} noWrap>
+        <Typography variant="subtitle1" sx={{ fontWeight: 800, fontSize: "0.95rem", lineHeight: 1.2 }} noWrap>
           {story ? story.title : "Sin historia seleccionada"}
         </Typography>
 
         {story && (
-          <Typography variant="caption" sx={{ opacity: 0.75, fontSize: "0.72rem" }} noWrap>
-            {events.length} escenas • {characters.length} personajes • {boards.length} tableros
+          <Typography variant="caption" sx={{ opacity: 0.8, fontSize: "0.68rem" }} noWrap>
+            {events.length} escenas · {characters.length} personajes · {boards.length} tableros
           </Typography>
         )}
       </Box>
@@ -330,24 +409,38 @@ export default function SidebarLore({
         onChange={(e, val) => setSidebarTab(val)}
         variant="fullWidth"
         sx={{
-          minHeight: 38,
+          minHeight: 44,
           borderBottom: 1,
           borderColor: 'divider',
           bgcolor: 'background.paper',
           '& .MuiTab-root': {
-            minHeight: 38,
-            py: 0.5,
+            minHeight: 44,
+            py: 1,
             px: 0.5,
-            fontSize: '0.72rem',
+            fontSize: '0.68rem',
             fontWeight: 700,
             textTransform: 'none',
           },
         }}
       >
-        <Tab icon={<AccountTreeOutlinedIcon sx={{ fontSize: 16 }} />} label="Tramas" />
-        <Tab icon={<Badge badgeContent={characters.length} color="primary"><PeopleOutlineIcon sx={{ fontSize: 16 }} /></Badge>} label="Personajes" />
-        <Tab icon={<Badge badgeContent={storyNotes.length} color="secondary"><LightbulbOutlinedIcon sx={{ fontSize: 16 }} /></Badge>} label="Ideas" />
-        <Tab icon={<InfoOutlinedIcon sx={{ fontSize: 16 }} />} label="Ficha" />
+        <Tab icon={<AccountTreeOutlinedIcon sx={{ fontSize: 18 }} />} label="Tramas" />
+        <Tab 
+          icon={
+            <Badge badgeContent={filteredCharacters.length} color="primary" slotProps={{ badge: { sx: { fontSize: '0.6rem', height: 14, minWidth: 14, p: '0 2px' } } }}>
+              <PeopleOutlineIcon sx={{ fontSize: 18 }} />
+            </Badge>
+          } 
+          label="Personajes" 
+        />
+        <Tab 
+          icon={
+            <Badge badgeContent={storyNotes.length} color="secondary" slotProps={{ badge: { sx: { fontSize: '0.6rem', height: 14, minWidth: 14, p: '0 2px' } } }}>
+              <LightbulbOutlinedIcon sx={{ fontSize: 18 }} />
+            </Badge>
+          } 
+          label="Ideas" 
+        />
+        <Tab icon={<InfoOutlinedIcon sx={{ fontSize: 18 }} />} label="Ficha" />
       </Tabs>
 
       {/* ─── SECTION 0: TRAMAS (Líneas Narrativas & Eventos) ──────────────── */}
@@ -541,7 +634,13 @@ export default function SidebarLore({
           </Box>
 
           <Box sx={{ flexGrow: 1, overflowY: "auto", px: 1.5, pb: 1 }}>
-            {storyNotes.length === 0 ? (
+            {notesLoading && notes.length === 0 ? (
+              <Box sx={{ textAlign: 'center', py: 4, px: 2 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                  Cargando ideas...
+                </Typography>
+              </Box>
+            ) : storyNotes.length === 0 ? (
               <Box sx={{ textAlign: 'center', py: 4, px: 2 }}>
                 <LightbulbOutlinedIcon sx={{ fontSize: 32, color: 'text.disabled', mb: 1 }} />
                 <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
@@ -585,7 +684,7 @@ export default function SidebarLore({
               onClick={toggleNotesPanel}
               sx={{ fontSize: '0.75rem', py: 0.5 }}
             >
-              Abrir Gestor Express
+              Escribir nueva idea
             </CustomButton>
           </Box>
         </Box>
@@ -676,6 +775,25 @@ export default function SidebarLore({
         </DialogActions>
       </Dialog>
 
+      {/* Hidden File Input for Story Cover Selection */}
+      <input
+        ref={coverFileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        style={{ display: 'none' }}
+        onChange={handleCoverFileChange}
+      />
+
+      <ImageCropModal
+        open={cropModalOpen}
+        imageSrc={rawCoverImageSrc}
+        aspectRatio="panoramic"
+        shape="rounded"
+        title="Recortar y Optimizar Portada"
+        onClose={() => setCropModalOpen(false)}
+        onCropComplete={handleCropComplete}
+      />
+
       {/* Quick Cover Dialog */}
       <Dialog
         open={quickCoverOpen}
@@ -684,41 +802,113 @@ export default function SidebarLore({
         fullWidth
         PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
       >
-        <DialogTitle sx={{ fontWeight: 700, fontSize: "1rem", pb: 1 }}>
+        <DialogTitle sx={{ fontWeight: 700, fontSize: "1rem", pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <PhotoCameraIcon color="primary" fontSize="small" />
           Portada de la Historia
         </DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
           <Typography variant="body2" color="text.secondary">
-            Ingresa la URL de la imagen que servirá de fondo panorámico en el panel de Proyecto Activo.
+            Personaliza la portada panorámica que identifica a tu historia activa.
           </Typography>
-          <TextField
-            label="URL de la imagen"
-            placeholder="https://images.unsplash.com/..."
-            value={newCoverUrl}
-            onChange={(e) => setNewCoverUrl(e.target.value)}
-            fullWidth
-            autoFocus
-          />
-          {newCoverUrl && (
-            <Box
-              sx={{
-                width: "100%",
-                height: 110,
-                borderRadius: 2,
-                backgroundImage: `url(${newCoverUrl})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-                border: 1,
-                borderColor: "divider",
-              }}
+
+          {/* Mode Selector Buttons */}
+          <ButtonGroup size="small" fullWidth sx={{ mb: 0.5 }}>
+            <Button
+              variant={coverMode === 'upload' ? 'contained' : 'outlined'}
+              onClick={() => setCoverMode('upload')}
+              startIcon={<FileUploadOutlinedIcon fontSize="small" />}
+              sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.78rem' }}
+            >
+              Subir Imagen
+            </Button>
+            <Button
+              variant={coverMode === 'url' ? 'contained' : 'outlined'}
+              onClick={() => setCoverMode('url')}
+              startIcon={<LinkIcon fontSize="small" />}
+              sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.78rem' }}
+            >
+              Enlace URL
+            </Button>
+          </ButtonGroup>
+
+          {coverMode === 'upload' ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, alignItems: 'center' }}>
+              <CustomButton
+                variant="outlined"
+                fullWidth
+                startIcon={uploadingCover ? <CircularProgress size={16} /> : <FileUploadOutlinedIcon fontSize="small" />}
+                onClick={() => coverFileInputRef.current?.click()}
+                disabled={uploadingCover}
+                sx={{ py: 1.2, fontSize: '0.84rem' }}
+              >
+                {uploadingCover ? 'Subiendo y optimizando...' : 'Seleccionar imagen desde tu dispositivo'}
+              </CustomButton>
+
+              <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', fontSize: '0.72rem' }}>
+                Formatos: JPG, PNG o WebP. Se abrirá la herramienta de encuadre panorámico HD.
+              </Typography>
+            </Box>
+          ) : (
+            <TextField
+              label="URL de la imagen"
+              placeholder="https://images.unsplash.com/..."
+              value={newCoverUrl}
+              onChange={(e) => setNewCoverUrl(e.target.value)}
+              fullWidth
+              autoFocus
+              size="small"
+              InputProps={{ sx: { borderRadius: 2 } }}
             />
           )}
+
+          {newCoverUrl && (
+            <Box sx={{ position: 'relative', width: "100%" }}>
+              <Box
+                sx={{
+                  width: "100%",
+                  height: 110,
+                  borderRadius: 2,
+                  backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.6)), url(${newCoverUrl})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  border: 1,
+                  borderColor: "divider",
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  p: 1,
+                }}
+              >
+                <Typography variant="caption" sx={{ color: '#fff', fontWeight: 700, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
+                  Vista previa: {story?.title || 'Historia'}
+                </Typography>
+              </Box>
+
+              <Tooltip title="Eliminar portada actual">
+                <IconButton
+                  size="small"
+                  onClick={handleRemoveCover}
+                  sx={{
+                    position: 'absolute',
+                    top: 6,
+                    right: 6,
+                    bgcolor: 'rgba(0,0,0,0.6)',
+                    color: '#fff',
+                    '&:hover': { bgcolor: 'rgba(211, 47, 47, 0.9)' },
+                  }}
+                >
+                  <DeleteOutlineIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          )}
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
+        <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
           <CustomButton variant="outlined" color="inherit" onClick={() => setQuickCoverOpen(false)}>
             Cancelar
           </CustomButton>
-          <CustomButton onClick={handleSaveCover}>Guardar Portada</CustomButton>
+          {coverMode === 'url' && (
+            <CustomButton onClick={handleSaveCover}>Guardar Portada</CustomButton>
+          )}
         </DialogActions>
       </Dialog>
     </Box>

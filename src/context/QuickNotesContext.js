@@ -77,6 +77,15 @@ export const QuickNotesProvider = ({ children }) => {
     setNotesLoading(false);
   }, [user?.id]);
 
+  // Automatically load notes as soon as user is authenticated
+  useEffect(() => {
+    if (user?.id) {
+      loadNotes(null);
+    } else {
+      setNotes([]);
+    }
+  }, [user?.id, loadNotes]);
+
   const createNote = useCallback(async ({ content = '', color = '#f5e6c8', storyId = null, story_id = null, status = 'idea' }) => {
     if (!user?.id) return { data: null, error: new Error('Not authenticated') };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -11,8 +11,10 @@ import {
   Chip,
   Tooltip,
   Button,
+  ButtonGroup,
   Collapse,
   Divider,
+  CircularProgress,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -25,8 +27,13 @@ import TuneIcon from '@mui/icons-material/Tune';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import PublicIcon from '@mui/icons-material/Public';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
+import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
+import LinkIcon from '@mui/icons-material/Link';
+import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import CustomModal from '../common/CustomModal';
 import CustomButton from '../common/CustomButton';
+import ImageCropModal from '../common/ImageCropModal';
+import { uploadStoryCover } from '../../services/storageService';
 
 export default function StoryModal({
   open,
@@ -50,6 +57,13 @@ export default function StoryModal({
   const [belongsToUniverseId, setBelongsToUniverseId] = useState('');
   const [isUniverseRoot, setIsUniverseRoot] = useState(false);
 
+  // Cover upload & cropping state
+  const [coverMode, setCoverMode] = useState('upload'); // 'upload' | 'url'
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [rawCoverImageSrc, setRawCoverImageSrc] = useState(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const coverFileInputRef = useRef(null);
+
   // Progressive disclosure
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -63,6 +77,10 @@ export default function StoryModal({
     setShowAdvanced(false);
     setIsCreating(false);
     setEditingStoryId(null);
+    setCoverMode('upload');
+    setCropModalOpen(false);
+    setRawCoverImageSrc(null);
+    setUploadingCover(false);
   };
 
   const handleStartEdit = (story) => {
@@ -74,7 +92,42 @@ export default function StoryModal({
     setBelongsToUniverseId(story.belongs_to_universe_id || '');
     setIsUniverseRoot(Boolean(story.is_universe_root));
     setShowAdvanced(Boolean(story.is_universe_root || story.belongs_to_universe_id));
+    setCoverMode(story.cover_url && !story.cover_url.includes('supabase.co/storage') && story.cover_url.startsWith('http') ? 'url' : 'upload');
     setIsCreating(true);
+  };
+
+  const handleCoverFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setRawCoverImageSrc(reader.result);
+      setCropModalOpen(true);
+      e.target.value = '';
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCropComplete = async (optimizedBlob, previewUrl) => {
+    setUploadingCover(true);
+    try {
+      const result = await uploadStoryCover(optimizedBlob, editingStoryId || 'new');
+      if (result?.url) {
+        setCoverUrl(result.url);
+      } else {
+        setCoverUrl(previewUrl);
+      }
+    } catch (err) {
+      console.error('Error uploading story cover:', err);
+      setCoverUrl(previewUrl);
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
+  const handleRemoveCover = () => {
+    setCoverUrl('');
   };
 
   const handleSubmit = async (e) => {
@@ -135,6 +188,25 @@ export default function StoryModal({
           </Box>
         )}
 
+        {/* Hidden File Input for Story Cover Selection */}
+        <input
+          ref={coverFileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          style={{ display: 'none' }}
+          onChange={handleCoverFileChange}
+        />
+
+        <ImageCropModal
+          open={cropModalOpen}
+          imageSrc={rawCoverImageSrc}
+          aspectRatio="panoramic"
+          shape="rounded"
+          title="Recortar y Optimizar Portada"
+          onClose={() => setCropModalOpen(false)}
+          onCropComplete={handleCropComplete}
+        />
+
         {/* ─── CREATE / EDIT FORM (SIMPLIFIED & PROGRESSIVE) ─────────────── */}
         {isCreating ? (
           <Paper
@@ -192,38 +264,96 @@ export default function StoryModal({
               InputProps={{ sx: { borderRadius: 2, fontSize: '0.9rem' } }}
             />
 
-            {/* 3. PORTADA / IMAGEN DE FONDO */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <TextField
-                label="URL de Imagen de Portada (Opcional)"
-                placeholder="https://images.unsplash.com/... o enlace a imagen"
-                value={coverUrl}
-                onChange={(e) => setCoverUrl(e.target.value)}
-                fullWidth
-                size="small"
-                InputProps={{ sx: { borderRadius: 2 } }}
-                helperText="Se usará como portada visual y cabecera panorámica en tu espacio de trabajo"
-              />
+            {/* 3. PORTADA / IMAGEN DE FONDO (SUBIDA + OPTIMIZACIÓN O URL) */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                  Imagen de Portada (Panorámica HD)
+                </Typography>
+                <ButtonGroup size="small">
+                  <Button
+                    variant={coverMode === 'upload' ? 'contained' : 'outlined'}
+                    onClick={() => setCoverMode('upload')}
+                    startIcon={<FileUploadOutlinedIcon fontSize="small" />}
+                    sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.74rem', py: 0.3 }}
+                  >
+                    Subir Imagen
+                  </Button>
+                  <Button
+                    variant={coverMode === 'url' ? 'contained' : 'outlined'}
+                    onClick={() => setCoverMode('url')}
+                    startIcon={<LinkIcon fontSize="small" />}
+                    sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.74rem', py: 0.3 }}
+                  >
+                    Enlace URL
+                  </Button>
+                </ButtonGroup>
+              </Box>
+
+              {coverMode === 'upload' ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <CustomButton
+                    variant="outlined"
+                    fullWidth
+                    startIcon={uploadingCover ? <CircularProgress size={16} /> : <FileUploadOutlinedIcon fontSize="small" />}
+                    onClick={() => coverFileInputRef.current?.click()}
+                    disabled={uploadingCover}
+                    sx={{ py: 1, fontSize: '0.82rem' }}
+                  >
+                    {uploadingCover ? 'Subiendo y optimizando...' : 'Seleccionar imagen desde tu dispositivo'}
+                  </CustomButton>
+                </Box>
+              ) : (
+                <TextField
+                  label="URL de Imagen de Portada"
+                  placeholder="https://images.unsplash.com/... o enlace a imagen"
+                  value={coverUrl}
+                  onChange={(e) => setCoverUrl(e.target.value)}
+                  fullWidth
+                  size="small"
+                  InputProps={{ sx: { borderRadius: 2 } }}
+                />
+              )}
+
               {coverUrl && (
-                <Box
-                  sx={{
-                    width: '100%',
-                    height: 100,
-                    borderRadius: 2.5,
-                    backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.7)), url(${coverUrl})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    border: 1,
-                    borderColor: 'divider',
-                    display: 'flex',
-                    alignItems: 'flex-end',
-                    p: 1.5,
-                    color: '#fff',
-                  }}
-                >
-                  <Typography variant="caption" sx={{ fontWeight: 800, textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
-                    Vista previa de portada: {title || 'Tu Historia'}
-                  </Typography>
+                <Box sx={{ position: 'relative', width: '100%' }}>
+                  <Box
+                    sx={{
+                      width: '100%',
+                      height: 100,
+                      borderRadius: 2.5,
+                      backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.7)), url(${coverUrl})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      border: 1,
+                      borderColor: 'divider',
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      p: 1.5,
+                      color: '#fff',
+                    }}
+                  >
+                    <Typography variant="caption" sx={{ fontWeight: 800, textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
+                      Vista previa de portada: {title || 'Tu Historia'}
+                    </Typography>
+                  </Box>
+
+                  <Tooltip title="Quitar portada">
+                    <IconButton
+                      size="small"
+                      onClick={handleRemoveCover}
+                      sx={{
+                        position: 'absolute',
+                        top: 6,
+                        right: 6,
+                        bgcolor: 'rgba(0,0,0,0.6)',
+                        color: '#fff',
+                        '&:hover': { bgcolor: 'rgba(211, 47, 47, 0.9)' },
+                      }}
+                    >
+                      <DeleteOutlineIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </Tooltip>
                 </Box>
               )}
             </Box>
@@ -243,7 +373,7 @@ export default function StoryModal({
                   px: 1,
                 }}
               >
-                {showAdvanced ? 'Ocultar opciones avanzadas' : '⚙️ Más opciones (Sagas y Universos compartidos)'}
+                {showAdvanced ? 'Ocultar opciones avanzadas' : 'Más opciones (Sagas y Universos compartidos)'}
               </Button>
             </Box>
 

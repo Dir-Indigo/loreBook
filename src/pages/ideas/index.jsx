@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import {
   Box,
   Typography,
   Container,
   Grid,
-  Divider,
   Tabs,
   Tab,
   TextField,
@@ -33,7 +32,6 @@ import PushPinIcon from '@mui/icons-material/PushPin';
 import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import AddIcon from '@mui/icons-material/Add';
 import SendIcon from '@mui/icons-material/Send';
 import SearchIcon from '@mui/icons-material/Search';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
@@ -41,12 +39,16 @@ import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import PublicIcon from '@mui/icons-material/Public';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
-import { useAuth } from '../../context/AuthContext';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { useStory } from '../../context/StoryContext';
 import { useQuickNotes, NOTE_COLORS, NOTE_STATUSES } from '../../context/QuickNotesContext';
+import { useWorkspace } from '../../context/WorkspaceContext';
 import SidebarLore from '../../components/layout/SidebarLore';
 import CustomLoading from '../../components/common/CustomLoading';
 import CustomButton from '../../components/common/CustomButton';
+
 
 // ─── Idea Management Card with Story Tagging ──────────────────────────────────
 function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
@@ -73,7 +75,7 @@ function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onToggleP
 
   return (
     <Card
-      elevation={note.is_pinned ? 4 : 1}
+      elevation={note.is_pinned ? 3 : 1}
       sx={{
         bgcolor: note.color,
         borderRadius: 3,
@@ -81,17 +83,17 @@ function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onToggleP
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'space-between',
+        justify: 'space-between',
         transition: 'all 0.2s ease',
         '&:hover': {
           transform: 'translateY(-3px)',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
         },
       }}
     >
-      <CardContent sx={{ p: { xs: 2, sm: 2.2 }, pb: 1 }}>
+      <CardContent sx={{ p: { xs: 1.8, sm: 2 }, pb: 1 }}>
         {/* Header row: Status chip + Story Tag + Pin */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.2, gap: 1, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, gap: 1, flexWrap: 'wrap' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
             <Chip
               label={statusInfo.label}
@@ -104,12 +106,11 @@ function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onToggleP
                 bgcolor: statusInfo.color,
                 color: '#fff',
                 cursor: 'pointer',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+                boxShadow: '0 2px 5px rgba(0,0,0,0.15)',
                 '&:hover': { opacity: 0.9 },
               }}
             />
 
-            {/* Story Tag Chip (Click to assign/change story) */}
             <Tooltip title="Asignar o cambiar historia vinculada">
               <Chip
                 icon={assignedStory ? <BookmarkBorderIcon sx={{ fontSize: '14px !important' }} /> : <PublicIcon sx={{ fontSize: '14px !important' }} />}
@@ -120,7 +121,7 @@ function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onToggleP
                   height: 22,
                   fontSize: '0.68rem',
                   fontWeight: 600,
-                  maxWidth: 160,
+                  maxWidth: 150,
                   bgcolor: assignedStory ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.04)',
                   color: isDark ? '#fff' : 'inherit',
                   cursor: 'pointer',
@@ -160,7 +161,7 @@ function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onToggleP
             }}
             InputProps={{
               disableUnderline: true,
-              style: { fontSize: '0.95rem', lineHeight: 1.6, fontWeight: 500 },
+              style: { fontSize: '0.92rem', lineHeight: 1.5, fontWeight: 500 },
             }}
             sx={{
               '& textarea': {
@@ -174,14 +175,14 @@ function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onToggleP
             variant="body1"
             onClick={() => setEditing(true)}
             sx={{
-              fontSize: '0.95rem',
-              lineHeight: 1.6,
+              fontSize: '0.92rem',
+              lineHeight: 1.5,
               fontWeight: 500,
               color: isDark ? '#eceff1' : '#212121',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               cursor: 'text',
-              minHeight: 55,
+              minHeight: 50,
             }}
           >
             {note.content || <em style={{ opacity: 0.4 }}>Toca aquí para escribir el contenido…</em>}
@@ -193,19 +194,19 @@ function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onToggleP
       <CardActions
         sx={{
           px: 2,
-          pb: 1.5,
+          pb: 1.2,
           pt: 0,
           display: 'flex',
-          justifyContent: 'space-between',
+          justify: 'space-between',
           alignItems: 'center',
           borderTop: '1px solid rgba(0,0,0,0.06)',
-          mt: 1,
+          mt: 0.5,
         }}
       >
         <Typography
           variant="caption"
           sx={{
-            fontSize: '0.7rem',
+            fontSize: '0.68rem',
             opacity: 0.55,
             color: isDark ? '#b0bec5' : '#616161',
           }}
@@ -307,7 +308,6 @@ function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onToggleP
           </ListItemIcon>
           <ListItemText primary="🌐 Global (Sin historia)" secondary="Disponible en todo el workspace" />
         </MenuItem>
-        <Divider />
         {stories.map((s) => (
           <MenuItem
             key={s.id}
@@ -335,6 +335,7 @@ export default function CentralizedIdeasPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { activeStory, stories } = useStory();
   const { notes, notesLoading, loadNotes, createNote, updateNote, deleteNote, togglePin } = useQuickNotes();
+  const { characters } = useWorkspace();
 
   const [storyFilter, setStoryFilter] = useState('all'); // 'all' | 'global' | story_id
   const [activeTab, setActiveTab] = useState(0); // 0=Todas, 1=Ideas, 2=Pendientes, 3=Hechas, 4=Descartadas
@@ -346,19 +347,16 @@ export default function CentralizedIdeasPage() {
   const [newColor, setNewColor] = useState(NOTE_COLORS[0]);
   const [targetStoryId, setTargetStoryId] = useState(activeStory?.id || '');
 
-  // Keep targetStoryId in sync with activeStory initially
   useEffect(() => {
     if (activeStory?.id && !targetStoryId) {
       setTargetStoryId(activeStory.id);
     }
   }, [activeStory?.id, targetStoryId]);
 
-  // Load all user notes (centralized)
   useEffect(() => {
     loadNotes(null);
   }, [loadNotes]);
 
-  // Check query params if story_id was passed
   useEffect(() => {
     if (router.query.story_id) {
       setStoryFilter(router.query.story_id);
@@ -380,24 +378,20 @@ export default function CentralizedIdeasPage() {
     setQuickInput('');
   };
 
-  // Filtered notes based on story, status tab, and search
   const filteredNotes = useMemo(() => {
     let result = [...notes];
 
-    // Story filter
     if (storyFilter === 'global') {
       result = result.filter((n) => !n.story_id);
     } else if (storyFilter !== 'all') {
       result = result.filter((n) => n.story_id === storyFilter);
     }
 
-    // Status tab filter
     if (activeTab === 1) result = result.filter((n) => n.status === 'idea');
     else if (activeTab === 2) result = result.filter((n) => n.status === 'pending');
     else if (activeTab === 3) result = result.filter((n) => n.status === 'done');
     else if (activeTab === 4) result = result.filter((n) => n.status === 'discarded');
 
-    // Search query filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter((n) => n.content?.toLowerCase().includes(q));
@@ -406,7 +400,6 @@ export default function CentralizedIdeasPage() {
     return result;
   }, [notes, storyFilter, activeTab, searchQuery]);
 
-  // Status counts for current story scope
   const scopedNotes = useMemo(() => {
     if (storyFilter === 'global') return notes.filter((n) => !n.story_id);
     if (storyFilter !== 'all') return notes.filter((n) => n.story_id === storyFilter);
@@ -425,54 +418,48 @@ export default function CentralizedIdeasPage() {
 
   return (
     <>
-      <SidebarLore view="ideas" story={activeStory} />
+      <SidebarLore view="ideas" story={activeStory} characters={characters} />
 
-      <Box sx={{ flexGrow: 1, overflowY: 'auto', p: { xs: 2, sm: 3, md: 4 }, bgcolor: 'background.default' }}>
+      <Box sx={{ flexGrow: 1, overflowY: 'auto', p: { xs: 1.5, sm: 2.5 }, bgcolor: 'background.default' }}>
         <Container maxWidth="xl">
-          {/* Header row */}
+          {/* Header Compacto */}
           <Box
             sx={{
               display: 'flex',
               flexDirection: { xs: 'column', sm: 'row' },
-              justifyContent: 'space-between',
+              justify: 'space-between',
               alignItems: { xs: 'flex-start', sm: 'center' },
-              gap: 2,
-              mb: 3,
+              gap: 1.5,
+              mb: 1.5,
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
               <Box
                 sx={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 2.5,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 2,
                   bgcolor: 'primary.main',
                   color: '#fff',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+                  justify: 'center',
                 }}
               >
-                <LightbulbOutlinedIcon sx={{ fontSize: 26 }} />
+                <LightbulbOutlinedIcon sx={{ fontSize: 22 }} />
               </Box>
-              <Box>
-                <Typography variant="h4" sx={{ fontWeight: 800, fontSize: { xs: '1.4rem', sm: '1.8rem' } }}>
-                  Pizarra Central de Ideas
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Todas tus ideas organizadas por historia o globales en un solo lugar.
-                </Typography>
-              </Box>
+              <Typography variant="h5" sx={{ fontWeight: 800, fontSize: { xs: '1.2rem', sm: '1.4rem' } }}>
+                Pizarra Central de Ideas
+              </Typography>
             </Box>
 
-            {/* View Mode Toggle & Canvas Link */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: { xs: '100%', sm: 'auto' } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: { xs: '100%', sm: 'auto' } }}>
               <ButtonGroup size="small" variant="outlined">
                 <Button
                   variant={viewMode === 'grid' ? 'contained' : 'outlined'}
                   onClick={() => setViewMode('grid')}
                   startIcon={<ViewModuleIcon />}
+                  sx={{ py: 0.4 }}
                 >
                   Muro
                 </Button>
@@ -480,220 +467,196 @@ export default function CentralizedIdeasPage() {
                   variant={viewMode === 'kanban' ? 'contained' : 'outlined'}
                   onClick={() => setViewMode('kanban')}
                   startIcon={<ViewColumnIcon />}
+                  sx={{ py: 0.4 }}
                 >
                   Tablero
                 </Button>
               </ButtonGroup>
-
-              <CustomButton
-                variant="outlined"
-                size="small"
-                startIcon={<AutoStoriesIcon fontSize="small" />}
-                onClick={() => router.push('/dashboard')}
-                sx={{ whiteSpace: 'nowrap' }}
-              >
-                Lienzo
-              </CustomButton>
             </Box>
           </Box>
 
-          {/* ─── Ultra-Fast Capture Banner ────────────────────────────────── */}
+          {/* ─── Captura Instantánea Compacta (Una sola línea) ─── */}
           <Paper
-            elevation={2}
+            elevation={1}
             component="form"
             onSubmit={handleCreateFast}
             sx={{
-              p: { xs: 2, sm: 2.5 },
-              mb: 3.5,
-              borderRadius: 3.5,
+              p: 1.2,
+              mb: 1.8,
+              borderRadius: 3,
               bgcolor: 'background.paper',
               border: 1,
               borderColor: 'divider',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+              display: 'flex',
+              flexDirection: { xs: 'column', md: 'row' },
+              gap: 1,
+              alignItems: 'center',
             }}
           >
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.2, color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.8 }}>
-              <LightbulbOutlinedIcon fontSize="small" color="primary" /> Capturar idea instantánea
-            </Typography>
+            <TextField
+              value={quickInput}
+              onChange={(e) => setQuickInput(e.target.value)}
+              placeholder="Capturar idea instantánea y presiona Enter..."
+              fullWidth
+              size="small"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleCreateFast();
+                }
+              }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LightbulbOutlinedIcon fontSize="small" color="primary" />
+                  </InputAdornment>
+                ),
+                sx: { borderRadius: 2, bgcolor: 'background.subtle' },
+              }}
+            />
 
-            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 1.5, alignItems: { md: 'center' } }}>
-              <TextField
-                value={quickInput}
-                onChange={(e) => setQuickInput(e.target.value)}
-                placeholder="Escribe tu idea aquí y presiona Enter…"
-                fullWidth
-                size="medium"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleCreateFast();
-                  }
-                }}
-                InputProps={{
-                  sx: { borderRadius: 2.5, bgcolor: 'background.subtle' },
-                }}
-              />
-
-              {/* Story selector & Controls */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: { xs: 'wrap', sm: 'nowrap' }, justifyContent: 'space-between' }}>
-                <FormControl size="small" sx={{ minWidth: 160 }}>
-                  <Select
-                    value={targetStoryId}
-                    onChange={(e) => setTargetStoryId(e.target.value)}
-                    displayEmpty
-                    sx={{ borderRadius: 2, fontSize: '0.85rem' }}
-                  >
-                    <MenuItem value="">
-                      <em>🌐 Global (Sin historia)</em>
-                    </MenuItem>
-                    {stories.map((s) => (
-                      <MenuItem key={s.id} value={s.id}>
-                        📚 {s.title}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                {/* Color pickers */}
-                <Box sx={{ display: 'flex', gap: 0.8, alignItems: 'center' }}>
-                  {NOTE_COLORS.slice(0, 5).map((c) => (
-                    <Box
-                      key={c}
-                      onClick={() => setNewColor(c)}
-                      sx={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: '50%',
-                        bgcolor: c,
-                        border: c === newColor ? '2.5px solid #111' : '1.5px solid rgba(0,0,0,0.15)',
-                        cursor: 'pointer',
-                        transform: c === newColor ? 'scale(1.25)' : 'scale(1)',
-                        transition: 'transform 0.15s ease',
-                      }}
-                    />
-                  ))}
-                </Box>
-
-                <Button
-                  type="submit"
-                  variant="contained"
-                  disabled={!quickInput.trim()}
-                  startIcon={<SendIcon fontSize="small" />}
-                  sx={{
-                    borderRadius: 2.5,
-                    px: 2.5,
-                    py: 1,
-                    fontWeight: 700,
-                    textTransform: 'none',
-                    whiteSpace: 'nowrap',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  }}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: { xs: '100%', md: 'auto' }, justifyContent: 'space-between' }}>
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <Select
+                  value={targetStoryId}
+                  onChange={(e) => setTargetStoryId(e.target.value)}
+                  displayEmpty
+                  sx={{ borderRadius: 2, fontSize: '0.82rem', height: 38 }}
                 >
-                  Crear
-                </Button>
+                  <MenuItem value="">
+                    <em><PublicIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} /> Global (Sin historia)</em>
+                  </MenuItem>
+                  {stories.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>
+                      <BookmarkBorderIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} /> {s.title}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center' }}>
+                {NOTE_COLORS.slice(0, 5).map((c) => (
+                  <Box
+                    key={c}
+                    onClick={() => setNewColor(c)}
+                    sx={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      bgcolor: c,
+                      border: c === newColor ? '2px solid #111' : '1px solid rgba(0,0,0,0.15)',
+                      cursor: 'pointer',
+                      transform: c === newColor ? 'scale(1.2)' : 'scale(1)',
+                      transition: 'transform 0.15s ease',
+                    }}
+                  />
+                ))}
               </Box>
+
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={!quickInput.trim()}
+                startIcon={<SendIcon fontSize="small"/>}
+                size="small"
+                sx={{
+                  borderRadius: 2,
+                  px: 2,
+                  height: 38,
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+              </Button>
             </Box>
           </Paper>
 
-          {/* ─── Story Filter Chips (Centralized Organizer) ──────────────── */}
-          <Box sx={{ mb: 2.5 }}>
-            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', mb: 1 }}>
-              Filtrar por Historia:
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', pb: 0.5, alignItems: 'center' }}>
-              <Chip
-                label={`Todas (${notes.length})`}
-                onClick={() => setStoryFilter('all')}
-                color={storyFilter === 'all' ? 'primary' : 'default'}
-                variant={storyFilter === 'all' ? 'filled' : 'outlined'}
-                sx={{ fontWeight: 700, borderRadius: 2 }}
-              />
-              <Chip
-                icon={<PublicIcon fontSize="small" />}
-                label={`Globales (${notes.filter((n) => !n.story_id).length})`}
-                onClick={() => setStoryFilter('global')}
-                color={storyFilter === 'global' ? 'primary' : 'default'}
-                variant={storyFilter === 'global' ? 'filled' : 'outlined'}
-                sx={{ fontWeight: 700, borderRadius: 2 }}
-              />
-              <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-              {stories.map((s) => {
-                const count = notes.filter((n) => n.story_id === s.id).length;
-                return (
-                  <Chip
-                    key={s.id}
-                    icon={<BookmarkBorderIcon fontSize="small" />}
-                    label={`${s.title} (${count})`}
-                    onClick={() => setStoryFilter(s.id)}
-                    color={storyFilter === s.id ? 'primary' : 'default'}
-                    variant={storyFilter === s.id ? 'filled' : 'outlined'}
-                    sx={{ fontWeight: 700, borderRadius: 2 }}
-                  />
-                );
-              })}
-            </Box>
-          </Box>
-
-          {/* ─── Status Tabs and Search ──────────────────────────────────── */}
-          <Box
+          {/* ─── Control Bar: Filter por Historia + Status Tabs + Buscador ─── */}
+          <Paper
+            elevation={0}
             sx={{
               display: 'flex',
-              flexDirection: { xs: 'column', md: 'row' },
-              justifyContent: 'space-between',
-              alignItems: { xs: 'stretch', md: 'center' },
-              gap: 2,
-              mb: 3,
-              borderBottom: 1,
+              flexDirection: { xs: 'column', lg: 'row' },
+              alignItems: { xs: 'stretch', lg: 'center' },
+              justify: 'space-between',
+              gap: 1.5,
+              mb: 2,
+              p: 0.8,
+              borderRadius: 2.5,
+              bgcolor: 'background.paper',
+              border: 1,
               borderColor: 'divider',
-              pb: 1,
             }}
           >
+            {/* Tabs de estado */}
             <Tabs
               value={activeTab}
               onChange={(e, val) => setActiveTab(val)}
               variant="scrollable"
               scrollButtons="auto"
-              sx={{ '& .MuiTab-root': { fontWeight: 700, fontSize: '0.88rem', textTransform: 'none' } }}
+              sx={{
+                minHeight: 38,
+                '& .MuiTab-root': { fontWeight: 700, fontSize: '0.82rem', textTransform: 'none', minHeight: 38, py: 0 },
+              }}
             >
               <Tab label={`Todas (${counts.all})`} />
-              <Tab label={`💡 Ideas (${counts.idea})`} />
-              <Tab label={`⏳ Pendientes (${counts.pending})`} />
-              <Tab label={`✅ Hechas (${counts.done})`} />
-              <Tab label={`🗑️ Descartadas (${counts.discarded})`} />
+              <Tab icon={<LightbulbOutlinedIcon fontSize="small" />} iconPosition="start" label={`Ideas (${counts.idea})`} />
+              <Tab icon={<AccessTimeIcon fontSize="small" />} iconPosition="start" label={`Pendientes (${counts.pending})`} />
+              <Tab icon={<CheckCircleOutlineIcon fontSize="small" />} iconPosition="start" label={`Hechas (${counts.done})`} />
+              <Tab icon={<DeleteOutlineIcon fontSize="small" />} iconPosition="start" label={`Descartadas (${counts.discarded})`} />
             </Tabs>
 
-            <TextField
-              size="small"
-              placeholder="Buscar en ideas…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                  </InputAdornment>
-                ),
-                sx: { borderRadius: 2, bgcolor: 'background.paper', width: { xs: '100%', md: 260 } },
-              }}
-            />
-          </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
+              {/* Selector compacto de historias */}
+              <FormControl size="small" sx={{ minWidth: 170 }}>
+                <Select
+                  value={storyFilter}
+                  onChange={(e) => setStoryFilter(e.target.value)}
+                  startAdornment={<FilterListIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />}
+                  sx={{ borderRadius: 2, fontSize: '0.82rem', height: 34 }}
+                >
+                  <MenuItem value="all">Ver: Todas las Historias ({notes.length})</MenuItem>
+                  <MenuItem value="global"><PublicIcon fontSize="small" sx={{ mr: 1 }} /> Globales ({notes.filter((n) => !n.story_id).length})</MenuItem>
+                  {stories.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>
+                      <BookmarkBorderIcon fontSize="small" sx={{ mr: 1 }} /> {s.title} ({notes.filter((n) => n.story_id === s.id).length})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {/* Buscador */}
+              <TextField
+                size="small"
+                placeholder="Buscar en ideas…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                    </InputAdornment>
+                  ),
+                  sx: { borderRadius: 2, bgcolor: 'background.subtle', height: 34, fontSize: '0.82rem', width: { xs: '100%', sm: 180 } },
+                }}
+              />
+            </Box>
+          </Paper>
 
           {/* ─── Main Content Display ─────────────────────────────────────── */}
           {notesLoading ? (
             <CustomLoading message="Cargando ideas centralizadas..." />
           ) : filteredNotes.length === 0 ? (
-            <Box sx={{ textAlign: 'center', py: 8 }}>
-              <LightbulbOutlinedIcon sx={{ fontSize: 60, color: 'text.disabled', mb: 2 }} />
-              <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+            <Box sx={{ textAlign: 'center', py: 6 }}>
+              <LightbulbOutlinedIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+              <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '1rem' }}>
                 {searchQuery ? 'No se encontraron ideas con esa búsqueda' : 'No hay ideas en este filtro'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Usa el cuadro superior para capturar tus notas y vincularlas a cualquier historia.
               </Typography>
             </Box>
           ) : viewMode === 'grid' ? (
-            /* ─── GRID / WALL VIEW ─── */
-            <Grid container spacing={2.5}>
+            /* GRID VIEW */
+            <Grid container spacing={2}>
               {filteredNotes.map((note) => (
                 <Grid item key={note.id} xs={12} sm={6} md={4} lg={3}>
                   <CentralizedIdeaCard
@@ -707,7 +670,7 @@ export default function CentralizedIdeasPage() {
               ))}
             </Grid>
           ) : (
-            /* ─── KANBAN COLUMN VIEW ─── */
+            /* KANBAN VIEW */
             <Grid container spacing={2}>
               {NOTE_STATUSES.map((statusObj) => {
                 const columnNotes = scopedNotes.filter((n) => n.status === statusObj.value);
@@ -716,27 +679,27 @@ export default function CentralizedIdeasPage() {
                     <Paper
                       elevation={0}
                       sx={{
-                        p: 2,
+                        p: 1.5,
                         borderRadius: 3,
                         bgcolor: 'background.subtle',
                         border: 1,
                         borderColor: 'divider',
-                        minHeight: 450,
+                        minHeight: 400,
                         display: 'flex',
                         flexDirection: 'column',
                       }}
                     >
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: statusObj.color }} />
-                          <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: statusObj.color }} />
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800, fontSize: '0.85rem' }}>
                             {statusObj.label}
                           </Typography>
                         </Box>
-                        <Chip size="small" label={columnNotes.length} sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }} />
+                        <Chip size="small" label={columnNotes.length} sx={{ height: 18, fontSize: '0.68rem', fontWeight: 700 }} />
                       </Box>
 
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, overflowY: 'auto' }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, flex: 1, overflowY: 'auto' }}>
                         {columnNotes.map((note) => (
                           <CentralizedIdeaCard
                             key={note.id}

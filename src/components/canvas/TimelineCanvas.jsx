@@ -428,24 +428,6 @@ export default function TimelineCanvas({
         />
       </Box>
 
-      {/* Floating Add Event Button */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 14,
-          right: 14,
-          zIndex: 10,
-        }}
-      >
-        <CustomButton
-          startIcon={<AddIcon fontSize="small" />}
-          onClick={onOpenCreateEvent}
-          size="medium"
-          sx={{ boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}
-        >
-          Añadir Evento
-        </CustomButton>
-      </Box>
 
       {/* Empty State */}
       {events.length === 0 ? (

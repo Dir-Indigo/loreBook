@@ -7,6 +7,7 @@ import { useStory } from '../context/StoryContext';
 import { useLoading } from '../context/LoadingContext';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { useQuickNotes } from '../context/QuickNotesContext';
+import { useGlobalActions } from '../context/GlobalActionsContext';
 import SidebarLore from '../components/layout/SidebarLore';
 import TimelineCanvas from '../components/canvas/TimelineCanvas';
 import CharacterDrawer from '../components/characters/CharacterDrawer';
@@ -14,6 +15,7 @@ import CharacterModal from '../components/characters/CharacterModal';
 import EventModal from '../components/canvas/EventModal';
 import EventVersionsModal from '../components/canvas/EventVersionsModal';
 import QuickNotesPanel from '../components/common/QuickNotesPanel';
+import SpeedDialActions from '../components/common/SpeedDialActions';
 import CustomLoading from '../components/common/CustomLoading';
 import CustomButton from '../components/common/CustomButton';
 
@@ -23,6 +25,7 @@ export default function DashboardPage() {
   const { activeStory, activeStoryId, storiesLoading, updateStory } = useStory();
   const { setLoading } = useLoading();
   const { notes, toggleOpen } = useQuickNotes();
+  const { eventModalOpen, charModalOpen, closeCreateEvent, closeCreateChar, openCreateEvent, openCreateChar } = useGlobalActions();
 
   const {
     characters,
@@ -62,9 +65,22 @@ export default function DashboardPage() {
 
   // UI / Modal States
   const [dataLoading, setDataLoading] = useState(true);
-  const [charDrawerOpen, setCharDrawerOpen] = useState(false);
+  const [charDrawerOpen, setCharDrawerOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('lorebook_char_drawer_open') === 'true';
+    }
+    return false;
+  });
   const [focusedCharacterId, setFocusedCharacterId] = useState(null);
-  const [charModalOpen, setCharModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('lorebook_char_drawer_open', charDrawerOpen.toString());
+    }
+  }, [charDrawerOpen]);
+  
+  // Modales gestionados por contexto global
+  // const [charModalOpen, setCharModalOpen] = useState(false); // Eliminado
   const [selectedCharacter, setSelectedCharacter] = useState(null);
   const [isCloneCharMode, setIsCloneCharMode] = useState(false);
 
@@ -74,7 +90,7 @@ export default function DashboardPage() {
     setCharDrawerOpen(true);
   }, []);
 
-  const [eventModalOpen, setEventModalOpen] = useState(false);
+  // const [eventModalOpen, setEventModalOpen] = useState(false); // Eliminado
   const [selectedEvent, setSelectedEvent] = useState(null);
 
   const [versionsModalOpen, setVersionsModalOpen] = useState(false);
@@ -358,7 +374,10 @@ export default function DashboardPage() {
           boards={boards}
           activeBoardId={activeBoardId}
           onOpenCharactersDrawer={handleOpenCharactersDrawer}
-          onOpenCreateEvent={openCreateEventModal}
+          onOpenCreateEvent={() => {
+            setSelectedEvent(null);
+            openCreateEvent();
+          }}
           onUpdateStoryCover={handleUpdateStoryCover}
           onSelectBoard={handleSelectBoard}
           onCreateBoard={handleCreateBoard}
@@ -380,7 +399,7 @@ export default function DashboardPage() {
             onDeleteConnection={handleDeleteConnection}
             onOpenCreateEvent={() => {
               setSelectedEvent(null);
-              setEventModalOpen(true);
+              openCreateEvent();
             }}
             onOpenEditEvent={handleOpenEditEvent}
             onDeleteEvent={handleDeleteEvent}
@@ -389,6 +408,19 @@ export default function DashboardPage() {
             onNodeDragStop={handleNodeDragStop}
             onDuplicateEvent={handleDuplicateEvent}
             onDuplicateEvents={handleDuplicateEvents}
+          />
+
+          {/* Speed Dial Actions */}
+          <SpeedDialActions
+            onOpenCreateEvent={() => {
+              setSelectedEvent(null);
+              openCreateEvent();
+            }}
+            onOpenCreateCharacter={() => {
+              setSelectedCharacter(null);
+              setIsCloneCharMode(false);
+              openCreateChar();
+            }}
           />
 
           {/* Quick Notes FAB */}
@@ -424,20 +456,16 @@ export default function DashboardPage() {
           characters={characters}
           relationships={relationships}
           focusedCharacterId={focusedCharacterId}
-          onOpenCreateCharacter={() => {
-            setSelectedCharacter(null);
-            setIsCloneCharMode(false);
-            setCharModalOpen(true);
-          }}
+          onOpenCreateCharacter={() => openCreateChar()}
           onOpenEditCharacter={(char) => {
             setSelectedCharacter(char);
             setIsCloneCharMode(false);
-            setCharModalOpen(true);
+            openCreateChar();
           }}
           onOpenCloneCharacter={(char) => {
             setSelectedCharacter(char);
             setIsCloneCharMode(true);
-            setCharModalOpen(true);
+            openCreateChar();
           }}
           onDeleteCharacter={handleDeleteCharacter}
           onSetCharactersGlobal={handleSetCharactersGlobal}
@@ -448,7 +476,7 @@ export default function DashboardPage() {
 
       <CharacterModal
         open={charModalOpen}
-        onClose={() => setCharModalOpen(false)}
+        onClose={() => closeCreateChar()}
         character={selectedCharacter}
         isCloneMode={isCloneCharMode}
         onSave={handleSaveCharacter}
@@ -457,7 +485,7 @@ export default function DashboardPage() {
 
       <EventModal
         open={eventModalOpen}
-        onClose={() => setEventModalOpen(false)}
+        onClose={() => closeCreateEvent()}
         event={selectedEvent}
         characters={characters}
         nextOrderIndex={events.length > 0 ? Math.max(...events.map((e) => e.order_index || 0)) + 1 : 1}

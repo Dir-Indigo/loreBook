@@ -26,8 +26,8 @@ import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PublicOutlinedIcon from '@mui/icons-material/PublicOutlined';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import ViewSidebarIcon from '@mui/icons-material/ViewSidebar';
-import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined';
+import PushPinIcon from '@mui/icons-material/PushPin';
+import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import CustomButton from '../common/CustomButton';
 import SelectionActionBar from '../common/SelectionActionBar';
 import { RELATIONSHIP_TYPES } from '../../constants/constants';
@@ -53,7 +53,37 @@ export default function CharacterDrawer({
   const [tabIndex, setTabIndex] = useState(0);
 
   // Pin/Dock state on Desktop
-  const [isPinned, setIsPinnedState] = useState(false);
+  const [isPinned, setIsPinnedState] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('lorebook_char_drawer_pinned') === 'true';
+    }
+    return false;
+  });
+  const drawerRef = useRef(null);
+
+  useEffect(() => {
+    if (!open || isPinned || isMobile) return;
+
+    // Use a small delay to ensure the event that opened the drawer 
+    // doesn't trigger the click-outside closure immediately.
+    const timer = setTimeout(() => {
+      function handleClickOutside(event) {
+        if (drawerRef.current && !drawerRef.current.contains(event.target)) {
+          onClose();
+        }
+      }
+
+      document.addEventListener("click", handleClickOutside, true); // Use capture phase
+      
+      // Cleanup: remove listener when the effect re-runs or component unmounts
+      // and also clean up the timer.
+      return () => {
+        document.removeEventListener("click", handleClickOutside, true);
+      };
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [open, isPinned, isMobile, onClose]);
   const lastHandledFocusIdRef = useRef(null);
 
   useEffect(() => {
@@ -153,6 +183,7 @@ export default function CharacterDrawer({
 
   const drawerContent = (
     <Box
+      ref={drawerRef}
       sx={{
         width: { xs: '100vw', sm: 400, md: 420 },
         height: '100%',
@@ -207,7 +238,7 @@ export default function CharacterDrawer({
                   p: 0.6,
                 }}
               >
-                {isPinned ? <ViewSidebarIcon fontSize="small" /> : <ViewSidebarOutlinedIcon fontSize="small" />}
+                {isPinned ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
           )}
