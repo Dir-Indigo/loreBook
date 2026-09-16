@@ -444,11 +444,21 @@ export default function QuickNotesPanel() {
           />
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
           {/* Pin/Dock Button for Desktop */}
           {!isMobile && (
             <Tooltip title={isPinned ? 'Desacoplar panel (flotante)' : 'Fijar panel a la derecha'}>
-              <IconButton size="small" onClick={togglePinned} color={isPinned ? 'primary' : 'default'}>
+              <IconButton
+                size="small"
+                onClick={togglePinned}
+                color={isPinned ? 'primary' : 'default'}
+                sx={{
+                  border: 1,
+                  borderColor: isPinned ? 'primary.main' : 'divider',
+                  bgcolor: isPinned ? 'primary.lighter' : 'transparent',
+                  p: 0.6,
+                }}
+              >
                 {isPinned ? <ViewSidebarIcon fontSize="small" /> : <ViewSidebarOutlinedIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
@@ -466,9 +476,32 @@ export default function QuickNotesPanel() {
             </IconButton>
           </Tooltip>
 
-          <IconButton size="small" onClick={() => setIsOpen(false)}>
-            <CloseIcon fontSize="small" />
-          </IconButton>
+          {/* Obvious, Prominent Close Button */}
+          <Button
+            size="small"
+            variant="outlined"
+            color="inherit"
+            startIcon={<CloseIcon fontSize="small" />}
+            onClick={() => setIsOpen(false)}
+            sx={{
+              fontWeight: 700,
+              fontSize: '0.78rem',
+              textTransform: 'none',
+              borderRadius: 2,
+              px: { xs: 1.2, sm: 1.4 },
+              py: 0.35,
+              borderColor: 'divider',
+              bgcolor: 'action.hover',
+              '&:hover': {
+                bgcolor: 'error.main',
+                color: '#fff',
+                borderColor: 'error.main',
+              },
+              transition: 'all 0.15s ease',
+            }}
+          >
+            Cerrar
+          </Button>
         </Box>
       </Box>
 
@@ -668,25 +701,25 @@ export default function QuickNotesPanel() {
     </Box>
   );
 
-  // If pinned on desktop, render as docked side panel
-  if (isPinned && !isMobile) {
+  // On desktop, render directly in the layout (MainLayout flex row) so clicks in the canvas and rest of the app are NEVER blocked!
+  if (!isMobile) {
     return panelContent;
   }
 
-  // Otherwise render as temporary floating drawer / bottom sheet
+  // Otherwise on mobile render as bottom sheet modal
   return (
     <Drawer
-      anchor={isMobile ? 'bottom' : 'right'}
+      anchor="bottom"
       open={isOpen}
       onClose={() => setIsOpen(false)}
       variant="temporary"
       PaperProps={{
         sx: {
-          width: { xs: '100vw', sm: 350, md: 360 },
-          maxHeight: { xs: '88vh', sm: '100vh' },
-          height: { xs: '88vh', sm: '100%' },
-          borderTopLeftRadius: { xs: 20, sm: 0 },
-          borderTopRightRadius: { xs: 20, sm: 0 },
+          width: '100vw',
+          maxHeight: '88vh',
+          height: '88vh',
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
           bgcolor: 'background.paper',
           display: 'flex',
           flexDirection: 'column',

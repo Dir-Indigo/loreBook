@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Drawer,
   Box,
@@ -54,6 +54,7 @@ export default function CharacterDrawer({
 
   // Pin/Dock state on Desktop
   const [isPinned, setIsPinnedState] = useState(false);
+  const lastHandledFocusIdRef = useRef(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -98,9 +99,10 @@ export default function CharacterDrawer({
     setRelDesc('');
   };
 
+  // Allow toggling selection off on click
   const toggleCharacterSelection = (characterId, event) => {
     if (!event?.ctrlKey && !event?.metaKey) {
-      setSelectedCharacterIds([characterId]);
+      setSelectedCharacterIds((current) => current.includes(characterId) ? [] : [characterId]);
       return;
     }
 
@@ -120,34 +122,39 @@ export default function CharacterDrawer({
     (character) => !character.is_global || character.story_id === storyId
   );
 
-  // Auto-focus and scroll to character when focusedCharacterId is provided
+  // Auto-focus and scroll to character ONCE per focusedCharacterId change
   useEffect(() => {
     if (open && focusedCharacterId) {
-      const isOnlyGlobal = !localCharacters.some((c) => c.id === focusedCharacterId) && globalCharacters.some((c) => c.id === focusedCharacterId);
-      if (isOnlyGlobal) {
-        setTabIndex(2);
-      } else {
-        setTabIndex(0);
-      }
-      setSelectedCharacterIds([focusedCharacterId]);
-      
-      const timer = setTimeout(() => {
-        const el = document.getElementById(`character-card-${focusedCharacterId}`);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (lastHandledFocusIdRef.current !== focusedCharacterId) {
+        lastHandledFocusIdRef.current = focusedCharacterId;
+        const isOnlyGlobal = !characters.some((c) => (!c.is_global || c.story_id === storyId) && c.id === focusedCharacterId) && characters.some((c) => c.is_global && c.id === focusedCharacterId);
+        if (isOnlyGlobal) {
+          setTabIndex(2);
+        } else {
+          setTabIndex(0);
         }
-      }, 250);
+        setSelectedCharacterIds([focusedCharacterId]);
+        
+        const timer = setTimeout(() => {
+          const el = document.getElementById(`character-card-${focusedCharacterId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 200);
 
-      return () => clearTimeout(timer);
+        return () => clearTimeout(timer);
+      }
+    } else if (!open) {
+      lastHandledFocusIdRef.current = null;
     }
-  }, [open, focusedCharacterId, localCharacters, globalCharacters]);
+  }, [open, focusedCharacterId, storyId, characters]);
 
   if (!open) return null;
 
   const drawerContent = (
     <Box
       sx={{
-        width: { xs: '100vw', sm: 420 },
+        width: { xs: '100vw', sm: 400, md: 420 },
         height: '100%',
         bgcolor: 'background.paper',
         display: 'flex',
@@ -155,6 +162,7 @@ export default function CharacterDrawer({
         borderLeft: { xs: 0, sm: 1 },
         borderColor: 'divider',
         position: 'relative',
+        boxShadow: { xs: 'none', sm: isPinned ? 'none' : '0 8px 32px rgba(0,0,0,0.18)' },
       }}
     >
       {/* Mobile Drag Indicator */}
@@ -167,7 +175,7 @@ export default function CharacterDrawer({
       {/* Header */}
       <Box
         sx={{
-          p: { xs: 1.5, sm: 2 },
+          p: { xs: 1.5, sm: 1.8 },
           px: { xs: 1.8, sm: 2.2 },
           display: 'flex',
           alignItems: 'center',
@@ -178,49 +186,58 @@ export default function CharacterDrawer({
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {isMobile ? (
-            <Button
-              size="small"
-              startIcon={<ArrowBackIcon fontSize="small" />}
-              onClick={onClose}
-              sx={{
-                fontWeight: 700,
-                fontSize: '0.84rem',
-                textTransform: 'none',
-                color: 'primary.main',
-                px: 1,
-                py: 0.4,
-                borderRadius: 2,
-                bgcolor: 'action.hover',
-              }}
-            >
-              Volver al Lienzo
-            </Button>
-          ) : (
-            <>
-              <PersonIcon color="primary" />
-              <Typography variant="subtitle1" sx={{ fontWeight: 800, fontSize: '0.98rem' }}>
-                Personajes y Relaciones
-              </Typography>
-            </>
-          )}
+          <PersonIcon color="primary" />
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, fontSize: { xs: '0.92rem', sm: '0.98rem' } }}>
+            Personajes {isMobile ? '' : 'y Relaciones'}
+          </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
           {/* Pin/Dock Button on Desktop */}
           {!isMobile && (
-            <Tooltip title={isPinned ? 'Desacoplar panel (modo flotante)' : 'Fijar panel a la derecha (modo acoplado)'}>
-              <IconButton size="small" onClick={togglePinned} color={isPinned ? 'primary' : 'default'}>
+            <Tooltip title={isPinned ? 'Desacoplar panel (flotante)' : 'Fijar panel a la derecha (modo acoplado)'}>
+              <IconButton
+                size="small"
+                onClick={togglePinned}
+                color={isPinned ? 'primary' : 'default'}
+                sx={{
+                  border: 1,
+                  borderColor: isPinned ? 'primary.main' : 'divider',
+                  bgcolor: isPinned ? 'primary.lighter' : 'transparent',
+                  p: 0.6,
+                }}
+              >
                 {isPinned ? <ViewSidebarIcon fontSize="small" /> : <ViewSidebarOutlinedIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
           )}
 
-          <Tooltip title="Cerrar panel">
-            <IconButton size="small" onClick={onClose}>
-              <CloseIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          {/* Obvious, Prominent Close Button */}
+          <Button
+            size="small"
+            variant="outlined"
+            color="inherit"
+            startIcon={<CloseIcon fontSize="small" />}
+            onClick={onClose}
+            sx={{
+              fontWeight: 700,
+              fontSize: '0.78rem',
+              textTransform: 'none',
+              borderRadius: 2,
+              px: { xs: 1.2, sm: 1.5 },
+              py: 0.35,
+              borderColor: 'divider',
+              bgcolor: 'action.hover',
+              '&:hover': {
+                bgcolor: 'error.main',
+                color: '#fff',
+                borderColor: 'error.main',
+              },
+              transition: 'all 0.15s ease',
+            }}
+          >
+            Cerrar
+          </Button>
         </Box>
       </Box>
 
@@ -508,25 +525,25 @@ export default function CharacterDrawer({
     </Box>
   );
 
-  // If pinned on desktop, render as docked side panel without any backdrop
-  if (isPinned && !isMobile) {
+  // On desktop, render as a persistent side panel in the layout so clicks in the canvas and rest of the app are NEVER blocked!
+  if (!isMobile) {
     return drawerContent;
   }
 
-  // Otherwise render as temporary floating drawer (bottom sheet on mobile)
+  // On mobile, render as bottom sheet modal
   return (
     <Drawer
-      anchor={isMobile ? 'bottom' : 'right'}
+      anchor="bottom"
       open={open}
       onClose={onClose}
       variant="temporary"
       PaperProps={{
         sx: {
-          width: { xs: '100vw', sm: 420 },
-          maxHeight: { xs: '90vh', sm: '100vh' },
-          height: { xs: '90vh', sm: '100%' },
-          borderTopLeftRadius: { xs: 20, sm: 0 },
-          borderTopRightRadius: { xs: 20, sm: 0 },
+          width: '100vw',
+          maxHeight: '90vh',
+          height: '90vh',
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
           bgcolor: 'background.paper',
           display: 'flex',
           flexDirection: 'column',
