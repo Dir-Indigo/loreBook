@@ -13,6 +13,7 @@ import {
   Divider,
   ListItemIcon,
   ListItemText,
+  Badge,
 } from '@mui/material';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import PaletteIcon from '@mui/icons-material/Palette';
@@ -22,6 +23,7 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import CheckIcon from '@mui/icons-material/Check';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
+import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
 import LayersIcon from '@mui/icons-material/Layers';
 import { useLoreTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -165,7 +167,25 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
             </Tooltip>
           )}
 
-          {/* Theme Selector (RF-5.4, RF-5.5) */}
+          {/* Centralized Ideas Manager */}
+          <Tooltip title="Pizarra central de ideas y notas">
+            <IconButton
+              onClick={() => router.push('/ideas')}
+              size="small"
+              sx={{
+                border: 1,
+                borderColor: 'divider',
+                borderRadius: 1.5,
+                p: 0.8,
+                color: router.pathname.startsWith('/ideas') ? 'primary.main' : 'inherit',
+                bgcolor: router.pathname.startsWith('/ideas') ? 'action.selected' : 'transparent',
+              }}
+            >
+              <LightbulbOutlinedIcon fontSize="small" color={router.pathname.startsWith('/ideas') ? 'primary' : 'action'} />
+            </IconButton>
+          </Tooltip>
+
+          {/* Character Manager */}
           {activeStory && (
             <Tooltip title="Gestión avanzada de personajes">
               <IconButton
@@ -176,9 +196,11 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
                   borderColor: 'divider',
                   borderRadius: 1.5,
                   p: 0.8,
+                  color: router.pathname.startsWith('/characters') ? 'primary.main' : 'inherit',
+                  bgcolor: router.pathname.startsWith('/characters') ? 'action.selected' : 'transparent',
                 }}
               >
-                <PeopleOutlineIcon fontSize="small" color="action" />
+                <PeopleOutlineIcon fontSize="small" color={router.pathname.startsWith('/characters') ? 'primary' : 'action'} />
               </IconButton>
             </Tooltip>
           )}

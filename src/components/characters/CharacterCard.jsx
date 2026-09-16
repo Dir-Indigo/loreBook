@@ -41,6 +41,7 @@ export default function CharacterCard({ character, onEdit, onDelete, onClone, se
 
   return (
     <Card
+      id={`character-card-${character.id}`}
       key={`${character.id}-${bounceKey}`}
       elevation={0}
       sx={{

@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { Box } from '@mui/material';
 import Navbar from './Navbar';
 import StoryModal from '../stories/StoryModal';
+import QuickNotesPanel from '../common/QuickNotesPanel';
 import { useStory } from '../../context/StoryContext';
 
 export default function MainLayout({ children }) {
@@ -30,8 +31,14 @@ export default function MainLayout({ children }) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <Navbar activeStory={activeStory} onOpenStorySelector={handleOpenStorySelector} />
-      <Box sx={{ flexGrow: 1, display: 'flex', overflow: 'hidden' }}>
-        {childrenWithProps}
+      
+      <Box sx={{ flexGrow: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+        <Box sx={{ flexGrow: 1, height: '100%', overflow: 'hidden', display: 'flex', minWidth: 0 }}>
+          {childrenWithProps}
+        </Box>
+        
+        {/* Global Express Ideas Panel (Available anywhere, dockable on PC) */}
+        <QuickNotesPanel />
       </Box>
 
       <StoryModal

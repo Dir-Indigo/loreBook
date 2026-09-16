@@ -3,6 +3,7 @@ import { storyController } from '../controllers/storyController';
 import { boardController } from '../controllers/boardController';
 import { eventController } from '../controllers/eventController';
 import { relationshipController } from '../controllers/relationshipController';
+import { quickNoteController } from '../controllers/quickNoteController';
 
 /**
  * ApiService Facade (RF-5.1, RF-5.2)
@@ -68,5 +69,11 @@ export const ApiService = {
     getAll: (sId, setLoading) => bridge('GET_RELS', 'public.character_relationships', relationshipController.getAll, setLoading, sId),
     create: (data, setLoading) => bridge('CREATE_REL', 'public.character_relationships', relationshipController.create, setLoading, data),
     delete: (id, setLoading) => bridge('DELETE_REL', 'public.character_relationships', relationshipController.delete, setLoading, id),
-  }
+  },
+  quickNotes: {
+    getAll: (userId, storyId, setLoading) => bridge('GET_NOTES', 'public.quick_notes', quickNoteController.getAll, setLoading, userId, storyId),
+    create: (data, setLoading) => bridge('CREATE_NOTE', 'public.quick_notes', quickNoteController.create, setLoading, data),
+    update: (id, patch, setLoading) => bridge('UPDATE_NOTE', 'public.quick_notes', quickNoteController.update, setLoading, id, patch),
+    delete: (id, setLoading) => bridge('DELETE_NOTE', 'public.quick_notes', quickNoteController.delete, setLoading, id),
+  },
 };

@@ -350,12 +350,9 @@ export const WorkspaceProvider = ({ children }) => {
   ), []);
 
   const createEventBackup = useCallback(async ({ storyId, eventId, note, setLoading }) => {
-    const result = await ApiService.events.createBackup(eventId, note, setLoading);
-    if (!result.error && storyId) {
-      await loadStoryData({ storyId, setLoading });
-    }
-    return result;
-  }, [loadStoryData]);
+    // Creating a backup snapshot doesn't change any visible list state — no reload needed.
+    return ApiService.events.createBackup(eventId, note, setLoading);
+  }, []);
 
   const getEventVersions = useCallback(async ({ eventId, setLoading }) => (
     ApiService.events.getVersions(eventId, setLoading)
@@ -363,11 +360,12 @@ export const WorkspaceProvider = ({ children }) => {
 
   const restoreEventVersion = useCallback(async ({ storyId, versionId, setLoading }) => {
     const result = await ApiService.events.restoreVersion(versionId, setLoading);
-    if (!result.error && storyId) {
-      await loadStoryData({ storyId, setLoading });
+    // Only refresh the events of the active board — not the entire workspace
+    if (!result.error && storyId && activeBoardId) {
+      await refreshBoardEvents({ storyId, boardId: activeBoardId, setLoading });
     }
     return result;
-  }, [loadStoryData]);
+  }, [activeBoardId, refreshBoardEvents]);
 
   const saveCharacter = useCallback(async ({ storyId, charData, selectedCharacterId = null, isCloneMode = false, cloneOptions = null, setLoading }) => {
     if (!storyId) return { data: null, error: new Error('Story ID is required') };
@@ -378,22 +376,38 @@ export const WorkspaceProvider = ({ children }) => {
         ? await ApiService.characters.clone(selectedCharacterId, { ...cloneOptions, targetStoryId: storyId }, setLoading)
         : await ApiService.characters.create({ ...charData, story_id: storyId }, setLoading);
 
-    if (!result?.error) {
-      await loadStoryData({ storyId, setLoading });
+    if (!result?.error && result?.data) {
+      const saved = result.data;
+      if (selectedCharacterId && !isCloneMode) {
+        // Update: patch the existing character in place
+        setCharacters((prev) => prev.map((c) => c.id === selectedCharacterId ? { ...c, ...saved } : c));
+      } else {
+        // Create or clone: append the new character
+        setCharacters((prev) => [...prev, saved]);
+      }
     }
 
     return result;
-  }, [loadStoryData]);
+  }, []);
 
   const deleteCharacter = useCallback(async ({ storyId, charId, setLoading }) => {
     if (!storyId || !charId) return { data: null, error: new Error('Story ID and character ID are required') };
 
+    // Optimistic removal before the request
+    setCharacters((prev) => prev.filter((c) => c.id !== charId));
+    // Also remove any relationships that referenced this character
+    setRelationships((prev) => prev.filter(
+      (r) => r.source_character_id !== charId && r.target_character_id !== charId
+    ));
+
     const result = await ApiService.characters.delete(charId, setLoading);
-    if (!result?.error) {
-      await loadStoryData({ storyId, setLoading });
+    if (result?.error) {
+      // Rollback on failure — reload the full data to restore consistency
+      await ApiService.characters.getAll(storyId, setLoading)
+        .then(({ data }) => { if (data) setCharacters(data); });
     }
     return result;
-  }, [loadStoryData]);
+  }, []);
 
   const updateCharactersGlobal = useCallback(async ({ storyId, characterIds, isGlobal, setLoading }) => {
     if (!storyId || !characterIds?.length) return { error: null, changed: false };
@@ -420,21 +434,27 @@ export const WorkspaceProvider = ({ children }) => {
     if (!storyId) return { data: null, error: new Error('Story ID is required') };
 
     const result = await ApiService.relationships.create({ ...relData, story_id: storyId }, setLoading);
-    if (!result?.error) {
-      await loadStoryData({ storyId, setLoading });
+    if (!result?.error && result?.data) {
+      // Append the fully-joined relationship returned by the API
+      setRelationships((prev) => [...prev, result.data]);
     }
     return result;
-  }, [loadStoryData]);
+  }, []);
 
   const deleteRelationship = useCallback(async ({ storyId, relId, setLoading }) => {
     if (!storyId || !relId) return { data: null, error: new Error('Story ID and relationship ID are required') };
 
+    // Optimistic removal
+    setRelationships((prev) => prev.filter((r) => r.id !== relId));
+
     const result = await ApiService.relationships.delete(relId, setLoading);
-    if (!result?.error) {
-      await loadStoryData({ storyId, setLoading });
+    if (result?.error) {
+      // Rollback: reload only relationships
+      await ApiService.relationships.getAll(storyId, setLoading)
+        .then(({ data }) => { if (data) setRelationships(data); });
     }
     return result;
-  }, [loadStoryData]);
+  }, []);
 
   return (
     <WorkspaceContext.Provider value={{

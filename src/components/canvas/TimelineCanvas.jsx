@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
+import { useEventOrder } from '../../hooks/useEventOrder';
 import {
   ReactFlow,
   MiniMap,
@@ -65,59 +66,7 @@ export default function TimelineCanvas({
   const [snackbarInfo, setSnackbarInfo] = useState(null);
 
   // Compute sequence rank / order index for each node based on DAG connections (Topological BFS)
-  const computedOrderMap = useMemo(() => {
-    const map = new Map();
-    if (events.length === 0) return map;
-
-    const inDegree = new Map();
-    const adj = new Map();
-
-    events.forEach((ev) => {
-      inDegree.set(ev.id, 0);
-      adj.set(ev.id, []);
-    });
-
-    eventConnections.forEach((conn) => {
-      if (inDegree.has(conn.target_event_id)) {
-        inDegree.set(conn.target_event_id, (inDegree.get(conn.target_event_id) || 0) + 1);
-      }
-      if (adj.has(conn.source_event_id)) {
-        adj.get(conn.source_event_id).push(conn.target_event_id);
-      }
-    });
-
-    const queue = [];
-    events.forEach((ev) => {
-      if ((inDegree.get(ev.id) || 0) === 0) {
-        queue.push({ id: ev.id, level: 1 });
-      }
-    });
-
-    while (queue.length > 0) {
-      const { id, level } = queue.shift();
-      const currentMax = map.get(id) || 1;
-      const newLevel = Math.max(currentMax, level);
-      map.set(id, newLevel);
-
-      const neighbors = adj.get(id) || [];
-      for (const targetId of neighbors) {
-        const targetLevel = newLevel + 1;
-        if (!map.has(targetId) || map.get(targetId) < targetLevel) {
-          map.set(targetId, targetLevel);
-          queue.push({ id: targetId, level: targetLevel });
-        }
-      }
-    }
-
-    // Fallback for unvisited nodes
-    events.forEach((ev, idx) => {
-      if (!map.has(ev.id)) {
-        map.set(ev.id, ev.order_index || (idx + 1));
-      }
-    });
-
-    return map;
-  }, [events, eventConnections]);
+  const computedOrderMap = useEventOrder(events, eventConnections);
 
   // Transform events into React Flow nodes
   const initialNodes = useMemo(() => {

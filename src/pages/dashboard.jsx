@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { Box, Dialog, DialogTitle, DialogContent, DialogActions, Typography, Snackbar, Alert } from '@mui/material';
+import { Box, Dialog, DialogTitle, DialogContent, DialogActions, Typography, TextField, Snackbar, Alert, Fab, Badge, Tooltip } from '@mui/material';
+import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
 import { useAuth } from '../context/AuthContext';
 import { useStory } from '../context/StoryContext';
 import { useLoading } from '../context/LoadingContext';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { useQuickNotes } from '../context/QuickNotesContext';
 import SidebarLore from '../components/layout/SidebarLore';
 import TimelineCanvas from '../components/canvas/TimelineCanvas';
 import CharacterDrawer from '../components/characters/CharacterDrawer';
 import CharacterModal from '../components/characters/CharacterModal';
 import EventModal from '../components/canvas/EventModal';
 import EventVersionsModal from '../components/canvas/EventVersionsModal';
+import QuickNotesPanel from '../components/common/QuickNotesPanel';
 import CustomLoading from '../components/common/CustomLoading';
 import CustomButton from '../components/common/CustomButton';
 
@@ -19,6 +22,7 @@ export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const { activeStory, activeStoryId, storiesLoading, updateStory } = useStory();
   const { setLoading } = useLoading();
+  const { notes, toggleOpen } = useQuickNotes();
 
   const {
     characters,
@@ -59,9 +63,16 @@ export default function DashboardPage() {
   // UI / Modal States
   const [dataLoading, setDataLoading] = useState(true);
   const [charDrawerOpen, setCharDrawerOpen] = useState(false);
+  const [focusedCharacterId, setFocusedCharacterId] = useState(null);
   const [charModalOpen, setCharModalOpen] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState(null);
   const [isCloneCharMode, setIsCloneCharMode] = useState(false);
+
+  const handleOpenCharactersDrawer = useCallback((charOrId = null) => {
+    const targetId = typeof charOrId === 'object' && charOrId ? charOrId.id : charOrId;
+    setFocusedCharacterId(targetId || null);
+    setCharDrawerOpen(true);
+  }, []);
 
   const [eventModalOpen, setEventModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -73,6 +84,9 @@ export default function DashboardPage() {
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [pendingConfirmation, setPendingConfirmation] = useState(null);
   const [feedback, setFeedback] = useState(null);
+
+  // Backup note dialog (replaces native prompt())
+  const [backupNoteDialog, setBackupNoteDialog] = useState({ open: false, eventId: null, note: '' });
 
   // Redirect unauthenticated users to login
   useEffect(() => {
@@ -271,11 +285,14 @@ export default function DashboardPage() {
     });
   };
 
-  const handleCreateQuickBackup = async (eventId) => {
-    const note = prompt('Nota:', 'Respaldo manual');
-    if (note !== null) {
-      await createEventBackup({ storyId: activeStoryId, eventId, note, setLoading });
-    }
+  const handleCreateQuickBackup = (eventId) => {
+    setBackupNoteDialog({ open: true, eventId, note: 'Respaldo manual' });
+  };
+
+  const handleConfirmBackup = async () => {
+    const { eventId, note } = backupNoteDialog;
+    setBackupNoteDialog({ open: false, eventId: null, note: '' });
+    await createEventBackup({ storyId: activeStoryId, eventId, note, setLoading });
   };
 
   const handleOpenVersions = async (eventId, title) => {
@@ -340,7 +357,7 @@ export default function DashboardPage() {
           eventConnections={eventConnections}
           boards={boards}
           activeBoardId={activeBoardId}
-          onOpenCharactersDrawer={() => setCharDrawerOpen(true)}
+          onOpenCharactersDrawer={handleOpenCharactersDrawer}
           onOpenCreateEvent={openCreateEventModal}
           onUpdateStoryCover={handleUpdateStoryCover}
           onSelectBoard={handleSelectBoard}
@@ -352,8 +369,9 @@ export default function DashboardPage() {
           onDeleteEvent={handleDeleteEvent}
         />
 
-        <Box sx={{ flexGrow: 1, height: '100%', position: 'relative' }}>
-          <TimelineCanvas
+        <Box sx={{ flexGrow: 1, height: '100%', position: 'relative', display: 'flex', overflow: 'hidden' }}>
+          <Box sx={{ flexGrow: 1, height: '100%', position: 'relative', minWidth: 0 }}>
+            <TimelineCanvas
             events={events}
             characters={characters}
             eventConnections={eventConnections}
@@ -372,34 +390,61 @@ export default function DashboardPage() {
             onDuplicateEvent={handleDuplicateEvent}
             onDuplicateEvents={handleDuplicateEvents}
           />
+
+          {/* Quick Notes FAB */}
+          <Tooltip title="Capturar Idea Rápida" placement="left">
+            <Fab
+              size="medium"
+              color="primary"
+              onClick={toggleOpen}
+              sx={{
+                position: 'absolute',
+                bottom: { xs: 20, sm: 80 },
+                right: { xs: 16, sm: 20 },
+                zIndex: 10,
+                boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+                '&:hover': { transform: 'scale(1.08)' },
+                transition: 'transform 0.15s ease',
+              }}
+            >
+              <Badge badgeContent={notes.length} color="secondary" max={99}>
+                <LightbulbOutlinedIcon sx={{ fontSize: 24 }} />
+              </Badge>
+            </Fab>
+          </Tooltip>
         </Box>
 
-      <CharacterDrawer
-        open={charDrawerOpen}
-        onClose={() => setCharDrawerOpen(false)}
-        storyId={activeStoryId}
-        characters={characters}
-        relationships={relationships}
-        onOpenCreateCharacter={() => {
-          setSelectedCharacter(null);
-          setIsCloneCharMode(false);
-          setCharModalOpen(true);
-        }}
-        onOpenEditCharacter={(char) => {
-          setSelectedCharacter(char);
-          setIsCloneCharMode(false);
-          setCharModalOpen(true);
-        }}
-        onOpenCloneCharacter={(char) => {
-          setSelectedCharacter(char);
-          setIsCloneCharMode(true);
-          setCharModalOpen(true);
-        }}
-        onDeleteCharacter={handleDeleteCharacter}
-        onSetCharactersGlobal={handleSetCharactersGlobal}
-        onCreateRelationship={handleCreateRelationship}
-        onDeleteRelationship={handleDeleteRelationship}
-      />
+        <CharacterDrawer
+          open={charDrawerOpen}
+          onClose={() => {
+            setCharDrawerOpen(false);
+            setFocusedCharacterId(null);
+          }}
+          storyId={activeStoryId}
+          characters={characters}
+          relationships={relationships}
+          focusedCharacterId={focusedCharacterId}
+          onOpenCreateCharacter={() => {
+            setSelectedCharacter(null);
+            setIsCloneCharMode(false);
+            setCharModalOpen(true);
+          }}
+          onOpenEditCharacter={(char) => {
+            setSelectedCharacter(char);
+            setIsCloneCharMode(false);
+            setCharModalOpen(true);
+          }}
+          onOpenCloneCharacter={(char) => {
+            setSelectedCharacter(char);
+            setIsCloneCharMode(true);
+            setCharModalOpen(true);
+          }}
+          onDeleteCharacter={handleDeleteCharacter}
+          onSetCharactersGlobal={handleSetCharactersGlobal}
+          onCreateRelationship={handleCreateRelationship}
+          onDeleteRelationship={handleDeleteRelationship}
+        />
+      </Box>
 
       <CharacterModal
         open={charModalOpen}
@@ -442,6 +487,31 @@ export default function DashboardPage() {
         <DialogActions>
           <CustomButton variant="outlined" color="inherit" onClick={() => setPendingConfirmation(null)}>Cancelar</CustomButton>
           <CustomButton color="error" onClick={() => pendingConfirmation?.onConfirm?.()}>Confirmar</CustomButton>
+        </DialogActions>
+      </Dialog>
+
+      {/* Backup note dialog */}
+      <Dialog
+        open={backupNoteDialog.open}
+        onClose={() => setBackupNoteDialog({ open: false, eventId: null, note: '' })}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 700, fontSize: '1rem' }}>Crear respaldo manual</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <TextField
+            label="Nota del respaldo"
+            value={backupNoteDialog.note}
+            onChange={(e) => setBackupNoteDialog((prev) => ({ ...prev, note: e.target.value }))}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmBackup(); }}
+            fullWidth
+            autoFocus
+            size="small"
+          />
+        </DialogContent>
+        <DialogActions>
+          <CustomButton variant="outlined" color="inherit" onClick={() => setBackupNoteDialog({ open: false, eventId: null, note: '' })}>Cancelar</CustomButton>
+          <CustomButton onClick={handleConfirmBackup}>Crear Respaldo</CustomButton>
         </DialogActions>
       </Dialog>
 
