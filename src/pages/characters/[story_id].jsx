@@ -715,7 +715,6 @@ export default function CharacterManagementPage() {
                     <Chip
                       label={chars.length}
                       size="small"
-                      color={activeGroupColor === 'default' ? undefined : activeGroupColor}
                       sx={{ height: 18, fontSize: '0.68rem', fontWeight: 700 }}
                     />
                     <Divider sx={{ flexGrow: 1, ml: 1 }} />
