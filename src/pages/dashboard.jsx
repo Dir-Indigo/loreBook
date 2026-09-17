@@ -59,6 +59,7 @@ export default function DashboardPage() {
     saveCharacter,
     deleteCharacter,
     updateCharactersGlobal,
+    copyCharactersAsLocal,
     createRelationship,
     deleteRelationship,
   } = useWorkspace();
@@ -214,6 +215,15 @@ export default function DashboardPage() {
     }
   };
 
+  const handleCopyCharactersAsLocal = async (characterIds) => {
+    if (!characterIds?.length || !activeStoryId) return;
+    const result = await copyCharactersAsLocal({ storyId: activeStoryId, characterIds, setLoading });
+    if (result?.error) {
+      setFeedback('No se pudo copiar uno o más personajes a esta historia.');
+    }
+    return result;
+  };
+
   const handleCreateRelationship = async (relData) => {
     if (!activeStoryId) return;
     await createRelationship({ storyId: activeStoryId, relData, setLoading });
@@ -340,7 +350,7 @@ export default function DashboardPage() {
   const handleOpenEditEvent = async (event) => {
     const { data: completeEvent } = await getEventDetails({ eventId: event.id, setLoading });
     setSelectedEvent(completeEvent || event);
-    setEventModalOpen(true);
+    openCreateEvent();
   };
 
   const openCreateEventModal = useCallback(async (boardId = activeBoardId) => {
@@ -469,6 +479,7 @@ export default function DashboardPage() {
           }}
           onDeleteCharacter={handleDeleteCharacter}
           onSetCharactersGlobal={handleSetCharactersGlobal}
+          onCopyCharactersAsLocal={handleCopyCharactersAsLocal}
           onCreateRelationship={handleCreateRelationship}
           onDeleteRelationship={handleDeleteRelationship}
         />

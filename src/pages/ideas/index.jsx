@@ -306,7 +306,7 @@ function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onToggleP
           <ListItemIcon>
             <PublicIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText primary="🌐 Global (Sin historia)" secondary="Disponible en todo el workspace" />
+          <ListItemText primary="Global (Sin historia)" secondary="Disponible en todo el workspace" />
         </MenuItem>
         {stories.map((s) => (
           <MenuItem
@@ -420,8 +420,8 @@ export default function CentralizedIdeasPage() {
     <>
       <SidebarLore view="ideas" story={activeStory} characters={characters} />
 
-      <Box sx={{ flexGrow: 1, overflowY: 'auto', p: { xs: 1.5, sm: 2.5 }, bgcolor: 'background.default' }}>
-        <Container maxWidth="xl">
+      <Box sx={{ flexGrow: 1, overflowY: 'auto', p: { xs: 0.8, sm: 2.5 }, bgcolor: 'background.default' }}>
+        <Container maxWidth="xl" disableGutters sx={{ px: { xs: 0.5, sm: 2 } }}>
           {/* Header Compacto */}
           <Box
             sx={{
@@ -475,13 +475,13 @@ export default function CentralizedIdeasPage() {
             </Box>
           </Box>
 
-          {/* ─── Captura Instantánea Compacta (Una sola línea) ─── */}
+          {/* ─── Captura Instantánea Compacta ─── */}
           <Paper
             elevation={1}
             component="form"
             onSubmit={handleCreateFast}
             sx={{
-              p: 1.2,
+              p: { xs: 1, sm: 1.2 },
               mb: 1.8,
               borderRadius: 3,
               bgcolor: 'background.paper',
@@ -490,7 +490,7 @@ export default function CentralizedIdeasPage() {
               display: 'flex',
               flexDirection: { xs: 'column', md: 'row' },
               gap: 1,
-              alignItems: 'center',
+              alignItems: { xs: 'stretch', md: 'center' },
             }}
           >
             <TextField
@@ -511,20 +511,29 @@ export default function CentralizedIdeasPage() {
                     <LightbulbOutlinedIcon fontSize="small" color="primary" />
                   </InputAdornment>
                 ),
-                sx: { borderRadius: 2, bgcolor: 'background.subtle' },
+                sx: { borderRadius: 2, bgcolor: 'background.subtle', fontSize: '0.88rem' },
               }}
             />
 
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: { xs: '100%', md: 'auto' }, justifyContent: 'space-between' }}>
-              <FormControl size="small" sx={{ minWidth: 150 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: { xs: 0.6, sm: 1 },
+                width: { xs: '100%', md: 'auto' },
+                justifyContent: 'space-between',
+                flexWrap: { xs: 'nowrap', sm: 'nowrap' },
+              }}
+            >
+              <FormControl size="small" sx={{ flexGrow: 1, minWidth: { xs: 100, sm: 150 }, maxWidth: { xs: 160, sm: 220 } }}>
                 <Select
                   value={targetStoryId}
                   onChange={(e) => setTargetStoryId(e.target.value)}
                   displayEmpty
-                  sx={{ borderRadius: 2, fontSize: '0.82rem', height: 38 }}
+                  sx={{ borderRadius: 2, fontSize: '0.82rem', height: 36 }}
                 >
                   <MenuItem value="">
-                    <em><PublicIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} /> Global (Sin historia)</em>
+                    <em><PublicIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} /> Global</em>
                   </MenuItem>
                   {stories.map((s) => (
                     <MenuItem key={s.id} value={s.id}>
@@ -534,14 +543,14 @@ export default function CentralizedIdeasPage() {
                 </Select>
               </FormControl>
 
-              <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexShrink: 0 }}>
                 {NOTE_COLORS.slice(0, 5).map((c) => (
                   <Box
                     key={c}
                     onClick={() => setNewColor(c)}
                     sx={{
-                      width: 20,
-                      height: 20,
+                      width: 18,
+                      height: 18,
                       borderRadius: '50%',
                       bgcolor: c,
                       border: c === newColor ? '2px solid #111' : '1px solid rgba(0,0,0,0.15)',
@@ -553,22 +562,25 @@ export default function CentralizedIdeasPage() {
                 ))}
               </Box>
 
-              <Button
+              <IconButton
                 type="submit"
-                variant="contained"
                 disabled={!quickInput.trim()}
-                startIcon={<SendIcon fontSize="small"/>}
-                size="small"
                 sx={{
                   borderRadius: 2,
-                  px: 2,
-                  height: 38,
-                  fontWeight: 700,
-                  textTransform: 'none',
-                  whiteSpace: 'nowrap',
+                  width: 36,
+                  height: 36,
+                  bgcolor: 'primary.main',
+                  color: '#fff',
+                  flexShrink: 0,
+                  '&:hover': { bgcolor: 'primary.dark' },
+                  '&.Mui-disabled': {
+                    bgcolor: 'action.disabledBackground',
+                    color: 'action.disabled',
+                  },
                 }}
               >
-              </Button>
+                <SendIcon fontSize="small" />
+              </IconButton>
             </Box>
           </Paper>
 
@@ -582,7 +594,7 @@ export default function CentralizedIdeasPage() {
               justify: 'space-between',
               gap: 1.5,
               mb: 2,
-              p: 0.8,
+              p: { xs: 0.6, sm: 0.8 },
               borderRadius: 2.5,
               bgcolor: 'background.paper',
               border: 1,
@@ -597,7 +609,7 @@ export default function CentralizedIdeasPage() {
               scrollButtons="auto"
               sx={{
                 minHeight: 38,
-                '& .MuiTab-root': { fontWeight: 700, fontSize: '0.82rem', textTransform: 'none', minHeight: 38, py: 0 },
+                '& .MuiTab-root': { fontWeight: 700, fontSize: '0.82rem', textTransform: 'none', minHeight: 38, py: 0, px: { xs: 1.2, sm: 2 } },
               }}
             >
               <Tab label={`Todas (${counts.all})`} />

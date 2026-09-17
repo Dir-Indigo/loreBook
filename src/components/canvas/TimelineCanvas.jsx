@@ -510,14 +510,27 @@ export default function TimelineCanvas({
           }}
         />
         <MiniMap
+          pannable
+          zoomable
           nodeColor={(node) => {
             return node.data?.colorTag || currentThemeConfig.palette.primary.main;
           }}
-          nodeStrokeWidth={3}
+          nodeStrokeWidth={2}
+          nodeBorderRadius={4}
+          maskColor={
+            currentThemeConfig.mode === 'dark'
+              ? 'rgba(15, 23, 42, 0.65)'
+              : 'rgba(226, 232, 240, 0.65)'
+          }
+          maskStrokeColor={currentThemeConfig.palette.primary.main}
+          maskStrokeWidth={2}
           style={{
-            borderRadius: 8,
+            borderRadius: 10,
             border: `1px solid ${currentThemeConfig.palette.divider}`,
             backgroundColor: currentThemeConfig.palette.background.paper,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+            cursor: 'grab',
+            touchAction: 'none',
           }}
         />
       </ReactFlow>

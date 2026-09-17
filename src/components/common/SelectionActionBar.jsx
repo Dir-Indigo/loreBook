@@ -1,13 +1,10 @@
 import React from 'react';
 import {
   Box,
-  Button,
   IconButton,
   Tooltip,
-  Typography,
   Chip,
-  useMediaQuery,
-  useTheme,
+  Divider,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 
@@ -17,10 +14,6 @@ export default function SelectionActionBar({
   onClear,
   position = 'bottom',
 }) {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isTiny = useMediaQuery('(max-width:360px)');
-
   if (!count) return null;
 
   const visibleActions = actions.filter((action) => !action.hidden);
@@ -36,103 +29,100 @@ export default function SelectionActionBar({
         zIndex: 1300,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: { xs: 0.8, sm: 1.2 },
-        width: { xs: 'calc(100% - 24px)', sm: 'auto' },
-        maxWidth: { xs: 440, sm: 600 },
+        gap: { xs: 0.5, sm: 0.8 },
         px: { xs: 1.2, sm: 1.8 },
-        py: { xs: 0.8, sm: 1 },
+        py: { xs: 0.7, sm: 1 },
         border: 1,
         borderColor: 'divider',
-        borderRadius: { xs: 3, sm: 2.5 },
-        bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(26, 32, 40, 0.94)' : 'rgba(255, 255, 255, 0.94)',
-        backdropFilter: 'blur(12px)',
+        borderRadius: 3,
+        bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(26, 32, 40, 0.96)' : 'rgba(255, 255, 255, 0.96)',
+        backdropFilter: 'blur(14px)',
         boxShadow: (t) => t.palette.mode === 'dark'
-          ? '0 8px 32px rgba(0, 0, 0, 0.45)'
+          ? '0 8px 32px rgba(0, 0, 0, 0.5)'
           : '0 8px 28px rgba(0, 0, 0, 0.16)',
         transform: 'translateX(-50%)',
         animation: 'selection-action-bar-enter 180ms ease-out',
-        boxSizing: 'border-box',
       }}
     >
       {/* Selection counter badge */}
       <Chip
-        label={isMobile ? (isTiny ? `${count}` : `${count} sel.`) : `${count} seleccionados`}
+        label={String(count)}
         size="small"
         color="primary"
         variant="filled"
         sx={{
           fontWeight: 800,
-          fontSize: { xs: '0.72rem', sm: '0.78rem' },
-          height: { xs: 24, sm: 26 },
-          px: { xs: 0.4, sm: 0.8 },
-          whiteSpace: 'nowrap',
+          fontSize: { xs: '0.78rem', sm: '0.85rem' },
+          height: { xs: 26, sm: 30 },
+          minWidth: { xs: 28, sm: 34 },
           flexShrink: 0,
+          '& .MuiChip-label': { px: { xs: 0.8, sm: 1 } },
         }}
       />
 
-      {/* Action buttons list */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: { xs: 0.6, sm: 1 },
-          flexGrow: 1,
-          justifyContent: { xs: 'flex-end', sm: 'center' },
-          overflowX: { xs: 'auto', sm: 'visible' },
-        }}
-      >
-        {visibleActions.map((action) => (
-          <Tooltip key={action.key} title={action.tooltip || action.label} arrow>
-            <span style={{ display: 'inline-flex', flex: isMobile ? '1 1 auto' : 'initial' }}>
-              <Button
+      <Divider orientation="vertical" flexItem sx={{ mx: 0.5, my: 0.3 }} />
+
+      {/* Icon-only action buttons */}
+      {visibleActions.map((action, index) => (
+        <React.Fragment key={action.key}>
+          <Tooltip title={action.label} arrow placement="top">
+            <span>
+              <IconButton
                 size="small"
                 aria-label={action.label}
                 disabled={action.disabled}
                 onClick={action.onClick}
-                color={action.color || 'inherit'}
-                variant={action.variant || 'outlined'}
-                startIcon={action.icon}
                 sx={{
-                  minHeight: { xs: 32, sm: 36 },
-                  px: { xs: 0.8, sm: 1.5 },
-                  borderRadius: 1.8,
-                  fontWeight: 700,
-                  fontSize: { xs: '0.72rem', sm: '0.82rem' },
-                  textTransform: 'none',
-                  whiteSpace: 'nowrap',
-                  width: { xs: '100%', sm: 'auto' },
-                  minWidth: { xs: 0, sm: 64 },
-                  '& .MuiButton-startIcon': {
-                    mr: { xs: 0.4, sm: 0.8 },
-                    ml: 0,
-                    '& svg': { fontSize: { xs: '1rem', sm: '1.2rem' } },
+                  p: { xs: 0.75, sm: 1 },
+                  borderRadius: 2,
+                  border: '1px solid',
+                  borderColor: action.color && action.color !== 'inherit'
+                    ? `${action.color}.main`
+                    : 'divider',
+                  bgcolor: action.color && action.color !== 'inherit'
+                    ? `${action.color}.main`
+                    : 'action.hover',
+                  color: action.color && action.color !== 'inherit' ? '#fff' : 'text.primary',
+                  transition: 'all 0.15s ease',
+                  '&:hover': {
+                    bgcolor: action.color && action.color !== 'inherit'
+                      ? `${action.color}.dark`
+                      : 'action.selected',
+                    transform: 'scale(1.1)',
                   },
+                  '&.Mui-disabled': { opacity: 0.4 },
+                  '& svg': { fontSize: { xs: '1.15rem', sm: '1.35rem' } },
                 }}
               >
-                {/* On tiny screens, show compact or short label if text is long */}
-                {isTiny ? (action.shortLabel || action.label.split(' ')[0]) : (isMobile ? (action.shortLabel || action.label) : action.label)}
-              </Button>
+                {action.icon}
+              </IconButton>
             </span>
           </Tooltip>
-        ))}
-      </Box>
+          {/* Divider between logical groups every 2 actions */}
+          {index < visibleActions.length - 1 && (index + 1) % 2 === 0 && (
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.3, my: 0.3 }} />
+          )}
+        </React.Fragment>
+      ))}
 
-      {/* Clear selection icon button */}
+      <Divider orientation="vertical" flexItem sx={{ mx: 0.5, my: 0.3 }} />
+
+      {/* Clear selection */}
       {onClear && (
-        <Tooltip title="Limpiar selección" arrow>
+        <Tooltip title="Limpiar selección" arrow placement="top">
           <IconButton
             size="small"
             aria-label="Limpiar selección"
             onClick={onClear}
             sx={{
-              p: { xs: 0.6, sm: 0.5 },
-              ml: { xs: 0.2, sm: 0.5 },
-              bgcolor: 'action.hover',
-              flexShrink: 0,
+              p: 0.7,
+              borderRadius: 1.8,
+              color: 'text.secondary',
+              '&:hover': { bgcolor: 'error.main', color: '#fff' },
+              transition: 'all 0.15s ease',
             }}
           >
-            <CloseIcon sx={{ fontSize: { xs: 16, sm: 18 } }} />
+            <CloseIcon sx={{ fontSize: '1.1rem' }} />
           </IconButton>
         </Tooltip>
       )}

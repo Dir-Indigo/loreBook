@@ -25,5 +25,10 @@ export const characterService = {
     const { data, error } = await characterRepository.clone(originalId, options);
     if (error) throw error;
     return data;
+  },
+  copyAsLocal: async (characterIds, targetStoryId) => {
+    const { data, error } = await characterRepository.copyAsLocal(characterIds, targetStoryId);
+    if (error) throw error;
+    return data;
   }
 };

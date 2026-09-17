@@ -28,10 +28,13 @@ import PublicOutlinedIcon from '@mui/icons-material/PublicOutlined';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PushPinIcon from '@mui/icons-material/PushPin';
 import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
+import BookmarkAddOutlinedIcon from '@mui/icons-material/BookmarkAddOutlined';
 import CustomButton from '../common/CustomButton';
 import SelectionActionBar from '../common/SelectionActionBar';
 import { RELATIONSHIP_TYPES } from '../../constants/constants';
 import CharacterCard from './CharacterCard';
+import CopyGlobalConfirmModal from './CopyGlobalConfirmModal';
+
 
 export default function CharacterDrawer({
   open,
@@ -45,12 +48,14 @@ export default function CharacterDrawer({
   onOpenCloneCharacter,
   onDeleteCharacter,
   onSetCharactersGlobal,
+  onCopyCharactersAsLocal,
   onCreateRelationship,
   onDeleteRelationship,
 }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [tabIndex, setTabIndex] = useState(0);
+  const drawerRef = useRef(null);
 
   // Pin/Dock state on Desktop
   const [isPinned, setIsPinnedState] = useState(() => {
@@ -59,31 +64,11 @@ export default function CharacterDrawer({
     }
     return false;
   });
-  const drawerRef = useRef(null);
 
-  useEffect(() => {
-    if (!open || isPinned || isMobile) return;
+  // Confirmation modal state for copying global characters
+  const [confirmCopyOpen, setConfirmCopyOpen] = useState(false);
+  const [pendingCopyList, setPendingCopyList] = useState([]);
 
-    // Use a small delay to ensure the event that opened the drawer 
-    // doesn't trigger the click-outside closure immediately.
-    const timer = setTimeout(() => {
-      function handleClickOutside(event) {
-        if (drawerRef.current && !drawerRef.current.contains(event.target)) {
-          onClose();
-        }
-      }
-
-      document.addEventListener("click", handleClickOutside, true); // Use capture phase
-      
-      // Cleanup: remove listener when the effect re-runs or component unmounts
-      // and also clean up the timer.
-      return () => {
-        document.removeEventListener("click", handleClickOutside, true);
-      };
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [open, isPinned, isMobile, onClose]);
   const lastHandledFocusIdRef = useRef(null);
 
   useEffect(() => {
@@ -145,6 +130,35 @@ export default function CharacterDrawer({
     if (!selectedCharacterIds.length) return;
     await onSetCharactersGlobal(selectedCharacterIds, isGlobal);
     setSelectedCharacterIds([]);
+  };
+
+  const handleCopyAsLocal = async (idsToCopy) => {
+    if (!onCopyCharactersAsLocal || !idsToCopy?.length) return;
+    const result = await onCopyCharactersAsLocal(idsToCopy);
+    if (!result?.error && result?.data?.length) {
+      setSelectedCharacterIds([]);
+      setTabIndex(0);
+      const firstNewId = result.data[0].id;
+      setTimeout(() => {
+        const el = document.getElementById(`character-card-${firstNewId}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 250);
+    }
+  };
+
+  const handleRequestCopyAsLocal = (charsOrIds) => {
+    if (!charsOrIds || (Array.isArray(charsOrIds) && !charsOrIds.length)) return;
+    const targetChars = Array.isArray(charsOrIds)
+      ? typeof charsOrIds[0] === 'object'
+        ? charsOrIds
+        : characters.filter((c) => charsOrIds.includes(c.id))
+      : typeof charsOrIds === 'object'
+        ? [charsOrIds]
+        : characters.filter((c) => c.id === charsOrIds);
+
+    if (!targetChars.length) return;
+    setPendingCopyList(targetChars);
+    setConfirmCopyOpen(true);
   };
 
   const globalCharacters = characters.filter((character) => character.is_global);
@@ -286,15 +300,15 @@ export default function CharacterDrawer({
           sx={{ minHeight: 44, fontSize: '0.82rem', fontWeight: 700, textTransform: 'none' }}
         />
         <Tab
-          icon={<HubIcon fontSize="small" />}
-          iconPosition="start"
-          label={`Vínculos (${relationships.length})`}
-          sx={{ minHeight: 44, fontSize: '0.82rem', fontWeight: 700, textTransform: 'none' }}
-        />
-        <Tab
           icon={<PublicOutlinedIcon fontSize="small" />}
           iconPosition="start"
           label={`Globales (${globalCharacters.length})`}
+          sx={{ minHeight: 44, fontSize: '0.82rem', fontWeight: 700, textTransform: 'none' }}
+        />
+        <Tab
+          icon={<HubIcon fontSize="small" />}
+          iconPosition="start"
+          label={`Vínculos (${relationships.length})`}
           sx={{ minHeight: 44, fontSize: '0.82rem', fontWeight: 700, textTransform: 'none' }}
         />
       </Tabs>
@@ -342,6 +356,7 @@ export default function CharacterDrawer({
                   onEdit={onOpenEditCharacter}
                   onDelete={onDeleteCharacter}
                   onClone={onOpenCloneCharacter}
+                  onMakeLocalCopy={(char) => handleRequestCopyAsLocal([char])}
                 />
               ))}
             </Box>
@@ -524,6 +539,7 @@ export default function CharacterDrawer({
                   onEdit={onOpenEditCharacter}
                   onDelete={onDeleteCharacter}
                   onClone={onOpenCloneCharacter}
+                  onMakeLocalCopy={(char) => handleRequestCopyAsLocal([char])}
                 />
               ))}
             </Box>
@@ -536,6 +552,14 @@ export default function CharacterDrawer({
         count={selectedCharacterIds.length}
         onClear={() => setSelectedCharacterIds([])}
         actions={[
+          {
+            key: 'copy-local',
+            label: 'Copiar a esta historia',
+            tooltip: 'Crear copia local de los seleccionados para esta historia',
+            icon: <BookmarkAddOutlinedIcon fontSize="small" />,
+            onClick: () => handleRequestCopyAsLocal(selectedCharacterIds),
+            color: 'primary',
+          },
           {
             key: 'make-global',
             label: 'Hacer globales',
@@ -556,33 +580,51 @@ export default function CharacterDrawer({
     </Box>
   );
 
+  const modalElement = (
+    <CopyGlobalConfirmModal
+      open={confirmCopyOpen}
+      onClose={() => setConfirmCopyOpen(false)}
+      onConfirm={() => handleCopyAsLocal(pendingCopyList.map((c) => c.id))}
+      charactersToCopy={pendingCopyList}
+      currentStoryId={storyId}
+    />
+  );
+
   // On desktop, render as a persistent side panel in the layout so clicks in the canvas and rest of the app are NEVER blocked!
   if (!isMobile) {
-    return drawerContent;
+    return (
+      <>
+        {drawerContent}
+        {modalElement}
+      </>
+    );
   }
 
   // On mobile, render as bottom sheet modal
   return (
-    <Drawer
-      anchor="bottom"
-      open={open}
-      onClose={onClose}
-      variant="temporary"
-      PaperProps={{
-        sx: {
-          width: '100vw',
-          maxHeight: '90vh',
-          height: '90vh',
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          bgcolor: 'background.paper',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 -6px 30px rgba(0,0,0,0.25)',
-        },
-      }}
-    >
-      {drawerContent}
-    </Drawer>
+    <>
+      <Drawer
+        anchor="bottom"
+        open={open}
+        onClose={onClose}
+        variant="temporary"
+        PaperProps={{
+          sx: {
+            width: '100vw',
+            maxHeight: '90vh',
+            height: '90vh',
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            bgcolor: 'background.paper',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 -6px 30px rgba(0,0,0,0.25)',
+          },
+        }}
+      >
+        {drawerContent}
+      </Drawer>
+      {modalElement}
+    </>
   );
 }

@@ -36,6 +36,7 @@ export const ApiService = {
     update: (id, data, setLoading) => bridge('UPDATE_CHAR', 'public.characters', characterController.update, setLoading, id, data),
     delete: (id, setLoading) => bridge('DELETE_CHAR', 'public.characters', characterController.delete, setLoading, id),
     clone: (id, options, setLoading) => bridge('CLONE_CHAR', 'public.characters', characterController.clone, setLoading, id, options),
+    copyAsLocal: (ids, targetStoryId, setLoading) => bridge('COPY_LOCAL_CHARS', 'public.characters', characterController.copyAsLocal, setLoading, ids, targetStoryId),
   },
   stories: {
     getAll: (userId, setLoading) => bridge('GET_STORIES', 'public.stories', storyController.getAll, setLoading, userId),

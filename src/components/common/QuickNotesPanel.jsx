@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import {
   Box,
@@ -36,6 +36,7 @@ import ViewSidebarIcon from '@mui/icons-material/ViewSidebar';
 import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined';
 import { useQuickNotes, NOTE_COLORS, NOTE_STATUSES } from '../../context/QuickNotesContext';
 import { useStory } from '../../context/StoryContext';
+import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 
 // ─── Single Editable Note Card ────────────────────────────────────────────────
 function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
@@ -281,7 +282,7 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
           <ListItemIcon>
             <PublicIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText primary="🌐 Global (Sin historia)" />
+          <ListItemText primary="Global (Sin historia)" />
         </MenuItem>
         <Divider />
         {stories.map((s) => (
@@ -334,7 +335,12 @@ export default function QuickNotesPanel() {
   // Fast capture state
   const [quickText, setQuickText] = useState('');
   const [selectedColor, setSelectedColor] = useState(NOTE_COLORS[0]);
+  const panelRef = useRef(null);
   const quickInputRef = useRef(null);
+
+  // Swipe-to-close: swipe right → close (panel comes from the right side)
+  const handleClose = useCallback(() => setIsOpen(false), [setIsOpen]);
+  useSwipeToClose(panelRef, handleClose, 'right', 60, !isMobile);
 
   // Load all notes when panel opens or story changes
   useEffect(() => {
@@ -401,6 +407,7 @@ export default function QuickNotesPanel() {
 
   const panelContent = (
     <Box
+      ref={panelRef}
       sx={{
         width: { xs: '100vw', sm: 350, md: 360 },
         height: '100%',
@@ -521,14 +528,14 @@ export default function QuickNotesPanel() {
             onClick={() => setScopeFilter('global')}
             sx={{ fontSize: '0.72rem', py: 0.4, fontWeight: 700, textTransform: 'none' }}
           >
-            🌐 Globales
+            Globales
           </Button>
           <Button
             variant={scopeFilter === 'all' ? 'contained' : 'outlined'}
             onClick={() => setScopeFilter('all')}
             sx={{ fontSize: '0.72rem', py: 0.4, fontWeight: 700, textTransform: 'none' }}
           >
-            ✨ Todas
+            Todas
           </Button>
         </ButtonGroup>
       </Box>

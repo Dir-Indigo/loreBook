@@ -13,7 +13,6 @@ import {
   Divider,
   ListItemIcon,
   ListItemText,
-  Badge,
 } from '@mui/material';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import PaletteIcon from '@mui/icons-material/Palette';
@@ -25,6 +24,9 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
 import LayersIcon from '@mui/icons-material/Layers';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { useLoreTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import CustomButton from '../common/CustomButton';
@@ -36,12 +38,16 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
 
   const [themeAnchorEl, setThemeAnchorEl] = useState(null);
   const [userAnchorEl, setUserAnchorEl] = useState(null);
+  const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState(null);
 
   const handleOpenThemeMenu = (event) => setThemeAnchorEl(event.currentTarget);
   const handleCloseThemeMenu = () => setThemeAnchorEl(null);
 
   const handleOpenUserMenu = (event) => setUserAnchorEl(event.currentTarget);
   const handleCloseUserMenu = () => setUserAnchorEl(null);
+
+  const handleOpenMobileMenu = (event) => setMobileMenuAnchorEl(event.currentTarget);
+  const handleCloseMobileMenu = () => setMobileMenuAnchorEl(null);
 
   const handleSelectTheme = (key) => {
     setThemeKey(key);
@@ -50,6 +56,7 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
 
   const handleSignOut = async () => {
     handleCloseUserMenu();
+    handleCloseMobileMenu();
     await signOut();
     router.push('/login');
   };
@@ -68,7 +75,7 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
         zIndex: (theme) => theme.zIndex.drawer + 1,
       }}
     >
-      <Toolbar variant="dense" sx={{ minHeight: 52, px: 2, display: 'flex', gap: 2 }}>
+      <Toolbar variant="dense" sx={{ minHeight: 52, px: { xs: 1, sm: 2 }, display: 'flex', gap: { xs: 1, sm: 1.5 } }}>
         {/* Brand */}
         <Box
           sx={{
@@ -77,6 +84,7 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
             gap: 1.2,
             cursor: 'pointer',
             userSelect: 'none',
+            flexShrink: 0,
           }}
           onClick={() => router.push('/dashboard')}
         >
@@ -106,10 +114,10 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
           </Typography>
         </Box>
 
-        <Divider orientation="vertical" flexItem sx={{ my: 1 }} />
+        <Divider orientation="vertical" flexItem sx={{ my: 1, display: { xs: 'none', sm: 'block' } }} />
 
         {/* Story / Universe Context Button */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flexShrink: 1 }}>
           <CustomButton
             variant="outlined"
             color="primary"
@@ -118,15 +126,16 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
             onClick={onOpenStorySelector}
             sx={{
               py: 0.5,
-              px: 1.5,
+              px: { xs: 1, sm: 1.5 },
               bgcolor: 'background.subtle',
               borderColor: 'divider',
               color: 'text.primary',
-              maxWidth: 320,
+              maxWidth: { xs: 135, sm: 220, md: 320 },
+              minWidth: 0,
             }}
           >
-            <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
-              {activeStory ? activeStory.title : 'Seleccionar Historia'}
+            <Typography variant="body2" noWrap sx={{ fontWeight: 600, fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+              {activeStory ? activeStory.title : 'Seleccionar'}
             </Typography>
           </CustomButton>
 
@@ -149,8 +158,8 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
 
         <Box sx={{ flexGrow: 1 }} />
 
-        {/* Action Controls */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        {/* Desktop Action Controls (sm and up) */}
+        <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1, flexShrink: 0 }}>
           {/* Admin Switcher */}
           {isSuperAdmin && (
             <Tooltip title={isAdminPage ? 'Ir al Lienzo' : 'Panel de Administración (SuperAdmin)'}>
@@ -205,6 +214,23 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
             </Tooltip>
           )}
 
+          <Tooltip title="Ayuda y guía de uso">
+            <IconButton
+              onClick={() => router.push('/help')}
+              size="small"
+              sx={{
+                border: 1,
+                borderColor: 'divider',
+                borderRadius: 1.5,
+                p: 0.8,
+                color: router.pathname === '/help' ? 'primary.main' : 'inherit',
+                bgcolor: router.pathname === '/help' ? 'action.selected' : 'transparent',
+              }}
+            >
+              <HelpOutlineIcon fontSize="small" color={router.pathname === '/help' ? 'primary' : 'action'} />
+            </IconButton>
+          </Tooltip>
+
           <Tooltip title="Cambiar Paleta de Color Mate">
             <IconButton
               onClick={handleOpenThemeMenu}
@@ -220,56 +246,6 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
             </IconButton>
           </Tooltip>
 
-          <Menu
-            anchorEl={themeAnchorEl}
-            open={Boolean(themeAnchorEl)}
-            onClose={handleCloseThemeMenu}
-            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-            PaperProps={{
-              sx: { minWidth: 220, borderRadius: 2, p: 0.5 },
-            }}
-          >
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ px: 2, py: 1, display: 'block', fontWeight: 600, textTransform: 'uppercase' }}
-            >
-              Paletas Mate Anti-Fatiga
-            </Typography>
-            <Divider sx={{ my: 0.5 }} />
-            {Object.values(themes).map((t) => {
-              const isSelected = activeThemeKey === t.id;
-              return (
-                <MenuItem
-                  key={t.id}
-                  onClick={() => handleSelectTheme(t.id)}
-                  selected={isSelected}
-                  sx={{ borderRadius: 1, my: 0.3 }}
-                >
-                  <Box
-                    sx={{
-                      width: 14,
-                      height: 14,
-                      borderRadius: '50%',
-                      bgcolor: t.palette.primary.main,
-                      border: '2px solid',
-                      borderColor: t.palette.background.canvas,
-                      mr: 1.5,
-                    }}
-                  />
-                  <ListItemText
-                    primary={t.name}
-                    secondary={t.mode === 'dark' ? 'Modo Oscuro' : 'Modo Claro'}
-                    primaryTypographyProps={{ variant: 'body2', fontWeight: isSelected ? 600 : 400 }}
-                    secondaryTypographyProps={{ variant: 'caption', fontSize: '0.7rem' }}
-                  />
-                  {isSelected && <CheckIcon fontSize="small" color="primary" />}
-                </MenuItem>
-              );
-            })}
-          </Menu>
-
           {/* User Profile / RBAC */}
           <Chip
             avatar={<AccountCircleIcon fontSize="small" />}
@@ -284,42 +260,196 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
               height: 28,
             }}
           />
+        </Box>
 
-          <Menu
-            anchorEl={userAnchorEl}
-            open={Boolean(userAnchorEl)}
-            onClose={handleCloseUserMenu}
-            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-            PaperProps={{
-              sx: { minWidth: 220, borderRadius: 2, p: 0.5 },
+        {/* Mobile Action Controls (xs only) */}
+        <Box sx={{ display: { xs: 'flex', sm: 'none' }, alignItems: 'center', gap: 0.6, flexShrink: 0 }}>
+          {/* Quick Palette button */}
+          <IconButton
+            onClick={handleOpenThemeMenu}
+            size="small"
+            sx={{
+              border: 1,
+              borderColor: 'divider',
+              borderRadius: 1.5,
+              p: 0.6,
             }}
           >
-            <Box sx={{ px: 2, py: 1 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                {profile?.full_name || 'Usuario'}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
-                {user?.email}
-              </Typography>
-            </Box>
-            <Divider sx={{ my: 0.5 }} />
-            {isSuperAdmin && (
-              <MenuItem onClick={() => { handleCloseUserMenu(); router.push('/admin'); }}>
-                <ListItemIcon>
-                  <AdminPanelSettingsIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText primary="Panel de Administración" />
-              </MenuItem>
-            )}
-            <MenuItem onClick={handleSignOut} sx={{ color: 'error.main' }}>
-              <ListItemIcon sx={{ color: 'inherit' }}>
-                <LogoutIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary="Cerrar Sesión" />
-            </MenuItem>
-          </Menu>
+            <PaletteIcon fontSize="small" color="action" />
+          </IconButton>
+
+          {/* Mobile Menu Dropdown */}
+          <IconButton
+            onClick={handleOpenMobileMenu}
+            size="small"
+            sx={{
+              border: 1,
+              borderColor: 'divider',
+              borderRadius: 1.5,
+              p: 0.6,
+              bgcolor: Boolean(mobileMenuAnchorEl) ? 'action.selected' : 'transparent',
+            }}
+          >
+            <MoreVertIcon fontSize="small" />
+          </IconButton>
         </Box>
+
+        {/* Mobile Dropdown Menu */}
+        <Menu
+          anchorEl={mobileMenuAnchorEl}
+          open={Boolean(mobileMenuAnchorEl)}
+          onClose={handleCloseMobileMenu}
+          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+          PaperProps={{
+            sx: { minWidth: 230, borderRadius: 2.5, p: 0.5, boxShadow: '0 8px 24px rgba(0,0,0,0.18)' },
+          }}
+        >
+          <Box sx={{ px: 2, py: 1 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              {profile?.full_name || 'Usuario'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+              {user?.email} ({profile?.role === 'superadmin' ? 'SuperAdmin' : 'Escritor'})
+            </Typography>
+          </Box>
+          <Divider sx={{ my: 0.5 }} />
+
+          <MenuItem onClick={() => { handleCloseMobileMenu(); router.push('/dashboard'); }} selected={router.pathname === '/dashboard'}>
+            <ListItemIcon>
+              <DashboardIcon fontSize="small" color={router.pathname === '/dashboard' ? 'primary' : 'inherit'} />
+            </ListItemIcon>
+            <ListItemText primary="Lienzo de Eventos" />
+          </MenuItem>
+
+          <MenuItem onClick={() => { handleCloseMobileMenu(); router.push('/ideas'); }} selected={router.pathname.startsWith('/ideas')}>
+            <ListItemIcon>
+              <LightbulbOutlinedIcon fontSize="small" color={router.pathname.startsWith('/ideas') ? 'primary' : 'inherit'} />
+            </ListItemIcon>
+            <ListItemText primary="Pizarra de Ideas" />
+          </MenuItem>
+
+          {activeStory && (
+            <MenuItem onClick={() => { handleCloseMobileMenu(); router.push(`/characters/${activeStory.id}`); }} selected={router.pathname.startsWith('/characters')}>
+              <ListItemIcon>
+                <PeopleOutlineIcon fontSize="small" color={router.pathname.startsWith('/characters') ? 'primary' : 'inherit'} />
+              </ListItemIcon>
+              <ListItemText primary="Personajes" />
+            </MenuItem>
+          )}
+
+          <MenuItem onClick={() => { handleCloseMobileMenu(); router.push('/help'); }} selected={router.pathname === '/help'}>
+            <ListItemIcon>
+              <HelpOutlineIcon fontSize="small" color={router.pathname === '/help' ? 'primary' : 'inherit'} />
+            </ListItemIcon>
+            <ListItemText primary="Ayuda y Guía" />
+          </MenuItem>
+
+          {isSuperAdmin && (
+            <MenuItem onClick={() => { handleCloseMobileMenu(); router.push('/admin'); }} selected={router.pathname.startsWith('/admin')}>
+              <ListItemIcon>
+                <AdminPanelSettingsIcon fontSize="small" color="secondary" />
+              </ListItemIcon>
+              <ListItemText primary="Panel de Administración" />
+            </MenuItem>
+          )}
+
+          <Divider sx={{ my: 0.5 }} />
+
+          <MenuItem onClick={handleSignOut} sx={{ color: 'error.main' }}>
+            <ListItemIcon sx={{ color: 'inherit' }}>
+              <LogoutIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primary="Cerrar Sesión" />
+          </MenuItem>
+        </Menu>
+
+        {/* Theme Selector Menu */}
+        <Menu
+          anchorEl={themeAnchorEl}
+          open={Boolean(themeAnchorEl)}
+          onClose={handleCloseThemeMenu}
+          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+          PaperProps={{
+            sx: { minWidth: 220, borderRadius: 2, p: 0.5 },
+          }}
+        >
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ px: 2, py: 1, display: 'block', fontWeight: 600, textTransform: 'uppercase' }}
+          >
+            Paletas Mate Anti-Fatiga
+          </Typography>
+          <Divider sx={{ my: 0.5 }} />
+          {Object.values(themes).map((t) => {
+            const isSelected = activeThemeKey === t.id;
+            return (
+              <MenuItem
+                key={t.id}
+                onClick={() => handleSelectTheme(t.id)}
+                selected={isSelected}
+                sx={{ borderRadius: 1, my: 0.3 }}
+              >
+                <Box
+                  sx={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    bgcolor: t.palette.primary.main,
+                    border: '2px solid',
+                    borderColor: t.palette.background.canvas,
+                    mr: 1.5,
+                  }}
+                />
+                <ListItemText
+                  primary={t.name}
+                  secondary={t.mode === 'dark' ? 'Modo Oscuro' : 'Modo Claro'}
+                  primaryTypographyProps={{ variant: 'body2', fontWeight: isSelected ? 600 : 400 }}
+                  secondaryTypographyProps={{ variant: 'caption', fontSize: '0.7rem' }}
+                />
+                {isSelected && <CheckIcon fontSize="small" color="primary" />}
+              </MenuItem>
+            );
+          })}
+        </Menu>
+
+        {/* Desktop User Profile Menu */}
+        <Menu
+          anchorEl={userAnchorEl}
+          open={Boolean(userAnchorEl)}
+          onClose={handleCloseUserMenu}
+          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+          PaperProps={{
+            sx: { minWidth: 220, borderRadius: 2, p: 0.5 },
+          }}
+        >
+          <Box sx={{ px: 2, py: 1 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+              {profile?.full_name || 'Usuario'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+              {user?.email}
+            </Typography>
+          </Box>
+          <Divider sx={{ my: 0.5 }} />
+          {isSuperAdmin && (
+            <MenuItem onClick={() => { handleCloseUserMenu(); router.push('/admin'); }}>
+              <ListItemIcon>
+                <AdminPanelSettingsIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primary="Panel de Administración" />
+            </MenuItem>
+          )}
+          <MenuItem onClick={handleSignOut} sx={{ color: 'error.main' }}>
+            <ListItemIcon sx={{ color: 'inherit' }}>
+              <LogoutIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primary="Cerrar Sesión" />
+          </MenuItem>
+        </Menu>
       </Toolbar>
     </AppBar>
   );

@@ -456,6 +456,16 @@ export const WorkspaceProvider = ({ children }) => {
     return result;
   }, []);
 
+  const copyCharactersAsLocal = useCallback(async ({ storyId, characterIds, setLoading }) => {
+    if (!storyId || !characterIds?.length) return { data: [], error: new Error('Story ID and character IDs required') };
+
+    const result = await ApiService.characters.copyAsLocal(characterIds, storyId, setLoading);
+    if (!result?.error && result?.data?.length) {
+      setCharacters((prev) => [...prev, ...result.data]);
+    }
+    return result;
+  }, []);
+
   return (
     <WorkspaceContext.Provider value={{
       characters,
@@ -494,6 +504,7 @@ export const WorkspaceProvider = ({ children }) => {
       saveCharacter,
       deleteCharacter,
       updateCharactersGlobal,
+      copyCharactersAsLocal,
       createRelationship,
       deleteRelationship,
     }}>

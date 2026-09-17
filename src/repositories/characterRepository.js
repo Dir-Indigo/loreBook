@@ -22,7 +22,7 @@ export const characterRepository = {
     if (fetchError) return { data: null, error: fetchError };
 
     // 2. Preparar datos para clonar
-    const { targetStoryId, nameSuffix } = options;
+    const { targetStoryId, nameSuffix, isTemplate } = options;
     const newName = `${original.name}${nameSuffix || ' (Copia)'}`;
     
     const { id, created_at, ...originalData } = original;
@@ -31,9 +31,44 @@ export const characterRepository = {
       ...originalData,
       name: newName,
       story_id: targetStoryId,
+      is_template: isTemplate !== undefined ? isTemplate : original.is_template,
     };
 
     // 3. Insertar clon
     return await supabase.from('characters').insert([cloneData]).select().single();
+  },
+
+  copyAsLocal: async (characterIds, targetStoryId) => {
+    const ids = Array.isArray(characterIds) ? characterIds : [characterIds];
+    if (!ids.length || !targetStoryId) return { data: [], error: null };
+
+    // 1. Obtener personajes originales
+    const { data: originals, error: fetchError } = await supabase
+      .from('characters')
+      .select('*')
+      .in('id', ids);
+
+    if (fetchError) return { data: null, error: fetchError };
+    if (!originals || !originals.length) return { data: [], error: null };
+
+    // 2. Preparar copias locales
+    const copiesData = originals.map((original) => {
+      const { id, created_at, ...rest } = original;
+      return {
+        ...rest,
+        is_global: false,
+        story_id: targetStoryId,
+        name: original.name,
+      };
+    });
+
+    // 3. Insertar copias locales
+    const { data: createdCopies, error: insertError } = await supabase
+      .from('characters')
+      .insert(copiesData)
+      .select('*');
+
+    if (insertError) return { data: null, error: insertError };
+    return { data: createdCopies, error: null };
   },
 };

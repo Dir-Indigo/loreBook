@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/router";
 import { useEventOrder } from '../../hooks/useEventOrder';
 import { useQuickNotes } from '../../context/QuickNotesContext';
@@ -48,6 +48,7 @@ import CustomButton from "../common/CustomButton";
 import BoardTreeItem from "../sidebar/BoardTreeItem";
 import ImageCropModal from "../common/ImageCropModal";
 import { uploadStoryCover } from "../../services/storageService";
+import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 
 export default function SidebarLore({
   view = 'dashboard',
@@ -75,6 +76,11 @@ export default function SidebarLore({
   const { notes, notesLoading, toggleOpen: toggleNotesPanel } = useQuickNotes();
 
   const [collapsed, setCollapsed] = useState(false);
+  const sidebarRef = useRef(null);
+
+  // Swipe-to-close: swipe left → collapse (sidebar is on the left side)
+  const handleCollapse = useCallback(() => setCollapsed(true), []);
+  useSwipeToClose(sidebarRef, handleCollapse, 'left', 60, !collapsed);
   
   // Persist sidebarTab
   const [sidebarTab, setSidebarTab] = useState(() => {
@@ -311,6 +317,7 @@ export default function SidebarLore({
 
   return (
     <Box
+      ref={sidebarRef}
       sx={{
         width: 340, // Aumentado ligeramente para mayor soltura visual
         height: "100%",
@@ -513,7 +520,7 @@ export default function SidebarLore({
           <Box sx={{ p: 1.2, px: 1.5, display: 'flex', gap: 1, alignItems: 'center' }}>
             <TextField
               size="small"
-              placeholder="Buscar personaje…"
+              placeholder="Buscar…"
               value={charSearch}
               onChange={(e) => setCharSearch(e.target.value)}
               fullWidth
@@ -523,7 +530,7 @@ export default function SidebarLore({
                     <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                   </InputAdornment>
                 ),
-                sx: { height: 32, fontSize: '0.8rem', borderRadius: 2 },
+                sx: { height: 30, fontSize: '0.8rem' },
               }}
             />
             <Tooltip title="Abrir gestor completo de personajes">
@@ -590,7 +597,7 @@ export default function SidebarLore({
                       <ListItemText
                         primary={c.name}
                         primaryTypographyProps={{ fontSize: '0.84rem', fontWeight: 700, noWrap: true }}
-                        secondary={c.role_archetype || (c.is_global ? '🌐 Global' : 'Personaje')}
+                        secondary={c.role_archetype || (c.is_global ? 'Global' : 'Personaje')}
                         secondaryTypographyProps={{ fontSize: '0.7rem', noWrap: true }}
                       />
                       {c.is_global && (

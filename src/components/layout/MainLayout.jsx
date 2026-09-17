@@ -4,6 +4,7 @@ import { Box } from '@mui/material';
 import Navbar from './Navbar';
 import StoryModal from '../stories/StoryModal';
 import QuickNotesPanel from '../common/QuickNotesPanel';
+import PullToRefresh from '../common/PullToRefresh';
 import { useStory } from '../../context/StoryContext';
 
 export default function MainLayout({ children }) {
@@ -29,8 +30,9 @@ export default function MainLayout({ children }) {
   );
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <Navbar activeStory={activeStory} onOpenStorySelector={handleOpenStorySelector} />
+    <PullToRefresh>
+      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+        <Navbar activeStory={activeStory} onOpenStorySelector={handleOpenStorySelector} />
       
       <Box sx={{ flexGrow: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         <Box sx={{ flexGrow: 1, height: '100%', overflow: 'hidden', display: 'flex', minWidth: 0 }}>
@@ -58,5 +60,6 @@ export default function MainLayout({ children }) {
         onDeleteStory={deleteStory}
       />
     </Box>
+  </PullToRefresh>
   );  
 }
