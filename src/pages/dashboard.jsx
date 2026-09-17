@@ -19,7 +19,7 @@ import SpeedDialActions from '../components/common/SpeedDialActions';
 import CustomLoading from '../components/common/CustomLoading';
 import CustomButton from '../components/common/CustomButton';
 
-export default function DashboardPage() {
+export default function DashboardPage({ onOpenStorySelector }) {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const { activeStory, activeStoryId, storiesLoading, updateStory } = useStory();
@@ -404,6 +404,8 @@ export default function DashboardPage() {
             events={events}
             characters={characters}
             eventConnections={eventConnections}
+            hasStory={!!activeStory}
+            onOpenStorySelector={onOpenStorySelector}
             activeBoardName={boards.find((b) => b.id === activeBoardId)?.name || null}
             onCreateConnection={handleCreateConnection}
             onDeleteConnection={handleDeleteConnection}

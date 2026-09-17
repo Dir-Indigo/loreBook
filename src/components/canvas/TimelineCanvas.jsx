@@ -22,6 +22,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import TimelineIcon from '@mui/icons-material/Timeline';
+import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ContentPasteIcon from '@mui/icons-material/ContentPaste';
 import ViewAgendaOutlinedIcon from '@mui/icons-material/ViewAgendaOutlined';
@@ -50,6 +51,8 @@ export default function TimelineCanvas({
   onNodeDragStop,
   onDuplicateEvent,
   onDuplicateEvents,
+  hasStory = true,
+  onOpenStorySelector,
 }) {
   const { currentThemeConfig } = useLoreTheme();
 
@@ -430,7 +433,7 @@ export default function TimelineCanvas({
 
 
       {/* Empty State */}
-      {events.length === 0 ? (
+      {!hasStory ? (
         <Box
           sx={{
             position: 'absolute',
@@ -439,19 +442,54 @@ export default function TimelineCanvas({
             transform: 'translate(-50%, -50%)',
             textAlign: 'center',
             zIndex: 5,
-            p: 4,
+            p: { xs: 2.5, sm: 4 },
+            width: { xs: 'calc(100vw - 48px)', sm: 'auto' },
+            maxWidth: 440,
+            bgcolor: 'background.paper',
+            borderRadius: 3,
+            border: 1,
+            borderColor: 'divider',
+            boxSizing: 'border-box',
+          }}
+        >
+          <AutoStoriesIcon sx={{ fontSize: { xs: 40, sm: 54 }, color: 'primary.main', mb: 1 }} />
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.8, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+            Comienza creando tu Historia
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, fontSize: { xs: '0.8rem', sm: '0.875rem' }, lineHeight: 1.5 }}>
+            Para agregar eventos a la línea de tiempo primero necesitas crear o seleccionar una historia desde el selector de historias.
+          </Typography>
+          <CustomButton
+            startIcon={<AutoStoriesIcon fontSize="small" />}
+            onClick={onOpenStorySelector}
+          >
+            Seleccionar Historia
+          </CustomButton>
+        </Box>
+      ) : events.length === 0 ? (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            textAlign: 'center',
+            zIndex: 5,
+            p: { xs: 2.5, sm: 4 },
+            width: { xs: 'calc(100vw - 48px)', sm: 'auto' },
             maxWidth: 420,
             bgcolor: 'background.paper',
             borderRadius: 3,
             border: 1,
             borderColor: 'divider',
+            boxSizing: 'border-box',
           }}
         >
-          <TimelineIcon sx={{ fontSize: 50, color: 'text.disabled', mb: 1.5 }} />
-          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+          <TimelineIcon sx={{ fontSize: { xs: 36, sm: 50 }, color: 'text.disabled', mb: 1 }} />
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.8, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
             Línea de Tiempo Vacía
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: { xs: '0.8rem', sm: '0.875rem' }, lineHeight: 1.4 }}>
             Comienza agregando el primer evento narrativo de esta historia. Conecta eventos arrastrando cables entre sus conectores laterales.
           </Typography>
           <CustomButton

@@ -5,7 +5,7 @@ import {
   Paper,
   Typography,
   TextField,
-  MenuItem,
+  // MenuItem, // Dev-only: role selector removed
   Alert,
   Tabs,
   Tab,
@@ -25,7 +25,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState('writer'); // 'writer' | 'superadmin'
+  // const [role, setRole] = useState('writer'); // Dev-only: superadmin role selector
+  const role = 'writer'; // Always register as standard writer
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -220,17 +221,18 @@ export default function LoginPage() {
               fullWidth
               autoComplete="new-password"
             />
+            {/* Dev-only: role selector hidden in all environments
             <TextField
               select
               label="Rol Inicial en la Plataforma"
               value={role}
               onChange={(e) => setRole(e.target.value)}
               fullWidth
-              helperText="El rol SuperAdmin tiene acceso exclusivo al panel /admin (RF-1.2, RF-1.3)"
             >
               <MenuItem value="writer">Escritor (Usuario Estándar)</MenuItem>
               <MenuItem value="superadmin">SuperAdmin (Administrador General)</MenuItem>
             </TextField>
+            */}
             <CustomButton
               type="submit"
               size="large"
