@@ -17,12 +17,12 @@ export const USER_ROLES = {
 
 export const CHARACTER_ARCHETYPES = [
   'Protagonista',
-  'Deuteragonista',
-  'Antagonista',
-  'Esbirro',
-  'Mentor',
   'Secundario',
   'Terciario',
+  'Antagonista',
+  'Deuteragonista',
+  'Esbirro',
+  'Mentor',
   'Ambiental',
 ];
 
