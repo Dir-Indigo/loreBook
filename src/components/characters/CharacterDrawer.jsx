@@ -49,6 +49,7 @@ export default function CharacterDrawer({
   onDeleteCharacter,
   onSetCharactersGlobal,
   onCopyCharactersAsLocal,
+  onRoleChange,
   onCreateRelationship,
   onDeleteRelationship,
 }) {
@@ -357,6 +358,7 @@ export default function CharacterDrawer({
                   onDelete={onDeleteCharacter}
                   onClone={onOpenCloneCharacter}
                   onMakeLocalCopy={(char) => handleRequestCopyAsLocal([char])}
+                  onRoleChange={onRoleChange}
                 />
               ))}
             </Box>
@@ -540,6 +542,7 @@ export default function CharacterDrawer({
                   onDelete={onDeleteCharacter}
                   onClone={onOpenCloneCharacter}
                   onMakeLocalCopy={(char) => handleRequestCopyAsLocal([char])}
+                  onRoleChange={onRoleChange}
                 />
               ))}
             </Box>
@@ -554,7 +557,7 @@ export default function CharacterDrawer({
         actions={[
           {
             key: 'copy-local',
-            label: 'Copiar a esta historia',
+            label: 'Crear una copia',
             tooltip: 'Crear copia local de los seleccionados para esta historia',
             icon: <BookmarkAddOutlinedIcon fontSize="small" />,
             onClick: () => handleRequestCopyAsLocal(selectedCharacterIds),

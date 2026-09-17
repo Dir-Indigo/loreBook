@@ -19,10 +19,50 @@ export const CHARACTER_ARCHETYPES = [
   'Protagonista',
   'Deuteragonista',
   'Antagonista',
+  'Esbirro',
   'Mentor',
   'Secundario',
   'Terciario',
   'Ambiental',
+];
+
+export const CHARACTER_GENDERS = [
+  'Masculino',
+  'Femenino',
+  'No binario',
+  'Andrógino',
+  'Fluido',
+  'Desconocido / No aplica',
+];
+
+export const CHARACTER_ALIGNMENTS = [
+  'Legal Bueno',
+  'Neutral Bueno',
+  'Caótico Bueno',
+  'Legal Neutral',
+  'Neutral Verdadero',
+  'Caótico Neutral',
+  'Legal Malvado',
+  'Neutral Malvado',
+  'Caótico Malvado',
+];
+
+export const CHARACTER_LIFE_STAGES = [
+  'Infante / Niño',
+  'Adolescente',
+  'Joven Adulto',
+  'Adulto',
+  'Veterano / Maduro',
+  'Anciano',
+  'Inmortal / Ancestral',
+];
+
+export const CHARACTER_VITAL_STATUSES = [
+  'Vivo',
+  'Fallecido',
+  'Desaparecido',
+  'No-muerto / Resucitado',
+  'Sellado / En éxtasis',
 ];
 
 

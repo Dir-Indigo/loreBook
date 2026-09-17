@@ -29,11 +29,21 @@ import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import LinkIcon from '@mui/icons-material/Link';
 import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
+import StarIcon from '@mui/icons-material/Star';
+import WcIcon from '@mui/icons-material/Wc';
 import CustomModal from '../common/CustomModal';
 import CustomButton from '../common/CustomButton';
 import ImageCropModal from '../common/ImageCropModal';
 import { uploadCharacterAvatar } from '../../services/storageService';
-import { CHARACTER_ARCHETYPES, CHARACTER_COLOR_PALETTE } from '../../constants/constants';
+import { extractDominantColor } from '../../utils/imageOptimizer';
+import {
+  CHARACTER_ARCHETYPES,
+  CHARACTER_COLOR_PALETTE,
+  CHARACTER_GENDERS,
+  CHARACTER_ALIGNMENTS,
+  CHARACTER_LIFE_STAGES,
+  CHARACTER_VITAL_STATUSES,
+} from '../../constants/constants';
 
 export default function CharacterModal({
   open,
@@ -59,9 +69,16 @@ export default function CharacterModal({
   const [flaws, setFlaws] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Trait & Character Data fields (stored in attributes jsonb)
+  const [gender, setGender] = useState('');
+  const [alignment, setAlignment] = useState('');
+  const [lifeStage, setLifeStage] = useState('');
+  const [vitalStatus, setVitalStatus] = useState('Vivo');
+  const [isSpecial, setIsSpecial] = useState(false);
+
   // Collapsible progressive disclosure state & sub-tab
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [advancedTab, setAdvancedTab] = useState(0); // 0=Psicología y Trasfondo, 1=Foto y Configuración
+  const [advancedTab, setAdvancedTab] = useState(0); // 0=Psicología, 1=Datos del Personaje, 2=Foto y Configuración
 
   // Avatar upload & cropping state
   const [avatarMode, setAvatarMode] = useState('upload'); // 'upload' | 'url'
@@ -89,7 +106,17 @@ export default function CharacterModal({
       setFlaws(attr.flaws || '');
       setNotes(attr.notes || '');
 
-      if (character.avatar_url || character.is_global || character.is_template || attr.goal || attr.conflict || attr.strengths || attr.flaws || attr.notes) {
+      setGender(attr.gender || '');
+      setAlignment(attr.alignment || '');
+      setLifeStage(attr.life_stage || '');
+      setVitalStatus(attr.vital_status || 'Vivo');
+      setIsSpecial(Boolean(attr.is_special));
+
+      if (
+        character.avatar_url || character.is_global || character.is_template ||
+        attr.goal || attr.conflict || attr.strengths || attr.flaws || attr.notes ||
+        attr.gender || attr.alignment || attr.life_stage || (attr.vital_status && attr.vital_status !== 'Vivo') || attr.is_special
+      ) {
         setShowAdvanced(true);
       } else {
         setShowAdvanced(false);
@@ -112,11 +139,29 @@ export default function CharacterModal({
       setStrengths('');
       setFlaws('');
       setNotes('');
+      setGender('');
+      setAlignment('');
+      setLifeStage('');
+      setVitalStatus('Vivo');
+      setIsSpecial(false);
       setShowAdvanced(false);
       setAvatarMode('upload');
     }
     setCloneSuffix(' (Versión Alterna)');
   }, [character, open, isCloneMode]);
+
+  // Automatically extract dominant color when a URL is provided
+  useEffect(() => {
+    if (avatarMode === 'url' && avatarUrl && avatarUrl.trim().startsWith('http')) {
+      const timer = setTimeout(async () => {
+        const dominantColor = await extractDominantColor(avatarUrl.trim());
+        if (dominantColor) {
+          setColorTag(dominantColor);
+        }
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [avatarUrl, avatarMode]);
 
   // Handle local image selection
   const handleFileChange = (e) => {
@@ -136,6 +181,12 @@ export default function CharacterModal({
   const handleCropComplete = async (optimizedBlob, previewUrl) => {
     setUploadingAvatar(true);
     try {
+      // Auto-extract dominant color from the cropped image Blob
+      const dominantColor = await extractDominantColor(optimizedBlob);
+      if (dominantColor) {
+        setColorTag(dominantColor);
+      }
+
       const result = await uploadCharacterAvatar(optimizedBlob, character?.id || 'new');
       if (result?.url) {
         setAvatarUrl(result.url);
@@ -172,6 +223,11 @@ export default function CharacterModal({
         strengths: strengths.trim(),
         flaws: flaws.trim(),
         notes: notes.trim(),
+        gender: gender || '',
+        alignment: alignment || '',
+        life_stage: lifeStage || '',
+        vital_status: vitalStatus || 'Vivo',
+        is_special: Boolean(isSpecial),
       };
 
       await onSave({
@@ -425,6 +481,7 @@ export default function CharacterModal({
                     }}
                   >
                     <Tab label="Psicología & Narrativa" />
+                    <Tab label="Datos" icon={<WcIcon sx={{ fontSize: '1rem !important' }} />} iconPosition="start" />
                     <Tab label="Foto & Ajustes" />
                   </Tabs>
 
@@ -490,8 +547,120 @@ export default function CharacterModal({
                     </Box>
                   )}
 
-                  {/* ─── TAB 1: FOTO Y AJUSTES DE SISTEMA ─── */}
+                  {/* ─── TAB 1: DATOS DEL PERSONAJE ─── */}
                   {advancedTab === 1 && (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                      <Grid container spacing={1.5}>
+                        {/* Género */}
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            select
+                            label="Género"
+                            value={gender}
+                            onChange={(e) => setGender(e.target.value)}
+                            fullWidth
+                            size="small"
+                            InputProps={{ sx: { borderRadius: 2, fontSize: '0.88rem' } }}
+                          >
+                            <MenuItem value=""><em>Sin definir</em></MenuItem>
+                            {CHARACTER_GENDERS.map((g) => (
+                              <MenuItem key={g} value={g}>{g}</MenuItem>
+                            ))}
+                          </TextField>
+                        </Grid>
+
+                        {/* Etapa de Vida */}
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            select
+                            label="Etapa de Vida"
+                            value={lifeStage}
+                            onChange={(e) => setLifeStage(e.target.value)}
+                            fullWidth
+                            size="small"
+                            InputProps={{ sx: { borderRadius: 2, fontSize: '0.88rem' } }}
+                          >
+                            <MenuItem value=""><em>Sin definir</em></MenuItem>
+                            {CHARACTER_LIFE_STAGES.map((s) => (
+                              <MenuItem key={s} value={s}>{s}</MenuItem>
+                            ))}
+                          </TextField>
+                        </Grid>
+
+                        {/* Alineamiento */}
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            select
+                            label="Alineamiento"
+                            value={alignment}
+                            onChange={(e) => setAlignment(e.target.value)}
+                            fullWidth
+                            size="small"
+                            InputProps={{ sx: { borderRadius: 2, fontSize: '0.88rem' } }}
+                          >
+                            <MenuItem value=""><em>Sin definir</em></MenuItem>
+                            {CHARACTER_ALIGNMENTS.map((a) => (
+                              <MenuItem key={a} value={a}>{a}</MenuItem>
+                            ))}
+                          </TextField>
+                        </Grid>
+
+                        {/* Estado Vital */}
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            select
+                            label="Estado Vital"
+                            value={vitalStatus}
+                            onChange={(e) => setVitalStatus(e.target.value)}
+                            fullWidth
+                            size="small"
+                            InputProps={{ sx: { borderRadius: 2, fontSize: '0.88rem' } }}
+                          >
+                            {CHARACTER_VITAL_STATUSES.map((v) => (
+                              <MenuItem key={v} value={v}>{v}</MenuItem>
+                            ))}
+                          </TextField>
+                        </Grid>
+                      </Grid>
+
+                      {/* Personaje Especial */}
+                      <Box
+                        onClick={() => setIsSpecial(!isSpecial)}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          p: 1.2,
+                          borderRadius: 2,
+                          border: '1.5px solid',
+                          borderColor: isSpecial ? 'warning.main' : 'divider',
+                          bgcolor: isSpecial ? 'warning.main' + '18' : 'background.paper',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          '&:hover': { borderColor: 'warning.main', bgcolor: 'warning.main' + '10' },
+                        }}
+                      >
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 0.6, color: isSpecial ? 'warning.dark' : 'text.primary' }}>
+                            <StarIcon sx={{ fontSize: 16, color: isSpecial ? 'warning.main' : 'text.disabled' }} />
+                            Personaje Especial
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Marca este personaje como clave o único dentro de la narrativa.
+                          </Typography>
+                        </Box>
+                        <Switch
+                          checked={isSpecial}
+                          onChange={(e) => { e.stopPropagation(); setIsSpecial(e.target.checked); }}
+                          color="warning"
+                          size="small"
+                        />
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* ─── TAB 2: FOTO Y AJUSTES DE SISTEMA ─── */}
+                  {advancedTab === 2 && (
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       {/* Avatar Manager Section (Subir archivo con recorte vs URL directa) */}
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2 }}>

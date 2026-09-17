@@ -261,14 +261,24 @@ export const WorkspaceProvider = ({ children }) => {
     return result;
   }, [activeBoardId, ensurePrimaryBoard, refreshBoardEvents]);
 
-  const deleteEvent = useCallback(async ({ storyId, boardId, eventId, setLoading }) => {
+  const deleteEvent = useCallback(async ({ storyId, boardId, eventId, setLoading = null }) => {
     if (!storyId || !eventId) return { data: null, error: new Error('Story ID and event ID are required') };
 
-    const result = await ApiService.events.delete(eventId, setLoading);
-    if (result.error) return result;
-
-    await refreshBoardEvents({ storyId, boardId, setLoading });
+    // 1. Optimistic removal: remove immediately from active board events, allEvents, and connections
+    setEvents((current) => current.filter((event) => event.id !== eventId));
     setAllEvents((current) => current.filter((event) => event.id !== eventId));
+    setEventConnections((current) => current.filter((conn) => conn.source_event_id !== eventId && conn.target_event_id !== eventId));
+
+    // 2. Perform API delete in the background
+    const result = await ApiService.events.delete(eventId, setLoading);
+    if (result.error) {
+      // Revert if delete failed
+      if (storyId && boardId) {
+        await refreshBoardEvents({ storyId, boardId, setLoading });
+      }
+      return result;
+    }
+
     return result;
   }, [refreshBoardEvents]);
 

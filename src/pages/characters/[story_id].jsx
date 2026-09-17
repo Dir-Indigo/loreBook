@@ -18,8 +18,7 @@ import {
   Tooltip,
   Paper,
   Chip,
-  Switch,
-  FormControlLabel,
+  Avatar,
 } from '@mui/material';
 import { useAuth } from '../../context/AuthContext';
 import { useStory } from '../../context/StoryContext';
@@ -27,6 +26,7 @@ import { useLoading } from '../../context/LoadingContext';
 import { ApiService } from '../../utils/ApiService';
 import SidebarLore from '../../components/layout/SidebarLore';
 import CustomLoading from '../../components/common/CustomLoading';
+import CustomModal from '../../components/common/CustomModal';
 import SelectionActionBar from '../../components/common/SelectionActionBar';
 import CharacterModal from '../../components/characters/CharacterModal';
 import CharacterCard from '../../components/characters/CharacterCard';
@@ -37,6 +37,7 @@ import PublicOutlinedIcon from '@mui/icons-material/PublicOutlined';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import BookmarkAddOutlinedIcon from '@mui/icons-material/BookmarkAddOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
@@ -46,6 +47,10 @@ import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import ViewComfyIcon from '@mui/icons-material/ViewComfy';
 import ViewAgendaIcon from '@mui/icons-material/ViewAgenda';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import NotesIcon from '@mui/icons-material/Notes';
+import StarOutlinedIcon from '@mui/icons-material/StarOutlined';
+import { CHARACTER_ALIGNMENTS, CHARACTER_LIFE_STAGES, CHARACTER_VITAL_STATUSES, CHARACTER_GENDERS, CHARACTER_ARCHETYPES  } from '../../constants/constants';
 
 export default function CharacterManagementPage() {
   const router = useRouter();
@@ -64,15 +69,23 @@ export default function CharacterManagementPage() {
   const [selectedCharacterIds, setSelectedCharacterIds] = useState([]);
   
   // Filters & View states
-  const [characterTab, setCharacterTab] = useState(0); // 0=Todos, 1=Globales, 2=Locales
+  const [characterTab, setCharacterTab] = useState(0); // 0=Locales (Default), 1=Globales, 2=Todos
+  const [showDescriptions, setShowDescriptions] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('name-asc'); // 'name-asc' | 'name-desc' | 'recent'
+  const [sortBy, setSortBy] = useState('name-asc'); // 'name-asc' | 'name-desc' | 'recent' | 'special' | 'vital' | 'life-stage' | 'alignment' | 'gender'
   const [viewMode, setViewMode] = useState('compact'); // 'compact' | 'medium' | 'detailed'
   const [groupByRole, setGroupByRole] = useState(true);
 
   const [confirmCopyOpen, setConfirmCopyOpen] = useState(false);
   const [pendingCopyList, setPendingCopyList] = useState([]);
+
+  // Estado para modal de confirmación de eliminación
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const pendingDeleteChar = useMemo(
+    () => characters.find((c) => c.id === deleteConfirmId) || null,
+    [characters, deleteConfirmId]
+  );
 
   const loadData = useCallback(async () => {
     if (!router.isReady || !story_id) return;
@@ -99,13 +112,17 @@ export default function CharacterManagementPage() {
   }, [router.isReady, story_id, loadData]);
 
   const handleDelete = async (charId) => {
-    if (window.confirm('¿Seguro que deseas eliminar este personaje?')) {
-      const result = await ApiService.characters.delete(charId, setLoading);
-      if (!result.error) {
-        setCharacters((current) => current.filter((character) => character.id !== charId));
-        setSelectedCharacterIds((current) => current.filter((id) => id !== charId));
-      }
-    }
+    setDeleteConfirmId(charId);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmId) return;
+    const charId = deleteConfirmId;
+    setDeleteConfirmId(null);
+    // Optimistic: quitar del listado inmediatamente
+    setCharacters((current) => current.filter((c) => c.id !== charId));
+    setSelectedCharacterIds((current) => current.filter((id) => id !== charId));
+    await ApiService.characters.delete(charId, setLoading);
   };
 
   const toggleCharacterSelection = (characterId, event) => {
@@ -202,6 +219,20 @@ export default function CharacterManagementPage() {
     setCharModalOpen(false);
   };
 
+  const handleRoleChange = async (charId, newRole) => {
+    const previousCharacters = characters;
+    // Optimistic UI update
+    setCharacters((current) =>
+      current.map((char) => (char.id === charId ? { ...char, role_archetype: newRole } : char))
+    );
+
+    const result = await ApiService.characters.update(charId, { role_archetype: newRole }, setLoading);
+    if (result.error) {
+      setCharacters(previousCharacters);
+      window.alert('No se pudo actualizar el tipo del personaje.');
+    }
+  };
+
   // Distinct roles found in current character list
   const availableRoles = useMemo(() => {
     const roles = new Set();
@@ -215,11 +246,11 @@ export default function CharacterManagementPage() {
   const processedCharacters = useMemo(() => {
     let result = [...characters];
 
-    // Tab Filter (All / Global / Local)
-    if (characterTab === 1) {
-      result = result.filter((c) => c.is_global);
-    } else if (characterTab === 2) {
+    // Tab Filter (0=Locales, 1=Globales, 2=Todos)
+    if (characterTab === 0) {
       result = result.filter((c) => !c.is_global);
+    } else if (characterTab === 1) {
+      result = result.filter((c) => c.is_global);
     }
 
     // Role Filter
@@ -239,24 +270,80 @@ export default function CharacterManagementPage() {
 
     // Sorting
     result.sort((a, b) => {
+      const attrA = a.attributes || {};
+      const attrB = b.attributes || {};
       if (sortBy === 'name-asc') return (a.name || '').localeCompare(b.name || '');
       if (sortBy === 'name-desc') return (b.name || '').localeCompare(a.name || '');
       if (sortBy === 'recent') return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      if (sortBy === 'special') {
+        // Especiales primero, luego por nombre
+        if (attrB.is_special && !attrA.is_special) return 1;
+        if (attrA.is_special && !attrB.is_special) return -1;
+        return (a.name || '').localeCompare(b.name || '');
+      }
+      if (sortBy === 'vital') {
+        // Ordenar por índice canónico de CHARACTER_VITAL_STATUSES
+        const ai = CHARACTER_VITAL_STATUSES.indexOf(attrA.vital_status || 'Vivo');
+        const bi = CHARACTER_VITAL_STATUSES.indexOf(attrB.vital_status || 'Vivo');
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      }
+      if (sortBy === 'life-stage') {
+        // Ordenar por índice canónico de CHARACTER_LIFE_STAGES (infante → anciano)
+        const ai = CHARACTER_LIFE_STAGES.indexOf(attrA.life_stage || '');
+        const bi = CHARACTER_LIFE_STAGES.indexOf(attrB.life_stage || '');
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      }
+      if (sortBy === 'alignment') {
+        // Ordenar por índice canónico de CHARACTER_ALIGNMENTS
+        const ai = CHARACTER_ALIGNMENTS.indexOf(attrA.alignment || '');
+        const bi = CHARACTER_ALIGNMENTS.indexOf(attrB.alignment || '');
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      }
+      if (sortBy === 'gender') {
+        // Ordenar por índice canónico de CHARACTER_GENDERS
+        const ai = CHARACTER_GENDERS.indexOf(attrA.gender || '');
+        const bi = CHARACTER_GENDERS.indexOf(attrB.gender || '');
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      }
       return 0;
     });
 
     return result;
   }, [characters, characterTab, roleFilter, searchQuery, sortBy]);
 
-  // Grouping characters by archetype
+  // Config de agrupado según el criterio de orden activo
+  const GROUP_BY_CONFIG = {
+    'name-asc':   { field: (c) => c.role_archetype || 'Sin Rol',              order: CHARACTER_ARCHETYPES,       label: 'Rol / Arquetipo', color: 'primary'   },
+    'name-desc':  { field: (c) => c.role_archetype || 'Sin Rol',              order: CHARACTER_ARCHETYPES,       label: 'Rol / Arquetipo', color: 'primary'   },
+    'recent':     { field: (c) => c.role_archetype || 'Sin Rol',              order: CHARACTER_ARCHETYPES,       label: 'Rol / Arquetipo', color: 'primary'   },
+    'special':    { field: (c) => (c.attributes?.is_special ? '⭐ Especial' : 'Sin destacar'), order: ['⭐ Especial', 'Sin destacar'], label: 'Destacado',    color: 'warning'   },
+    'vital':      { field: (c) => c.attributes?.vital_status || 'Sin definir', order: CHARACTER_VITAL_STATUSES,  label: 'Estado Vital',    color: 'success'   },
+    'life-stage': { field: (c) => c.attributes?.life_stage   || 'Sin definir', order: CHARACTER_LIFE_STAGES,    label: 'Etapa de Vida',   color: 'info'      },
+    'alignment':  { field: (c) => c.attributes?.alignment    || 'Sin definir', order: CHARACTER_ALIGNMENTS,     label: 'Alineamiento',    color: 'secondary' },
+    'gender':     { field: (c) => c.attributes?.gender       || 'Sin definir', order: CHARACTER_GENDERS,        label: 'Género',          color: 'default'   },
+  };
+
+  // Agrupado dinámico según el criterio activo
   const groupedCharacters = useMemo(() => {
-    return processedCharacters.reduce((acc, char) => {
-      const archetype = char.role_archetype || 'Sin Rol';
-      if (!acc[archetype]) acc[archetype] = [];
-      acc[archetype].push(char);
+    const config = GROUP_BY_CONFIG[sortBy] || GROUP_BY_CONFIG['name-asc'];
+    const grouped = processedCharacters.reduce((acc, char) => {
+      const key = config.field(char);
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(char);
       return acc;
     }, {});
-  }, [processedCharacters]);
+
+    // Ordenar las claves según el orden canónico de la constante
+    const orderedKeys = [
+      ...config.order.filter((k) => grouped[k]),      // primero los que existen en orden canónico
+      ...Object.keys(grouped).filter((k) => !config.order.includes(k)), // luego los que no tienen orden (ej: Sin definir)
+    ];
+    return Object.fromEntries(orderedKeys.map((k) => [k, grouped[k]]));
+  }, [processedCharacters, sortBy]);
+
+  // Label descriptivo del modo de agrupado activo
+  const activeGroupLabel = (GROUP_BY_CONFIG[sortBy] || GROUP_BY_CONFIG['name-asc']).label;
+  const activeGroupColor = (GROUP_BY_CONFIG[sortBy] || GROUP_BY_CONFIG['name-asc']).color;
 
   if (authLoading || dataLoading) {
     return <CustomLoading fullscreen message="Cargando personajes..." />;
@@ -416,7 +503,7 @@ export default function CharacterManagementPage() {
               borderColor: 'divider',
             }}
           >
-            {/* Tabs de tipo (Todos, Globales, Locales) */}
+            {/* Tabs de tipo (Locales, Globales, Todos) */}
             <Tabs
               value={characterTab}
               onChange={(e, val) => setCharacterTab(val)}
@@ -427,9 +514,9 @@ export default function CharacterManagementPage() {
                 '& .MuiTab-root': { fontWeight: 700, fontSize: '0.82rem', textTransform: 'none', minHeight: 36, py: 0, px: { xs: 1.2, sm: 1.8 } },
               }}
             >
-              <Tab icon={<PeopleOutlineIcon fontSize="small" />} iconPosition="start" label={`Todos (${characters.length})`} />
-              <Tab icon={<PublicOutlinedIcon fontSize="small" />} iconPosition="start" label={`Globales (${characters.filter((c) => c.is_global).length})`} />
               <Tab label={`Locales (${characters.filter((c) => !c.is_global).length})`} />
+              <Tab icon={<PublicOutlinedIcon fontSize="small" />} iconPosition="start" label={`Globales (${characters.filter((c) => c.is_global).length})`} />
+              <Tab icon={<PeopleOutlineIcon fontSize="small" />} iconPosition="start" label={`Todos (${characters.length})`} />
             </Tabs>
 
             {/* Acciones de filtro, búsqueda y densidad */}
@@ -458,7 +545,7 @@ export default function CharacterManagementPage() {
               </FormControl>
 
               {/* Ordenar */}
-              <FormControl size="small" sx={{ minWidth: { xs: '48%', sm: 130 } }}>
+              <FormControl size="small" sx={{ minWidth: { xs: '48%', sm: 150 } }}>
                 <Select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
@@ -468,6 +555,11 @@ export default function CharacterManagementPage() {
                   <MenuItem value="name-asc">Nombre A-Z</MenuItem>
                   <MenuItem value="name-desc">Nombre Z-A</MenuItem>
                   <MenuItem value="recent">Más recientes</MenuItem>
+                  <MenuItem value="special">Especiales primero</MenuItem>
+                  <MenuItem value="vital">Estado Vital</MenuItem>
+                  <MenuItem value="life-stage">Etapa de Vida</MenuItem>
+                  <MenuItem value="alignment">Alineamiento</MenuItem>
+                  <MenuItem value="gender">Género</MenuItem>
                 </Select>
               </FormControl>
 
@@ -526,6 +618,26 @@ export default function CharacterManagementPage() {
                 </Tooltip>
               </ButtonGroup>
 
+              {/* Toggle Ocultar/Mostrar Descripciones */}
+              <Tooltip title={showDescriptions ? "Ocultar descripciones de todos" : "Mostrar descripciones"}>
+                <IconButton
+                  size="small"
+                  onClick={() => setShowDescriptions(!showDescriptions)}
+                  sx={{
+                    border: 1,
+                    borderColor: !showDescriptions ? 'primary.main' : 'divider',
+                    bgcolor: !showDescriptions ? 'action.selected' : 'transparent',
+                    color: !showDescriptions ? 'primary.main' : 'inherit',
+                    borderRadius: 2,
+                    p: 0.8,
+                    height: 34,
+                    width: 34,
+                  }}
+                >
+                  <DescriptionOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+
               {/* Toggle Agrupar por Rol */}
               <Tooltip title={groupByRole ? "Desagrupar secciones" : "Agrupar por rol"}>
                 <IconButton
@@ -566,54 +678,76 @@ export default function CharacterManagementPage() {
               </CustomButton>
             </Box>
           ) : groupByRole ? (
-            /* Agrupado por Rol / Arquetipo */
-            Object.entries(groupedCharacters).map(([archetype, chars]) => (
-              <Box key={archetype} sx={{ mb: 3.5 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.2 }}>
-                  <Typography
-                    variant="caption"
+            /* Agrupado dinámico según criterio activo */
+            <>
+              {/* Indicador de agrupado activo */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <AccountTreeOutlinedIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+                <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 600, fontSize: '0.72rem' }}>
+                  Agrupando por:
+                </Typography>
+                <Chip
+                  label={activeGroupLabel}
+                  size="small"
+                  color={activeGroupColor === 'default' ? undefined : activeGroupColor}
+                  variant="outlined"
+                  sx={{ height: 18, fontSize: '0.68rem', fontWeight: 700 }}
+                />
+              </Box>
+
+              {Object.entries(groupedCharacters).map(([groupKey, chars]) => (
+                <Box key={groupKey} sx={{ mb: 3.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.2 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                        fontSize: '0.75rem',
+                        color: activeGroupColor === 'default' || activeGroupColor === 'primary'
+                          ? 'text.secondary'
+                          : `${activeGroupColor}.main`,
+                      }}
+                    >
+                      {groupKey}
+                    </Typography>
+                    <Chip
+                      label={chars.length}
+                      size="small"
+                      color={activeGroupColor === 'default' ? undefined : activeGroupColor}
+                      sx={{ height: 18, fontSize: '0.68rem', fontWeight: 700 }}
+                    />
+                    <Divider sx={{ flexGrow: 1, ml: 1 }} />
+                  </Box>
+
+                  <Box
                     sx={{
-                      fontWeight: 800,
-                      color: 'text.secondary',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
-                      fontSize: '0.78rem',
+                      display: 'grid',
+                      gridTemplateColumns: gridTemplateColumns,
+                      gap: viewMode === 'compact' ? 1.2 : 1.8,
                     }}
                   >
-                    {archetype}
-                  </Typography>
-                  <Chip
-                    label={chars.length}
-                    size="small"
-                    sx={{ height: 18, fontSize: '0.68rem', fontWeight: 700, bgcolor: 'background.subtle' }}
-                  />
-                  <Divider sx={{ flexGrow: 1, ml: 1 }} />
+                    {chars.map((char) => (
+                      <CharacterCard 
+                        key={char.id}
+                        character={char}
+                        viewMode={viewMode}
+                        showBiography={showDescriptions}
+                        selectable
+                        selected={selectedCharacterIds.includes(char.id)}
+                        onSelect={toggleCharacterSelection}
+                        onEdit={(c) => { setSelectedCharacter(c); setIsCloneCharMode(false); setCharModalOpen(true); }}
+                        onDelete={handleDelete}
+                        onClone={handleClone}
+                        onMakeLocalCopy={(c) => handleRequestCopyAsLocal([c])}
+                        onRoleChange={handleRoleChange}
+                      />
+                    ))}
+                  </Box>
                 </Box>
-
-                <Box
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: gridTemplateColumns,
-                    gap: viewMode === 'compact' ? 1.2 : 1.8,
-                  }}
-                >
-                  {chars.map((char) => (
-                    <CharacterCard 
-                      key={char.id}
-                      character={char}
-                      viewMode={viewMode}
-                      selectable
-                      selected={selectedCharacterIds.includes(char.id)}
-                      onSelect={toggleCharacterSelection}
-                      onEdit={(c) => { setSelectedCharacter(c); setIsCloneCharMode(false); setCharModalOpen(true); }}
-                      onDelete={handleDelete}
-                      onClone={handleClone}
-                      onMakeLocalCopy={(c) => handleRequestCopyAsLocal([c])}
-                    />
-                  ))}
-                </Box>
-              </Box>
-            ))
+              ))}
+            </>
           ) : (
             /* Cuadrícula Continua Fluida */
             <Box
@@ -628,6 +762,7 @@ export default function CharacterManagementPage() {
                   key={char.id}
                   character={char}
                   viewMode={viewMode}
+                  showBiography={showDescriptions}
                   selectable
                   selected={selectedCharacterIds.includes(char.id)}
                   onSelect={toggleCharacterSelection}
@@ -635,6 +770,7 @@ export default function CharacterManagementPage() {
                   onDelete={handleDelete}
                   onClone={handleClone}
                   onMakeLocalCopy={(c) => handleRequestCopyAsLocal([c])}
+                  onRoleChange={handleRoleChange}
                 />
               ))}
             </Box>
@@ -670,13 +806,79 @@ export default function CharacterManagementPage() {
         storyTitle={activeStory?.title || 'Historia'}
       />
 
+      {/* Modal de confirmación para eliminar personaje */}
+      <CustomModal
+        open={Boolean(deleteConfirmId)}
+        onClose={() => setDeleteConfirmId(null)}
+        title="Eliminar personaje"
+        subtitle="Esta acción no se puede deshacer"
+        icon={DeleteOutlineIcon}
+        maxWidth="xs"
+        actions={
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', width: '100%' }}>
+            <CustomButton
+              variant="outlined"
+              color="inherit"
+              onClick={() => setDeleteConfirmId(null)}
+            >
+              Cancelar
+            </CustomButton>
+            <CustomButton
+              variant="contained"
+              color="error"
+              onClick={handleConfirmDelete}
+            >
+              Eliminar
+            </CustomButton>
+          </Box>
+        }
+      >
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 0.5 }}>
+          {pendingDeleteChar && (
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
+                p: 1.5,
+                borderRadius: 2,
+                bgcolor: 'action.hover',
+                border: 1,
+                borderColor: 'divider',
+              }}
+            >
+              <Avatar
+                src={pendingDeleteChar.avatar_url || pendingDeleteChar.image_url}
+                sx={{ width: 44, height: 44, bgcolor: 'primary.main', fontSize: '1rem', fontWeight: 700 }}
+              >
+                {pendingDeleteChar.name?.charAt(0) || 'P'}
+              </Avatar>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, noWrap: true }}>
+                  {pendingDeleteChar.name}
+                </Typography>
+                {pendingDeleteChar.role_archetype && (
+                  <Typography variant="caption" color="text.secondary">
+                    {pendingDeleteChar.role_archetype}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          )}
+          <Typography variant="body2" color="text.secondary">
+            ¿Estás seguro de que deseas eliminar permanentemente a{' '}
+            <strong style={{ color: 'inherit' }}>{pendingDeleteChar?.name || 'este personaje'}</strong>? Se perderán todas sus relaciones e historial asociado.
+          </Typography>
+        </Box>
+      </CustomModal>
+
       <SelectionActionBar
         count={selectedCharacterIds.length}
         onClear={() => setSelectedCharacterIds([])}
         actions={[
           {
             key: 'copy-local',
-            label: 'Copiar a esta historia',
+            label: 'Crear una copia',
             tooltip: 'Crear copia local de los seleccionados para esta historia',
             icon: <BookmarkAddOutlinedIcon fontSize="small" />,
             onClick: () => handleRequestCopyAsLocal(selectedCharacterIds),

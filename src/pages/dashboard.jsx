@@ -27,6 +27,7 @@ export default function DashboardPage({ onOpenStorySelector }) {
   const { notes, toggleOpen } = useQuickNotes();
   const { eventModalOpen, charModalOpen, closeCreateEvent, closeCreateChar, openCreateEvent, openCreateChar } = useGlobalActions();
 
+
   const {
     characters,
     relationships,
@@ -81,7 +82,6 @@ export default function DashboardPage({ onOpenStorySelector }) {
   }, [charDrawerOpen]);
   
   // Modales gestionados por contexto global
-  // const [charModalOpen, setCharModalOpen] = useState(false); // Eliminado
   const [selectedCharacter, setSelectedCharacter] = useState(null);
   const [isCloneCharMode, setIsCloneCharMode] = useState(false);
 
@@ -91,7 +91,6 @@ export default function DashboardPage({ onOpenStorySelector }) {
     setCharDrawerOpen(true);
   }, []);
 
-  // const [eventModalOpen, setEventModalOpen] = useState(false); // Eliminado
   const [selectedEvent, setSelectedEvent] = useState(null);
 
   const [versionsModalOpen, setVersionsModalOpen] = useState(false);
@@ -251,7 +250,8 @@ export default function DashboardPage({ onOpenStorySelector }) {
       return;
     }
 
-    setEventModalOpen(false);
+    setSelectedEvent(null);
+    closeCreateEvent();
   };
 
   const handleDuplicateEvent = async (originalEvent, offset = { x: 50, y: 40 }) => {
@@ -280,8 +280,8 @@ export default function DashboardPage({ onOpenStorySelector }) {
       title: 'Eliminar evento',
       message: `¿Eliminar el evento "${eventToDelete?.title || ''}"?`,
       onConfirm: async () => {
-      await deleteEvent({ storyId: activeStoryId, boardId: activeBoardId, eventId, setLoading });
-      setPendingConfirmation(null);
+        setPendingConfirmation(null);
+        await deleteEvent({ storyId: activeStoryId, boardId: activeBoardId, eventId, setLoading: null });
       },
     });
   };
@@ -366,8 +366,8 @@ export default function DashboardPage({ onOpenStorySelector }) {
 
     setActiveBoardId(resolvedBoardId);
     setSelectedEvent(null);
-    setEventModalOpen(true);
-  }, [activeBoardId, activeStoryId, ensurePrimaryBoard]);
+    openCreateEvent();
+  }, [activeBoardId, activeStoryId, ensurePrimaryBoard, openCreateEvent]);
 
   if (authLoading || storiesLoading || dataLoading) {
     return <CustomLoading fullscreen message="Cargando estudio..." />;
@@ -482,6 +482,14 @@ export default function DashboardPage({ onOpenStorySelector }) {
           onDeleteCharacter={handleDeleteCharacter}
           onSetCharactersGlobal={handleSetCharactersGlobal}
           onCopyCharactersAsLocal={handleCopyCharactersAsLocal}
+          onRoleChange={(charId, newRole) => {
+            saveCharacter({
+              storyId: activeStoryId,
+              charData: { role_archetype: newRole },
+              selectedCharacterId: charId,
+              setLoading,
+            });
+          }}
           onCreateRelationship={handleCreateRelationship}
           onDeleteRelationship={handleDeleteRelationship}
         />

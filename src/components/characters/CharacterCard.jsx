@@ -5,6 +5,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import BookmarkAddOutlinedIcon from '@mui/icons-material/BookmarkAddOutlined';
 import PublicOutlinedIcon from '@mui/icons-material/PublicOutlined';
+import CheckIcon from '@mui/icons-material/Check';
 import {
   Card,
   Box,
@@ -20,6 +21,8 @@ import {
   ListItemText,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert'; // Icono para el menú de opciones
+import { CHARACTER_ARCHETYPES } from '../../constants/constants';
+import { ApiService } from '../../utils/ApiService';
 
 export default function CharacterCard({
   character,
@@ -27,15 +30,19 @@ export default function CharacterCard({
   onDelete,
   onClone,
   onMakeLocalCopy,
+  onRoleChange,
   selectable = false,
   selected = false,
   onSelect,
   viewMode = 'compact', // 'compact' | 'medium' | 'detailed'
+  showBiography = true,
 }) {
-  // Estado para controlar la apertura y cierre del menú
+  // Estado para controlar la apertura y cierre del menú de opciones
   const [anchorEl, setAnchorEl] = useState(null);
-  const [bounceKey, setBounceKey] = useState(0);
+  // Estado para el menú rápido de tipo/arquetipo de personaje
+  const [roleAnchorEl, setRoleAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
+  const isRoleMenuOpen = Boolean(roleAnchorEl);
 
   const handleMenuClick = (event) => {
     setAnchorEl(event.currentTarget);
@@ -45,9 +52,34 @@ export default function CharacterCard({
     setAnchorEl(null);
   };
 
+  const handleRoleChipClick = (event) => {
+    event.stopPropagation();
+    setRoleAnchorEl(event.currentTarget);
+  };
+
+  const handleRoleMenuClose = (event) => {
+    if (event) event.stopPropagation();
+    setRoleAnchorEl(null);
+  };
+
+  const handleSelectRole = async (newRole, event) => {
+    if (event) event.stopPropagation();
+    setRoleAnchorEl(null);
+    if (newRole === character.role_archetype) return;
+
+    if (onRoleChange) {
+      await onRoleChange(character.id, newRole);
+    } else {
+      try {
+        await ApiService.characters.update(character.id, { role_archetype: newRole });
+      } catch (err) {
+        console.error('Error updating character role:', err);
+      }
+    }
+  };
+
   const handleCardClick = (event) => {
     if (!selectable || !onSelect) return;
-    setBounceKey((current) => current + 1);
     onSelect(character.id, event);
   };
 
@@ -60,7 +92,6 @@ export default function CharacterCard({
   return (
     <Card
       id={`character-card-${character.id}`}
-      key={`${character.id}-${bounceKey}`}
       elevation={0}
       sx={{
         p: isCompact ? 1.2 : isMedium ? 1.5 : 2,
@@ -94,14 +125,19 @@ export default function CharacterCard({
       onClick={handleCardClick}
     >
       {/* Esquina superior derecha: Menú de opciones (Tres puntos) */}
-      <Box sx={{ position: 'absolute', top: isCompact ? 6 : 10, right: isCompact ? 6 : 10, zIndex: 1 }}>
-        <Tooltip title="Opciones">
+      <Box sx={{ position: 'absolute', top: isCompact ? 6 : 8, right: isCompact ? 6 : 8, zIndex: 1 }}>
+        <Tooltip title="Opciones de personaje">
           <IconButton
             size="small"
             onClick={(event) => { event.stopPropagation(); handleMenuClick(event); }}
-            sx={{ p: isCompact ? 0.3 : 0.5 }}
+            sx={{
+              p: isCompact ? 0.3 : 0.5,
+              borderRadius: 2,
+              bgcolor: open ? 'action.selected' : 'transparent',
+              '&:hover': { bgcolor: 'action.hover' },
+            }}
           >
-            <MoreVertIcon sx={{ fontSize: isCompact ? 16 : 18 }} />
+            <MoreVertIcon sx={{ fontSize: isCompact ? 20 : 22 }} />
           </IconButton>
         </Tooltip>
 
@@ -109,6 +145,7 @@ export default function CharacterCard({
           anchorEl={anchorEl}
           open={open}
           onClose={handleMenuClose}
+          onClick={(e) => e.stopPropagation()}
           transformOrigin={{ horizontal: 'right', vertical: 'top' }}
           anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           PaperProps={{
@@ -206,18 +243,99 @@ export default function CharacterCard({
           </Typography>
         
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.3, flexWrap: 'wrap' }}>
-            <Chip
-              label={character.role_archetype || 'Sin rol'}
-              size="small"
-              sx={{
-                height: isCompact ? 18 : 20,
-                fontSize: isCompact ? '0.62rem' : '0.68rem',
-                fontWeight: 600,
-                bgcolor: 'background.subtle',
-                border: '1px solid',
-                borderColor: 'divider',
+            <Tooltip title="Clic para cambiar tipo de personaje">
+              <Chip
+                label={character.role_archetype || 'Sin rol'}
+                size="small"
+                onClick={handleRoleChipClick}
+                sx={{
+                  height: isCompact ? 18 : 20,
+                  fontSize: isCompact ? '0.62rem' : '0.68rem',
+                  fontWeight: 600,
+                  bgcolor: isRoleMenuOpen ? 'action.selected' : 'background.subtle',
+                  border: '1px solid',
+                  borderColor: isRoleMenuOpen ? 'primary.main' : 'divider',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                    borderColor: 'primary.main',
+                  },
+                }}
+              />
+            </Tooltip>
+
+            {/* Menú Rápido de Selección de Tipo de Personaje */}
+            <Menu
+              anchorEl={roleAnchorEl}
+              open={isRoleMenuOpen}
+              onClose={handleRoleMenuClose}
+              onClick={(e) => e.stopPropagation()}
+              transformOrigin={{ horizontal: 'left', vertical: 'top' }}
+              anchorOrigin={{ horizontal: 'left', vertical: 'bottom' }}
+              PaperProps={{
+                elevation: 4,
+                sx: {
+                  borderRadius: 2.5,
+                  minWidth: 170,
+                  py: 0.5,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                },
               }}
-            />
+            >
+              <Box sx={{ px: 1.5, py: 0.5 }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontWeight: 800,
+                    color: 'text.secondary',
+                    textTransform: 'uppercase',
+                    fontSize: '0.65rem',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  Tipo de Personaje
+                </Typography>
+              </Box>
+              <Divider sx={{ my: 0.3 }} />
+              {CHARACTER_ARCHETYPES.map((arch) => {
+                const isSelected = (character.role_archetype || 'Protagonista') === arch;
+                return (
+                  <MenuItem
+                    key={arch}
+                    selected={isSelected}
+                    onClick={(e) => handleSelectRole(arch, e)}
+                    sx={{
+                      py: 0.5,
+                      px: 1.5,
+                      fontSize: '0.8rem',
+                      fontWeight: isSelected ? 700 : 500,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      borderRadius: 1,
+                      mx: 0.5,
+                    }}
+                  >
+                    <ListItemText
+                      primary={arch}
+                      primaryTypographyProps={{
+                        fontSize: '0.8rem',
+                        fontWeight: isSelected ? 700 : 500,
+                        color: isSelected ? 'primary.main' : 'text.primary',
+                      }}
+                    />
+                    {isSelected && (
+                      <ListItemIcon sx={{ minWidth: 'auto', color: 'primary.main', ml: 1 }}>
+                        <CheckIcon sx={{ fontSize: 16 }} />
+                      </ListItemIcon>
+                    )}
+                  </MenuItem>
+                );
+              })}
+            </Menu>
+
             {character.is_global && (
               <Tooltip title="Personaje Global (Compartido)">
                 <Chip
@@ -234,7 +352,7 @@ export default function CharacterCard({
       </Box>
 
       {/* Biografía en modo medio o detallado */}
-      {!isCompact && character.biography && (
+      {showBiography && !isCompact && character.biography && (
         <Typography
           variant="body2"
           color="text.secondary"
