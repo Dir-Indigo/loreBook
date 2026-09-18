@@ -5,9 +5,9 @@
 
 export const APP_CONFIG = {
   NAME: 'Lorebook Studio',
-  VERSION: 'v1.1.0',
-  EVENT_TITLE_MAX_LENGTH: 55, // Strict limit to prevent visual overflow in canvas cards
-  ZOOM_COMPACT_THRESHOLD: 0.72, // Scale threshold for multiscale node representation
+  VERSION: 'v1.3.0',
+  EVENT_TITLE_MAX_LENGTH: 55,
+  ZOOM_COMPACT_THRESHOLD: 0.72,
 };
 
 export const USER_ROLES = {
