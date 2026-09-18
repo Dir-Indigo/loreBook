@@ -27,6 +27,9 @@ import {
   InputAdornment,
   useMediaQuery,
   useTheme,
+  Button,
+  ButtonGroup,
+  CircularProgress,
 } from "@mui/material";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -43,12 +46,19 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import BookmarkBorderIcon from "@mui/icons-material/BookmarkBorder";
-import { Button, ButtonGroup, CircularProgress } from "@mui/material";
+import PsychologyOutlinedIcon from "@mui/icons-material/PsychologyOutlined";
+import LocalOfferOutlinedIcon from "@mui/icons-material/LocalOfferOutlined";
+import CreateNewFolderOutlinedIcon from "@mui/icons-material/CreateNewFolderOutlined";
+import FolderSpecialIcon from "@mui/icons-material/FolderSpecial";
 import CustomButton from "../common/CustomButton";
 import BoardTreeItem from "../sidebar/BoardTreeItem";
+import CharacterFolderTreeItem, { InlineFolderInput as InlineCharFolderInput } from "../characters/CharacterFolderTree";
+import MoveToFolderModal from "../characters/MoveToFolderModal";
 import ImageCropModal from "../common/ImageCropModal";
 import { uploadStoryCover } from "../../services/storageService";
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
+import { APP_CONFIG } from '../../constants/constants';
+import { ApiService } from '../../utils/ApiService';
 
 export default function SidebarLore({
   view = 'dashboard',
@@ -58,8 +68,19 @@ export default function SidebarLore({
   eventConnections = [],
   boards = [],
   activeBoardId,
+  characterFolders = null,
+  activeCharacterFolderId = 'all',
+  onSelectCharacterFolder,
+  onCreateCharacterFolder,
+  onRenameCharacterFolder,
+  onDeleteCharacterFolder,
+  onChangeCharacterFolderColor,
+  onMoveCharacterToFolder,
   onOpenStorySelector,
   onOpenCharactersDrawer,
+  onOpenCharacterModal,
+  onOpenArchetypeManager,
+  onOpenTagManager,
   onOpenCreateEvent,
   onUpdateStoryCover,
   onSelectBoard,
@@ -69,6 +90,7 @@ export default function SidebarLore({
   onChangeBoardColor,
   onOpenEditEvent,
   onDeleteEvent,
+  onDeleteCharacter,
 }) {
   const router = useRouter();
   const theme = useTheme();
@@ -99,8 +121,40 @@ export default function SidebarLore({
   // Search states
   const [charSearch, setCharSearch] = useState("");
 
+  // Internal character folders state if not provided as props
+  const [localFolders, setLocalFolders] = useState([]);
+  const [isCreatingRootCharFolder, setIsCreatingRootCharFolder] = useState(false);
+  const [creatingCharChildInParentId, setCreatingCharChildInParentId] = useState(null);
+
+  // Move character modal in sidebar
+  const [sidebarMoveChar, setSidebarMoveChar] = useState(null);
+
+  useEffect(() => {
+    if (characterFolders) {
+      setLocalFolders(characterFolders);
+    } else if (story?.id) {
+      ApiService.characterFolders.ensureDefaultFolder(story.id).then(() => {
+        ApiService.characterFolders.getAll(story.id).then((res) => {
+          if (res.data) setLocalFolders(res.data);
+        });
+      });
+    }
+  }, [characterFolders, story?.id]);
+
+  const effectiveFolders = characterFolders || localFolders;
+
+  // Root character folders
+  const rootCharacterFolders = useMemo(() => {
+    return effectiveFolders.filter((f) => !f.parent_folder_id);
+  }, [effectiveFolders]);
+
+  // Default character folder
+  const defaultCharFolder = useMemo(() => {
+    return effectiveFolders.find((f) => f.is_default || f.name?.toLowerCase() === 'principal') || effectiveFolders[0] || null;
+  }, [effectiveFolders]);
+
   // Default to collapsed on mobile/tablets upon initial mount or viewport resize
-  React.useEffect(() => {
+  useEffect(() => {
     if (isMobile) {
       setCollapsed(true);
     }
@@ -108,7 +162,7 @@ export default function SidebarLore({
 
   const [quickCoverOpen, setQuickCoverOpen] = useState(false);
   const [newCoverUrl, setNewCoverUrl] = useState("");
-  const [coverMode, setCoverMode] = useState("upload"); // 'upload' | 'url'
+  const [coverMode, setCoverMode] = useState("upload");
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [rawCoverImageSrc, setRawCoverImageSrc] = useState(null);
   const [uploadingCover, setUploadingCover] = useState(false);
@@ -117,16 +171,6 @@ export default function SidebarLore({
   const [newBoardDialogOpen, setNewBoardDialogOpen] = useState(false);
   const [newBoardName, setNewBoardName] = useState("");
   const [newBoardParentId, setNewBoardParentId] = useState(null);
-
-  const eventCountMap = useMemo(() => {
-    const map = {};
-    events.forEach((ev) => {
-      if (ev.board_id) {
-        map[ev.board_id] = (map[ev.board_id] || 0) + 1;
-      }
-    });
-    return map;
-  }, [events]);
 
   const rootBoards = useMemo(
     () => boards.filter((b) => !b.parent_board_id),
@@ -139,20 +183,19 @@ export default function SidebarLore({
   }, [notes, story?.id]);
 
   const filteredCharacters = useMemo(() => {
-    // Filtrar personajes:
-    // Mostrar si:
-    // 1. Pertenecen específicamente a esta historia (story_id === story.id)
-    // 2. SON globales (is_global === true) Y NO tienen un story_id de otra historia.
-
-    let availableCharacters = characters.filter(c => {
-        if (c.story_id === story?.id) return true;
-        if (c.is_global && (!c.story_id || c.story_id === story?.id)) return true;
-        return false;
+    let availableCharacters = characters.filter((c) => {
+      if (c.story_id === story?.id) return true;
+      if (c.is_global && (!c.story_id || c.story_id === story?.id)) return true;
+      return false;
     });
 
     if (!charSearch.trim()) return availableCharacters;
     const q = charSearch.toLowerCase();
-    return availableCharacters.filter((c) => c.name.toLowerCase().includes(q) || c.role_archetype?.toLowerCase().includes(q));
+    return availableCharacters.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.role_archetype?.toLowerCase().includes(q)
+    );
   }, [characters, charSearch, story?.id]);
 
   const eventOrderMap = useEventOrder(events, eventConnections);
@@ -225,6 +268,70 @@ export default function SidebarLore({
     setNewBoardDialogOpen(false);
   };
 
+  // Character folder creation handler in Sidebar
+  const handleCommitCreateCharFolder = async (name, parentFolderId = null) => {
+    if (!story?.id || !name.trim()) return;
+    if (onCreateCharacterFolder) {
+      await onCreateCharacterFolder(name.trim(), parentFolderId);
+    } else {
+      const result = await ApiService.characterFolders.create({
+        story_id: story.id,
+        name: name.trim(),
+        parent_folder_id: parentFolderId,
+        color: '#8c6d53',
+        position: effectiveFolders.length,
+      });
+      if (result.data) {
+        setLocalFolders((prev) => [...prev, result.data]);
+      }
+    }
+    setIsCreatingRootCharFolder(false);
+    setCreatingCharChildInParentId(null);
+  };
+
+  const handleRenameCharFolder = async (folderId, newName) => {
+    if (onRenameCharacterFolder) {
+      await onRenameCharacterFolder(folderId, newName);
+    } else {
+      setLocalFolders((prev) => prev.map((f) => f.id === folderId ? { ...f, name: newName } : f));
+      await ApiService.characterFolders.update(folderId, { name: newName });
+    }
+  };
+
+  const handleChangeCharFolderColor = async (folderId, color) => {
+    if (onChangeCharacterFolderColor) {
+      await onChangeCharacterFolderColor(folderId, color);
+    } else {
+      setLocalFolders((prev) => prev.map((f) => f.id === folderId ? { ...f, color } : f));
+      await ApiService.characterFolders.update(folderId, { color });
+    }
+  };
+
+  const handleDeleteCharFolder = async (folder) => {
+    if (folder.is_default || folder.name?.toLowerCase() === 'principal') {
+      window.alert('La carpeta Principal no se puede eliminar.');
+      return;
+    }
+    if (onDeleteCharacterFolder) {
+      await onDeleteCharacterFolder(folder);
+    } else {
+      setLocalFolders((prev) => prev.filter((f) => f.id !== folder.id));
+      await ApiService.characterFolders.delete(folder.id, story.id);
+    }
+  };
+
+  const handleConfirmSidebarMoveChar = async (charIds, targetFolderId) => {
+    if (onMoveCharacterToFolder) {
+      await onMoveCharacterToFolder(charIds, targetFolderId);
+    } else {
+      await ApiService.characters.moveToFolder(charIds, targetFolderId);
+      if (router.pathname.includes('/characters')) {
+        router.replace(router.asPath);
+      }
+    }
+    setSidebarMoveChar(null);
+  };
+
   // ─── Collapsed Slim Sidebar View ───────────────────────────────────────────
   if (collapsed) {
     return (
@@ -267,7 +374,7 @@ export default function SidebarLore({
           </IconButton>
         </Tooltip>
 
-        <Tooltip title={`Personajes (${filteredCharacters.length})`} placement="right">
+        <Tooltip title={`Personajes y Carpetas (${filteredCharacters.length})`} placement="right">
           <IconButton
             size="small"
             onClick={() => { setSidebarTab(1); setCollapsed(false); }}
@@ -319,7 +426,7 @@ export default function SidebarLore({
     <Box
       ref={sidebarRef}
       sx={{
-        width: 340, // Aumentado ligeramente para mayor soltura visual
+        width: 340,
         height: "100%",
         bgcolor: "custom.sidebar",
         borderRight: 1,
@@ -328,6 +435,7 @@ export default function SidebarLore({
         flexDirection: "column",
         zIndex: 5,
         transition: "width 0.2s ease",
+        position: 'relative',
       }}
     >
       {/* Top Header */}
@@ -343,7 +451,13 @@ export default function SidebarLore({
         }}
       >
         <Typography variant="subtitle2" sx={{ fontWeight: 800, fontSize: '0.88rem' }}>
-          {sidebarTab === 0 ? 'Líneas & Escenas' : sidebarTab === 1 ? 'Personajes' : sidebarTab === 2 ? 'Ideas del Proyecto' : 'Ficha de la Historia'}
+          {sidebarTab === 0
+            ? 'Líneas & Escenas'
+            : sidebarTab === 1
+            ? 'Personajes & Carpetas'
+            : sidebarTab === 2
+            ? 'Ideas del Proyecto'
+            : 'Ficha de la Historia'}
         </Typography>
         <Tooltip title="Colapsar panel lateral">
           <IconButton size="small" onClick={() => setCollapsed(true)}>
@@ -405,7 +519,7 @@ export default function SidebarLore({
 
         {story && (
           <Typography variant="caption" sx={{ opacity: 0.8, fontSize: "0.68rem" }} noWrap>
-            {events.length} escenas · {characters.length} personajes · {boards.length} tableros
+            {events.length} escenas · {characters.length} personajes · {effectiveFolders.length} carpetas
           </Typography>
         )}
       </Box>
@@ -514,13 +628,14 @@ export default function SidebarLore({
         </Box>
       )}
 
-      {/* ─── SECTION 1: PERSONAJES (Directorio Rápido) ────────────────────── */}
+      {/* ─── SECTION 1: PERSONAJES Y CARPETAS (Árbol de Archivos de Personajes) ────────────────────── */}
       {sidebarTab === 1 && (
         <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
-          <Box sx={{ p: 1.2, px: 1.5, display: 'flex', gap: 1, alignItems: 'center' }}>
+          {/* Top Actions & Search */}
+          <Box sx={{ p: 1, px: 1.5, display: 'flex', gap: 0.8, alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
             <TextField
               size="small"
-              placeholder="Buscar…"
+              placeholder="Buscar personaje..."
               value={charSearch}
               onChange={(e) => setCharSearch(e.target.value)}
               fullWidth
@@ -530,95 +645,162 @@ export default function SidebarLore({
                     <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                   </InputAdornment>
                 ),
-                sx: { height: 30, fontSize: '0.8rem' },
+                sx: { height: 30, fontSize: '0.8rem', borderRadius: 1.5 },
               }}
             />
+            <Tooltip title="Crear carpeta de personajes">
+              <IconButton
+                size="small"
+                onClick={() => setIsCreatingRootCharFolder(true)}
+                sx={{ border: 1, borderColor: 'divider', borderRadius: 1.5, p: 0.5, color: 'primary.main' }}
+              >
+                <CreateNewFolderOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Abrir gestor completo de personajes">
               <IconButton
                 size="small"
                 onClick={() => story?.id && router.push(`/characters/${story.id}`)}
-                sx={{ border: 1, borderColor: 'divider', borderRadius: 1.5 }}
+                sx={{ border: 1, borderColor: 'divider', borderRadius: 1.5, p: 0.5 }}
               >
                 <OpenInNewIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
 
-          <Box sx={{ flexGrow: 1, overflowY: "auto", px: 0.5 }}>
-            {filteredCharacters.length === 0 ? (
-              <Box sx={{ textAlign: 'center', py: 4, px: 2 }}>
-                <PeopleOutlineIcon sx={{ fontSize: 32, color: 'text.disabled', mb: 1 }} />
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                  {charSearch ? 'Sin resultados' : 'No hay personajes en esta historia.'}
+          {/* Character Folder Tree with Characters Inside */}
+          <Box sx={{ flexGrow: 1, overflowY: "auto", px: 0.8, py: 1, display: 'flex', flexDirection: 'column', gap: 0.2 }}>
+            {/* Option 'Todos los personajes' */}
+            <Box
+              onClick={() => {
+                if (onSelectCharacterFolder) onSelectCharacterFolder('all');
+              }}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.8,
+                px: 1,
+                py: 0.5,
+                borderRadius: 1.5,
+                cursor: 'pointer',
+                bgcolor: activeCharacterFolderId === 'all' ? 'action.selected' : 'transparent',
+                borderLeft: activeCharacterFolderId === 'all' ? '3px solid' : '3px solid transparent',
+                borderColor: activeCharacterFolderId === 'all' ? 'primary.main' : 'transparent',
+                transition: 'all 0.15s ease',
+                '&:hover': { bgcolor: 'action.hover' },
+              }}
+            >
+              <PeopleOutlineIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+              <Typography
+                sx={{
+                  flexGrow: 1,
+                  fontSize: '0.82rem',
+                  fontWeight: activeCharacterFolderId === 'all' ? 700 : 500,
+                }}
+              >
+                Todos los Personajes
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  color: 'text.disabled',
+                  bgcolor: 'background.subtle',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 0.8,
+                  px: 0.6,
+                }}
+              >
+                {filteredCharacters.length}
+              </Typography>
+            </Box>
+
+            <Divider sx={{ my: 0.4 }} />
+
+            {/* Inline creator for root character folder */}
+            {isCreatingRootCharFolder && (
+              <InlineCharFolderInput
+                level={0}
+                onCommit={(name) => handleCommitCreateCharFolder(name, null)}
+                onCancel={() => setIsCreatingRootCharFolder(false)}
+              />
+            )}
+
+            {/* Tree of character folders with collapsible character lists */}
+            {rootCharacterFolders.length === 0 ? (
+              <Box sx={{ textAlign: 'center', py: 3, px: 2 }}>
+                <PeopleOutlineIcon sx={{ fontSize: 28, color: 'text.disabled', mb: 0.5 }} />
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.78rem' }}>
+                  No hay carpetas de personajes. Haz clic en el icono de carpeta + para crear una.
                 </Typography>
               </Box>
             ) : (
-              <List dense sx={{ py: 0 }}>
-                {filteredCharacters.map((c) => (
-                  <ListItem
-                    key={c.id}
-                    disablePadding
-                    sx={{
-                      mb: 0.8,
-                      borderRadius: 2,
-                      bgcolor: c.color_tag ? alpha(c.color_tag, 0.12) : 'background.paper',
-                      borderLeft: c.color_tag ? `4px solid ${c.color_tag}` : '4px solid transparent',
-                      borderTop: '1px solid',
-                      borderRight: '1px solid',
-                      borderBottom: '1px solid',
-                      borderColor: c.color_tag ? alpha(c.color_tag, 0.3) : 'divider',
-                      overflow: 'hidden',
-                      transition: 'all 0.15s ease',
-                      '&:hover': {
-                        bgcolor: c.color_tag ? alpha(c.color_tag, 0.22) : 'action.hover',
-                        transform: 'translateX(2px)',
-                      },
-                    }}
-                  >
-                    <ListItemButton
-                      onClick={() => onOpenCharactersDrawer && onOpenCharactersDrawer(c)}
-                      sx={{ py: 0.7, px: 1.2, borderRadius: 2 }}
-                    >
-                      <ListItemAvatar sx={{ minWidth: 36 }}>
-                        <Avatar
-                          src={c.avatar_url || ''}
-                          sx={{
-                            width: 28,
-                            height: 28,
-                            fontSize: '0.75rem',
-                            bgcolor: c.color_tag || 'primary.light',
-                            color: '#fff',
-                            fontWeight: 700,
-                          }}
-                        >
-                          {c.name.charAt(0)}
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={c.name}
-                        primaryTypographyProps={{ fontSize: '0.84rem', fontWeight: 700, noWrap: true }}
-                        secondary={c.role_archetype || (c.is_global ? 'Global' : 'Personaje')}
-                        secondaryTypographyProps={{ fontSize: '0.7rem', noWrap: true }}
-                      />
-                      {c.is_global && (
-                        <Chip label="Global" size="small" sx={{ height: 18, fontSize: '0.62rem', ml: 0.5 }} />
-                      )}
-                    </ListItemButton>
-                  </ListItem>
-                ))}
-              </List>
+              rootCharacterFolders.map((folder) => (
+                <CharacterFolderTreeItem
+                  key={folder.id}
+                  folder={folder}
+                  folders={effectiveFolders}
+                  characters={filteredCharacters}
+                  level={0}
+                  activeFolderId={activeCharacterFolderId}
+                  creatingInParentId={creatingCharChildInParentId}
+                  onStartCreateFolder={(parentId) => setCreatingCharChildInParentId(parentId)}
+                  onCommitCreateFolder={handleCommitCreateCharFolder}
+                  onCancelCreateFolder={() => setCreatingCharChildInParentId(null)}
+                  onSelectFolder={(fId) => onSelectCharacterFolder && onSelectCharacterFolder(fId)}
+                  onRenameFolder={handleRenameCharFolder}
+                  onDeleteFolder={handleDeleteCharFolder}
+                  onChangeColorFolder={handleChangeCharFolderColor}
+                  onSelectCharacter={(char) => onOpenCharactersDrawer ? onOpenCharactersDrawer(char) : onOpenCharacterModal ? onOpenCharacterModal(char) : null}
+                  onEditCharacter={(char) => onOpenCharacterModal ? onOpenCharacterModal(char) : onOpenCharactersDrawer ? onOpenCharactersDrawer(char) : null}
+                  onMoveCharacter={(char) => setSidebarMoveChar(char)}
+                  onMoveCharacterToFolder={(charId, targetFolderId) => {
+                    if (onMoveCharacterToFolder) {
+                      onMoveCharacterToFolder(charId, targetFolderId);
+                    } else {
+                      handleConfirmSidebarMoveChar([charId], targetFolderId);
+                    }
+                  }}
+                  onDeleteCharacter={(cId) => onDeleteCharacter ? onDeleteCharacter(cId) : null}
+                />
+              ))
             )}
           </Box>
 
           <Divider />
-          <Box sx={{ p: 1.2, display: 'flex', gap: 1 }}>
+
+          {/* Bottom Bar: Arquetipos, Etiquetas y Cajón */}
+          <Box sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 0.8, bgcolor: 'background.subtle' }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.8 }}>
+              <CustomButton
+                variant="outlined"
+                size="small"
+                startIcon={<PsychologyOutlinedIcon fontSize="small" />}
+                onClick={() => onOpenArchetypeManager ? onOpenArchetypeManager() : router.push(`/characters/${story?.id}`)}
+                sx={{ fontSize: '0.7rem', py: 0.4, px: 0.5, textTransform: 'none' }}
+              >
+                Arquetipos
+              </CustomButton>
+              <CustomButton
+                variant="outlined"
+                size="small"
+                startIcon={<LocalOfferOutlinedIcon fontSize="small" />}
+                onClick={() => onOpenTagManager ? onOpenTagManager() : router.push(`/characters/${story?.id}`)}
+                sx={{ fontSize: '0.7rem', py: 0.4, px: 0.5, textTransform: 'none' }}
+              >
+                Etiquetas
+              </CustomButton>
+            </Box>
+
             <CustomButton
-              variant="outlined"
+              variant="contained"
               size="small"
               fullWidth
               startIcon={<PeopleOutlineIcon fontSize="small" />}
               onClick={onOpenCharactersDrawer}
-              sx={{ fontSize: '0.75rem', py: 0.5 }}
+              sx={{ fontSize: '0.75rem', py: 0.4 }}
             >
               Cajón de Personajes
             </CustomButton>
@@ -751,8 +933,23 @@ export default function SidebarLore({
         </Box>
       )}
 
+      {/* Version display */}
+      <Box sx={{ p: 1, pl: 2, textAlign: 'left', position: 'absolute', bottom: 0, width: '100%', pointerEvents: 'none' }}>
+        <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.disabled' }}>
+          {APP_CONFIG.VERSION}
+        </Typography>
+      </Box>
+
+      {/* ─── Move Character Modal in Sidebar ──────────────────────────────── */}
+      <MoveToFolderModal
+        open={Boolean(sidebarMoveChar)}
+        onClose={() => setSidebarMoveChar(null)}
+        charactersToMove={sidebarMoveChar ? [sidebarMoveChar] : []}
+        folders={effectiveFolders}
+        onConfirmMove={handleConfirmSidebarMoveChar}
+      />
+
       {/* ─── Dialogs ─────────────────────────────────────────────────────── */}
-      {/* Create Board Dialog */}
       <Dialog
         open={newBoardDialogOpen}
         onClose={() => setNewBoardDialogOpen(false)}
@@ -818,7 +1015,6 @@ export default function SidebarLore({
             Personaliza la portada panorámica que identifica a tu historia activa.
           </Typography>
 
-          {/* Mode Selector Buttons */}
           <ButtonGroup size="small" fullWidth sx={{ mb: 0.5 }}>
             <Button
               variant={coverMode === 'upload' ? 'contained' : 'outlined'}

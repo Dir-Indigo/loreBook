@@ -16,9 +16,14 @@ import {
   IconButton,
   CircularProgress,
   Tabs, Tab,
-  Badge,
+  Chip,
+  Menu,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
+import CheckIcon from '@mui/icons-material/Check';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ColorLensIcon from '@mui/icons-material/ColorLens';
 import TuneIcon from '@mui/icons-material/Tune';
@@ -31,6 +36,9 @@ import LinkIcon from '@mui/icons-material/Link';
 import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
 import StarIcon from '@mui/icons-material/Star';
 import WcIcon from '@mui/icons-material/Wc';
+import PsychologyOutlinedIcon from '@mui/icons-material/PsychologyOutlined';
+import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
+import AddIcon from '@mui/icons-material/Add';
 import CustomModal from '../common/CustomModal';
 import CustomButton from '../common/CustomButton';
 import ImageCropModal from '../common/ImageCropModal';
@@ -45,10 +53,18 @@ import {
   CHARACTER_VITAL_STATUSES,
 } from '../../constants/constants';
 
+const EMPTY_ARRAY = [];
+
 export default function CharacterModal({
   open,
   onClose,
   character = null,
+  availableTags = EMPTY_ARRAY,
+  availableFolders = EMPTY_ARRAY,
+  customArchetypes = EMPTY_ARRAY,
+  defaultFolderId = null,
+  onOpenTagManager,
+  onOpenArchetypeManager,
   onSave,
   onClone,
   isCloneMode = false,
@@ -62,6 +78,13 @@ export default function CharacterModal({
   const [isGlobal, setIsGlobal] = useState(false);
   const [cloneSuffix, setCloneSuffix] = useState(' (Versión Alterna)');
   
+  // Folder & Custom Tags
+  const [folderId, setFolderId] = useState('');
+  const [selectedTagIds, setSelectedTagIds] = useState([]);
+  const [roleTab, setRoleTab] = useState(0); // 0=Estándar, 1=Propios
+  const [roleAnchorEl, setRoleAnchorEl] = useState(null);
+  const isRoleMenuOpen = Boolean(roleAnchorEl);
+
   // Extended narrative & psychological fields (stored in attributes jsonb)
   const [goal, setGoal] = useState('');
   const [conflict, setConflict] = useState('');
@@ -81,7 +104,7 @@ export default function CharacterModal({
   const [advancedTab, setAdvancedTab] = useState(0); // 0=Psicología, 1=Datos del Personaje, 2=Foto y Configuración
 
   // Avatar upload & cropping state
-  const [avatarMode, setAvatarMode] = useState('upload'); // 'upload' | 'url'
+  const [avatarMode, setAvatarMode] = useState('upload');
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [rawImageSrc, setRawImageSrc] = useState(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -90,14 +113,21 @@ export default function CharacterModal({
   const colorInputRef = useRef(null);
 
   useEffect(() => {
+    if (!open) return;
+
     if (character) {
       setName(character.name || '');
-      setRoleArchetype(character.role_archetype || 'Protagonista');
+      const arch = character.role_archetype || 'Protagonista';
+      setRoleArchetype(arch);
+      const isCustomArch = customArchetypes.some((a) => a.name === arch);
+      setRoleTab(isCustomArch ? 1 : 0);
       setBiography(character.biography || '');
       setAvatarUrl(character.avatar_url || '');
       setColorTag(character.color_tag || '');
       setIsTemplate(Boolean(character.is_template));
       setIsGlobal(Boolean(character.is_global));
+      setFolderId(character.folder_id || '');
+      setSelectedTagIds(Array.isArray(character.custom_tag_ids) ? character.custom_tag_ids : []);
       
       const attr = character.attributes || {};
       setGoal(attr.goal || '');
@@ -134,6 +164,9 @@ export default function CharacterModal({
       setColorTag('');
       setIsTemplate(false);
       setIsGlobal(false);
+      const initialFolder = defaultFolderId || (availableFolders && availableFolders[0]?.id) || '';
+      setFolderId(initialFolder);
+      setSelectedTagIds([]);
       setGoal('');
       setConflict('');
       setStrengths('');
@@ -148,7 +181,7 @@ export default function CharacterModal({
       setAvatarMode('upload');
     }
     setCloneSuffix(' (Versión Alterna)');
-  }, [character, open, isCloneMode]);
+  }, [character, open, isCloneMode, defaultFolderId]);
 
   // Automatically extract dominant color when a URL is provided
   useEffect(() => {
@@ -163,7 +196,6 @@ export default function CharacterModal({
     }
   }, [avatarUrl, avatarMode]);
 
-  // Handle local image selection
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -172,16 +204,14 @@ export default function CharacterModal({
     reader.onload = () => {
       setRawImageSrc(reader.result);
       setCropModalOpen(true);
-      e.target.value = ''; // Reset input to allow re-selecting same file
+      e.target.value = '';
     };
     reader.readAsDataURL(file);
   };
 
-  // Handle cropped image upload to Supabase Storage
   const handleCropComplete = async (optimizedBlob, previewUrl) => {
     setUploadingAvatar(true);
     try {
-      // Auto-extract dominant color from the cropped image Blob
       const dominantColor = await extractDominantColor(optimizedBlob);
       if (dominantColor) {
         setColorTag(dominantColor);
@@ -191,7 +221,6 @@ export default function CharacterModal({
       if (result?.url) {
         setAvatarUrl(result.url);
       } else {
-        // Fallback to preview data URL if upload failed
         setAvatarUrl(previewUrl);
       }
     } catch (err) {
@@ -204,6 +233,12 @@ export default function CharacterModal({
 
   const handleRemoveAvatar = () => {
     setAvatarUrl('');
+  };
+
+  const handleToggleTag = (tagId) => {
+    setSelectedTagIds((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+    );
   };
 
   const handleSubmit = async (e) => {
@@ -238,6 +273,8 @@ export default function CharacterModal({
         color_tag: colorTag,
         is_template: isTemplate,
         is_global: isGlobal,
+        folder_id: folderId || null,
+        custom_tag_ids: selectedTagIds,
         attributes,
       });
     }
@@ -263,7 +300,6 @@ export default function CharacterModal({
         icon={isCloneMode ? ContentCopyIcon : PersonIcon}
         maxWidth="sm"
       >
-        {/* Hidden File Input for Device Image Selection */}
         <input
           ref={fileInputRef}
           type="file"
@@ -273,11 +309,10 @@ export default function CharacterModal({
         />
 
         <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {/* ─── CLONE MODE SPECIFIC VIEW ─── */}
           {isCloneMode ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Typography variant="body2" color="text.secondary">
-                Se clonará la ficha completa de <strong>{character?.name}</strong> incluyendo biografía, arquetipo y color distintivo.
+                Se clonará la ficha completa de <strong>{character?.name}</strong> incluyendo biografía, arquetipo, etiquetas y color distintivo.
               </Typography>
               <TextField
                 label="Sufijo o nuevo identificador"
@@ -328,7 +363,6 @@ export default function CharacterModal({
                       )}
                     </Avatar>
 
-                    {/* Camera icon hover overlay */}
                     <Box
                       className="avatar-overlay"
                       sx={{
@@ -366,29 +400,187 @@ export default function CharacterModal({
                 />
               </Box>
 
-              {/* ─── 2. ROL / ARQUETIPO Y PALETA RÁPIDA ─── */}
-              <Grid container spacing={2}>
+              {/* ─── 2. ROL / ARQUETIPO, CARPETA Y PALETA RÁPIDA ─── */}
+              <Grid container spacing={1.5}>
                 <Grid item xs={12} sm={6}>
-                  <TextField
-                    select
-                    label="Arquetipo / Rol"
-                    value={roleArchetype}
-                    onChange={(e) => setRoleArchetype(e.target.value)}
-                    fullWidth
-                    size="small"
-                    InputProps={{ sx: { borderRadius: 2 } }}
-                  >
-                    {CHARACTER_ARCHETYPES.map((arch) => (
-                      <MenuItem key={arch} value={arch}>
-                        {arch}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
+                    {/* Clickable archetype field — opens popup Menu with tabs */}
+                    <Box
+                      onClick={(e) => {
+                        const isCustom = customArchetypes.some((a) => a.name === roleArchetype);
+                        setRoleTab(isCustom ? 1 : 0);
+                        setRoleAnchorEl(e.currentTarget);
+                      }}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        border: '1px solid',
+                        borderColor: isRoleMenuOpen ? 'primary.main' : 'divider',
+                        borderRadius: 2,
+                        px: 1.5,
+                        py: 0.85,
+                        cursor: 'pointer',
+                        bgcolor: 'background.paper',
+                        transition: 'border-color 0.15s',
+                        '&:hover': { borderColor: 'text.primary' },
+                        position: 'relative',
+                      }}
+                    >
+                      {/* Label */}
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          position: 'absolute',
+                          top: -9,
+                          left: 10,
+                          bgcolor: 'background.paper',
+                          px: 0.5,
+                          fontSize: '0.72rem',
+                          color: isRoleMenuOpen ? 'primary.main' : 'text.secondary',
+                          fontWeight: 600,
+                          lineHeight: 1,
+                          transition: 'color 0.15s',
+                        }}
+                      >
+                        Arquetipo / Rol
+                      </Typography>
+                      {/* Dot color if custom */}
+                      {(() => {
+                        const customArch = customArchetypes.find((a) => a.name === roleArchetype);
+                        return customArch ? (
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: customArch.color || 'primary.main', flexShrink: 0, mr: 0.8 }} />
+                        ) : null;
+                      })()}
+                      <Typography
+                        sx={{ flexGrow: 1, fontSize: '0.875rem', fontWeight: 500, color: roleArchetype ? 'text.primary' : 'text.disabled' }}
+                      >
+                        {roleArchetype || 'Sin rol'}
+                      </Typography>
+                      <ExpandMoreIcon
+                        sx={{
+                          fontSize: 18,
+                          color: 'text.secondary',
+                          transform: isRoleMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.2s',
+                          ml: 0.5,
+                        }}
+                      />
+                    </Box>
+
+                    {/* Archetype Popup Menu */}
+                    <Menu
+                      anchorEl={roleAnchorEl}
+                      open={isRoleMenuOpen}
+                      onClose={() => setRoleAnchorEl(null)}
+                      PaperProps={{
+                        elevation: 6,
+                        sx: {
+                          borderRadius: 2.5,
+                          minWidth: 240,
+                          maxWidth: 280,
+                          maxHeight: 360,
+                          p: 0,
+                          overflow: 'hidden',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          display: 'flex',
+                          flexDirection: 'column',
+                        },
+                      }}
+                    >
+                      {/* Tab switcher */}
+                      <Box sx={{ p: 0.8, pb: 0.5, bgcolor: 'background.subtle', borderBottom: '1px solid', borderColor: 'divider' }}>
+                        <Tabs
+                          value={roleTab}
+                          onChange={(_, v) => setRoleTab(v)}
+                          variant="fullWidth"
+                          sx={{
+                            minHeight: 28,
+                            bgcolor: 'action.hover',
+                            borderRadius: 1.5,
+                            p: 0.3,
+                            '& .MuiTabs-indicator': { display: 'none' },
+                            '& .MuiTab-root': {
+                              minHeight: 24,
+                              py: 0.3,
+                              px: 0.8,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              textTransform: 'none',
+                              borderRadius: 1,
+                              color: 'text.secondary',
+                              '&.Mui-selected': {
+                                bgcolor: 'background.paper',
+                                color: 'primary.main',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                              },
+                            },
+                          }}
+                        >
+                          <Tab label="Estándar" />
+                          <Tab label={`Propios (${customArchetypes.length})`} />
+                        </Tabs>
+                      </Box>
+
+                      {/* Items */}
+                      <Box sx={{ overflowY: 'auto', py: 0.5 }}>
+                        {roleTab === 0 && CHARACTER_ARCHETYPES.map((arch) => {
+                          const isSel = roleArchetype === arch;
+                          return (
+                            <MenuItem
+                              key={arch}
+                              selected={isSel}
+                              onClick={() => { setRoleArchetype(arch); setRoleAnchorEl(null); }}
+                              sx={{ py: 0.5, px: 1.5, borderRadius: 1, mx: 0.5, justifyContent: 'space-between' }}
+                            >
+                              <ListItemText
+                                primary={arch}
+                                primaryTypographyProps={{ fontSize: '0.82rem', fontWeight: isSel ? 700 : 400, color: isSel ? 'primary.main' : 'text.primary' }}
+                              />
+                              {isSel && <ListItemIcon sx={{ minWidth: 'auto', color: 'primary.main', ml: 1 }}><CheckIcon sx={{ fontSize: 16 }} /></ListItemIcon>}
+                            </MenuItem>
+                          );
+                        })}
+
+                        {roleTab === 1 && (
+                          customArchetypes.length > 0 ? customArchetypes.map((arch) => {
+                            const isSel = roleArchetype === arch.name;
+                            return (
+                              <MenuItem
+                                key={arch.id || arch.name}
+                                selected={isSel}
+                                onClick={() => { setRoleArchetype(arch.name); setRoleAnchorEl(null); }}
+                                sx={{ py: 0.5, px: 1.5, borderRadius: 1, mx: 0.5, justifyContent: 'space-between' }}
+                              >
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, minWidth: 0 }}>
+                                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: arch.color || 'primary.main', flexShrink: 0 }} />
+                                  <ListItemText
+                                    primary={arch.name}
+                                    primaryTypographyProps={{ fontSize: '0.82rem', fontWeight: isSel ? 700 : 400, color: isSel ? 'primary.main' : 'text.primary', noWrap: true }}
+                                  />
+                                </Box>
+                                {isSel && <ListItemIcon sx={{ minWidth: 'auto', color: 'primary.main', ml: 1 }}><CheckIcon sx={{ fontSize: 16 }} /></ListItemIcon>}
+                              </MenuItem>
+                            );
+                          }) : (
+                            <Box sx={{ p: 2, textAlign: 'center' }}>
+                              <Typography variant="caption" color="text.secondary">
+                                No hay arquetipos propios aún.
+                              </Typography>
+                            </Box>
+                          )
+                        )}
+                      </Box>
+                    </Menu>
+                  </Box>
                 </Grid>
 
-                {/* Quick Color Palette */}
-                <Grid item xs={12} sm={6} sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
-                  <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Grid item xs={12} sm={6} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, flexShrink: 0 }}>
+                    Color:
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexWrap: 'nowrap' }}>
                     {CHARACTER_COLOR_PALETTE.slice(0, 8).map((color) => {
                       const isSelected = colorTag?.toLowerCase() === color.toLowerCase();
                       return (
@@ -396,15 +588,15 @@ export default function CharacterModal({
                           key={color}
                           onClick={() => setColorTag(isSelected ? '' : color)}
                           sx={{
-                            width: 24,
-                            height: 24,
+                            width: 20,
+                            height: 20,
                             borderRadius: '50%',
                             bgcolor: color,
                             cursor: 'pointer',
-                            border: isSelected ? '2.5px solid #222' : '1px solid rgba(0,0,0,0.15)',
-                            transform: isSelected ? 'scale(1.2)' : 'scale(1)',
-                            transition: 'transform 0.12s ease',
-                            '&:hover': { transform: 'scale(1.2)' },
+                            border: isSelected ? '2px solid #222' : '1px solid rgba(0,0,0,0.15)',
+                            transform: isSelected ? 'scale(1.1)' : 'scale(1)',
+                            transition: 'all 0.1s ease',
+                            '&:hover': { transform: 'scale(1.1)' },
                           }}
                         />
                       );
@@ -413,7 +605,75 @@ export default function CharacterModal({
                 </Grid>
               </Grid>
 
-              {/* ─── 3. BIOGRAFÍA / TRASFONDO (Básico) ─── */}
+              {/* ─── 3. ETIQUETAS PERSONALIZADAS DE LA HISTORIA ─── */}
+              <Box
+                sx={{
+                  p: 1.2,
+                  borderRadius: 2,
+                  bgcolor: 'background.subtle',
+                  border: 1,
+                  borderColor: 'divider',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0.8,
+                }}
+              >
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <LocalOfferOutlinedIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                      Etiquetas Propias de la Historia:
+                    </Typography>
+                  </Box>
+                  {onOpenTagManager && (
+                    <Button
+                      size="small"
+                      variant="text"
+                      onClick={onOpenTagManager}
+                      startIcon={<AddIcon sx={{ fontSize: '14px !important' }} />}
+                      sx={{ fontSize: '0.72rem', py: 0, textTransform: 'none', fontWeight: 700 }}
+                    >
+                      Gestionar Etiquetas
+                    </Button>
+                  )}
+                </Box>
+
+                {availableTags.length === 0 ? (
+                  <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                    No hay etiquetas creadas en esta historia. Haz clic en "Gestionar Etiquetas" para crear tus propias etiquetas.
+                  </Typography>
+                ) : (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6 }}>
+                    {availableTags.map((tag) => {
+                      const isSelected = selectedTagIds.includes(tag.id);
+                      return (
+                        <Chip
+                          key={tag.id}
+                          label={tag.name}
+                          size="small"
+                          onClick={() => handleToggleTag(tag.id)}
+                          sx={{
+                            height: 22,
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            bgcolor: isSelected ? tag.color || 'primary.main' : 'background.paper',
+                            color: isSelected ? '#fff' : 'text.primary',
+                            border: '1px solid',
+                            borderColor: tag.color || 'primary.main',
+                            transition: 'all 0.12s ease',
+                            '&:hover': {
+                              opacity: 0.85,
+                            },
+                          }}
+                        />
+                      );
+                    })}
+                  </Box>
+                )}
+              </Box>
+
+              {/* ─── 4. BIOGRAFÍA / TRASFONDO (Básico) ─── */}
               <TextField
                 label="Biografía Breve"
                 value={biography}
@@ -425,7 +685,7 @@ export default function CharacterModal({
                 InputProps={{ sx: { borderRadius: 2, fontSize: '0.9rem' } }}
               />
 
-              {/* ─── 4. TOGGLE MÁS OPCIONES (Colapsable con Pestañas) ─── */}
+              {/* ─── 5. TOGGLE MÁS OPCIONES (Colapsable con Pestañas) ─── */}
               <Box sx={{ pt: 0.5 }}>
                 <Button
                   variant="text"
@@ -458,7 +718,6 @@ export default function CharacterModal({
                     gap: 2,
                   }}
                 >
-                  {/* Selector de Pestañas dentro de Opciones Avanzadas */}
                   <Tabs
                     value={advancedTab}
                     onChange={(e, val) => setAdvancedTab(val)}
@@ -551,7 +810,6 @@ export default function CharacterModal({
                   {advancedTab === 1 && (
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                       <Grid container spacing={1.5}>
-                        {/* Género */}
                         <Grid item xs={12} sm={6}>
                           <TextField
                             select
@@ -569,7 +827,6 @@ export default function CharacterModal({
                           </TextField>
                         </Grid>
 
-                        {/* Etapa de Vida */}
                         <Grid item xs={12} sm={6}>
                           <TextField
                             select
@@ -587,7 +844,6 @@ export default function CharacterModal({
                           </TextField>
                         </Grid>
 
-                        {/* Alineamiento */}
                         <Grid item xs={12} sm={6}>
                           <TextField
                             select
@@ -605,7 +861,6 @@ export default function CharacterModal({
                           </TextField>
                         </Grid>
 
-                        {/* Estado Vital */}
                         <Grid item xs={12} sm={6}>
                           <TextField
                             select
@@ -623,7 +878,6 @@ export default function CharacterModal({
                         </Grid>
                       </Grid>
 
-                      {/* Personaje Especial */}
                       <Box
                         onClick={() => setIsSpecial(!isSpecial)}
                         sx={{
@@ -661,9 +915,8 @@ export default function CharacterModal({
 
                   {/* ─── TAB 2: FOTO Y AJUSTES DE SISTEMA ─── */}
                   {advancedTab === 2 && (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      {/* Avatar Manager Section (Subir archivo con recorte vs URL directa) */}
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2 }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
                             FOTO DE PERFIL / AVATAR:
@@ -673,17 +926,17 @@ export default function CharacterModal({
                               variant={avatarMode === 'upload' ? 'contained' : 'outlined'}
                               onClick={() => setAvatarMode('upload')}
                               startIcon={<FileUploadOutlinedIcon fontSize="small" />}
-                              sx={{ fontSize: '0.72rem', py: 0.25, textTransform: 'none', fontWeight: 700 }}
+                              sx={{ fontSize: '0.7rem', py: 0, textTransform: 'none', fontWeight: 700 }}
                             >
-                              Subir Foto
+                              Subir
                             </Button>
                             <Button
                               variant={avatarMode === 'url' ? 'contained' : 'outlined'}
                               onClick={() => setAvatarMode('url')}
                               startIcon={<LinkIcon fontSize="small" />}
-                              sx={{ fontSize: '0.72rem', py: 0.25, textTransform: 'none', fontWeight: 700 }}
+                              sx={{ fontSize: '0.7rem', py: 0, textTransform: 'none', fontWeight: 700 }}
                             >
-                              Enlace URL
+                              URL
                             </Button>
                           </ButtonGroup>
                         </Box>
@@ -691,38 +944,34 @@ export default function CharacterModal({
                         {avatarMode === 'upload' ? (
                           <Box
                             sx={{
-                              p: 1.5,
-                              border: '1.5px dashed',
+                              p: 1,
+                              border: '1px dashed',
                               borderColor: avatarUrl ? 'primary.main' : 'divider',
-                              borderRadius: 2.5,
+                              borderRadius: 2,
                               bgcolor: 'background.paper',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
-                              gap: 1.5,
+                              gap: 1,
                             }}
                           >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                              <Avatar src={avatarUrl} sx={{ width: 42, height: 42, bgcolor: colorTag || 'primary.main' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Avatar src={avatarUrl} sx={{ width: 36, height: 36, bgcolor: colorTag || 'primary.main' }}>
                                 {name ? name.charAt(0).toUpperCase() : <PersonIcon />}
                               </Avatar>
                               <Box>
-                                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem' }}>
-                                  {avatarUrl ? 'Foto optimizada lista' : 'Subir imagen desde tu PC/Móvil'}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  Recorte cuadrado con compresión WebP automática (~30KB)
+                                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.8rem' }}>
+                                  {avatarUrl ? 'Foto lista' : 'Subir imagen'}
                                 </Typography>
                               </Box>
                             </Box>
 
-                            <Box sx={{ display: 'flex', gap: 0.8 }}>
+                            <Box sx={{ display: 'flex', gap: 0.5 }}>
                               <Button
                                 size="small"
                                 variant="outlined"
-                                startIcon={<PhotoCameraIcon fontSize="small" />}
                                 onClick={() => fileInputRef.current?.click()}
-                                sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.78rem', borderRadius: 2 }}
+                                sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.7rem', borderRadius: 2, minWidth: 'auto', px: 1 }}
                               >
                                 {avatarUrl ? 'Cambiar' : 'Elegir'}
                               </Button>
@@ -735,13 +984,12 @@ export default function CharacterModal({
                           </Box>
                         ) : (
                           <TextField
-                            label="URL de Foto de Perfil"
+                            label="URL de Foto"
                             placeholder="https://ejemplo.com/avatar.jpg"
                             value={avatarUrl}
                             onChange={(e) => setAvatarUrl(e.target.value)}
                             fullWidth
                             size="small"
-                            helperText="Pega el link de una imagen alojada en internet"
                             InputProps={{
                               endAdornment: avatarUrl ? (
                                 <IconButton size="small" onClick={handleRemoveAvatar}>
@@ -752,53 +1000,52 @@ export default function CharacterModal({
                           />
                         )}
                       </Box>
-
-                      {/* Advanced Color Picker */}
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: 'background.paper', p: 1.2, borderRadius: 2, border: 1, borderColor: 'divider' }}>
-                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                          Color Hex Personalizado:
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Box
-                            onClick={() => colorInputRef.current?.click()}
-                            sx={{
-                              width: 26,
-                              height: 26,
-                              borderRadius: '50%',
-                              bgcolor: colorTag || '#8c6d53',
-                              border: '2px solid rgba(0,0,0,0.2)',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              position: 'relative',
-                              overflow: 'hidden',
-                            }}
+                      <Grid container spacing={1}>
+                        <Grid item xs={8}>
+                          <TextField
+                            select
+                            label="Carpeta"
+                            value={folderId}
+                            onChange={(e) => setFolderId(e.target.value)}
+                            fullWidth
+                            size="small"
+                            InputProps={{ sx: { borderRadius: 2 } }}
                           >
-                            <ColorLensIcon sx={{ fontSize: 14, color: '#fff' }} />
-                            <input
-                              ref={colorInputRef}
-                              type="color"
-                              value={colorTag || '#8c6d53'}
-                              onChange={(e) => setColorTag(e.target.value)}
-                              style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                width: '100%',
-                                height: '100%',
-                                opacity: 0,
+                            {availableFolders.map((f) => (
+                              <MenuItem key={f.id} value={f.id}>
+                                {f.name} {f.is_default ? '(Base)' : ''}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        </Grid>
+                        <Grid item xs={4}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper' }}>
+                            <Box
+                              onClick={() => colorInputRef.current?.click()}
+                              sx={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: '50%',
+                                bgcolor: colorTag || '#8c6d53',
+                                border: '2px solid rgba(0,0,0,0.15)',
                                 cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                               }}
-                            />
+                            >
+                              <ColorLensIcon sx={{ fontSize: 16, color: '#fff' }} />
+                              <input
+                                ref={colorInputRef}
+                                type="color"
+                                value={colorTag || '#8c6d53'}
+                                onChange={(e) => setColorTag(e.target.value)}
+                                style={{ display: 'none' }}
+                              />
+                            </Box>
                           </Box>
-                          {colorTag && (
-                            <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 700, color: colorTag }}>
-                              {colorTag.toUpperCase()}
-                            </Typography>
-                          )}
-                        </Box>
-                      </Box>
+                        </Grid>
+                      </Grid>
 
                       <Divider />
 
@@ -873,7 +1120,6 @@ export default function CharacterModal({
         </Box>
       </CustomModal>
 
-      {/* ─── INTERACTIVE IMAGE CROP MODAL ─── */}
       <ImageCropModal
         open={cropModalOpen}
         imageSrc={rawImageSrc}

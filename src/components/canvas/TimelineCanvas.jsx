@@ -51,10 +51,14 @@ export default function TimelineCanvas({
   onNodeDragStop,
   onDuplicateEvent,
   onDuplicateEvents,
+  onInlineUpdateEvent,
+  onUpdateEventCharacters,
+  onQuickCreateEventAtPosition,
   hasStory = true,
   onOpenStorySelector,
 }) {
   const { currentThemeConfig } = useLoreTheme();
+  const reactFlowInstanceRef = useRef(null);
 
   // Compact mode: manual Switch OR auto-trigger at extreme zoom (text unreadable)
   const AUTO_COMPACT_THRESHOLD = 0.62;
@@ -96,6 +100,7 @@ export default function TimelineCanvas({
           colorTag: ev.color_tag,
           importanceLevel: ev.importance_level,
           characters: eventChars,
+          allCharacters: characters,
           versionsCount: ev.event_versions?.length || 1,
           isCompact: isCompact,
           onEdit: () => onOpenEditEvent(ev),
@@ -103,10 +108,24 @@ export default function TimelineCanvas({
           onOpenVersions: () => onOpenVersions(ev.id, ev.title),
           onCreateBackup: () => onCreateBackup(ev.id),
           onDuplicate: () => onDuplicateEvent(ev),
+          onInlineUpdate: (eventId, patchData) => onInlineUpdateEvent && onInlineUpdateEvent(eventId, patchData),
+          onUpdateCharacters: (eventId, charIds) => onUpdateEventCharacters && onUpdateEventCharacters(eventId, charIds),
         },
       };
     });
-  }, [events, computedOrderMap, isCompact, onOpenEditEvent, onDeleteEvent, onOpenVersions, onCreateBackup, onDuplicateEvent]);
+  }, [
+    events,
+    characters,
+    computedOrderMap,
+    isCompact,
+    onOpenEditEvent,
+    onDeleteEvent,
+    onOpenVersions,
+    onCreateBackup,
+    onDuplicateEvent,
+    onInlineUpdateEvent,
+    onUpdateEventCharacters,
+  ]);
 
   // Generate DAG cable vector edges from eventConnections
   const initialEdges = useMemo(() => {
@@ -248,6 +267,19 @@ export default function TimelineCanvas({
       commitSelection([]);
     }
   }, [commitSelection]);
+
+  const handlePaneDoubleClick = useCallback((event) => {
+    if (onQuickCreateEventAtPosition && reactFlowInstanceRef.current) {
+      const position = reactFlowInstanceRef.current.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      onQuickCreateEventAtPosition({
+        x: Math.round(position.x),
+        y: Math.round(position.y),
+      });
+    }
+  }, [onQuickCreateEventAtPosition]);
 
   // Handle Ctrl+C and Ctrl+V keyboard shortcuts
   useEffect(() => {
@@ -518,6 +550,10 @@ export default function TimelineCanvas({
         onNodeDragStop={handleNodeDragStop}
         onNodeClick={handleNodeClick}
         onPaneClick={handlePaneClick}
+        onPaneDoubleClick={handlePaneDoubleClick}
+        onInit={(instance) => {
+          reactFlowInstanceRef.current = instance;
+        }}
         onMove={handleMove}
         onlyRenderVisibleElements
         nodeTypes={nodeTypes}

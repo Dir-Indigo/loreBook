@@ -232,6 +232,14 @@ export default function DashboardPage({ onOpenStorySelector }) {
     await deleteRelationship({ storyId: activeStoryId, relId, setLoading });
   };
 
+  const handleMoveCharacterToFolder = async (charOrIds, targetFolderId) => {
+    const ids = Array.isArray(charOrIds) ? charOrIds : [charOrIds?.id || charOrIds];
+    await ApiService.characters.moveToFolder(ids, targetFolderId);
+    if (activeStoryId) {
+      await loadStoryData({ storyId: activeStoryId });
+    }
+  };
+
   const handleSaveEvent = async ({ eventData, characterIds, createBackup, backupNote }) => {
     const result = await saveEvent({
       storyId: activeStoryId,
@@ -283,6 +291,50 @@ export default function DashboardPage({ onOpenStorySelector }) {
         setPendingConfirmation(null);
         await deleteEvent({ storyId: activeStoryId, boardId: activeBoardId, eventId, setLoading: null });
       },
+    });
+  };
+
+  const handleInlineUpdateEvent = async (eventId, patchData) => {
+    if (!activeStoryId || !eventId) return;
+    await saveEvent({
+      storyId: activeStoryId,
+      eventData: patchData,
+      selectedEventId: eventId,
+      setLoading: null,
+    });
+  };
+
+  const handleUpdateEventCharacters = async (eventId, characterIds) => {
+    if (!activeStoryId || !eventId) return;
+    await saveEvent({
+      storyId: activeStoryId,
+      eventData: {},
+      characterIds,
+      selectedEventId: eventId,
+      setLoading: null,
+    });
+  };
+
+  const handleQuickCreateEventAtPosition = async ({ x, y }) => {
+    if (!activeStoryId) {
+      setFeedback('Selecciona o crea una historia primero.');
+      return;
+    }
+    const nextOrderIndex = events.length > 0
+      ? Math.max(...events.map((e) => Number(e.order_index) || 0)) + 1
+      : 1;
+
+    await saveEvent({
+      storyId: activeStoryId,
+      eventData: {
+        title: 'Nuevo Evento',
+        summary: '',
+        pos_x: x,
+        pos_y: y,
+        order_index: nextOrderIndex,
+      },
+      characterIds: [],
+      setLoading: null,
     });
   };
 
@@ -396,31 +448,35 @@ export default function DashboardPage({ onOpenStorySelector }) {
           onChangeBoardColor={handleChangeBoardColor}
           onOpenEditEvent={handleOpenEditEvent}
           onDeleteEvent={handleDeleteEvent}
+          onMoveCharacterToFolder={handleMoveCharacterToFolder}
         />
 
         <Box sx={{ flexGrow: 1, height: '100%', position: 'relative', display: 'flex', overflow: 'hidden' }}>
           <Box sx={{ flexGrow: 1, height: '100%', position: 'relative', minWidth: 0 }}>
             <TimelineCanvas
-            events={events}
-            characters={characters}
-            eventConnections={eventConnections}
-            hasStory={!!activeStory}
-            onOpenStorySelector={onOpenStorySelector}
-            activeBoardName={boards.find((b) => b.id === activeBoardId)?.name || null}
-            onCreateConnection={handleCreateConnection}
-            onDeleteConnection={handleDeleteConnection}
-            onOpenCreateEvent={() => {
-              setSelectedEvent(null);
-              openCreateEvent();
-            }}
-            onOpenEditEvent={handleOpenEditEvent}
-            onDeleteEvent={handleDeleteEvent}
-            onOpenVersions={handleOpenVersions}
-            onCreateBackup={handleCreateQuickBackup}
-            onNodeDragStop={handleNodeDragStop}
-            onDuplicateEvent={handleDuplicateEvent}
-            onDuplicateEvents={handleDuplicateEvents}
-          />
+              events={events}
+              characters={characters}
+              eventConnections={eventConnections}
+              hasStory={!!activeStory}
+              onOpenStorySelector={onOpenStorySelector}
+              activeBoardName={boards.find((b) => b.id === activeBoardId)?.name || null}
+              onCreateConnection={handleCreateConnection}
+              onDeleteConnection={handleDeleteConnection}
+              onOpenCreateEvent={() => {
+                setSelectedEvent(null);
+                openCreateEvent();
+              }}
+              onOpenEditEvent={handleOpenEditEvent}
+              onDeleteEvent={handleDeleteEvent}
+              onOpenVersions={handleOpenVersions}
+              onCreateBackup={handleCreateQuickBackup}
+              onNodeDragStop={handleNodeDragStop}
+              onDuplicateEvent={handleDuplicateEvent}
+              onDuplicateEvents={handleDuplicateEvents}
+              onInlineUpdateEvent={handleInlineUpdateEvent}
+              onUpdateEventCharacters={handleUpdateEventCharacters}
+              onQuickCreateEventAtPosition={handleQuickCreateEventAtPosition}
+            />
 
           {/* Speed Dial Actions */}
           <SpeedDialActions

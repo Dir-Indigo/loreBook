@@ -21,6 +21,16 @@ export const characterService = {
     if (error) throw error;
     return true;
   },
+  moveToFolder: async (characterIds, folderId) => {
+    const { data, error } = await characterRepository.moveToFolder(characterIds, folderId);
+    if (error) throw error;
+    return data;
+  },
+  assignTagsBatch: async (characterIds, options) => {
+    const { data, error } = await characterRepository.assignTagsBatch(characterIds, options);
+    if (error) throw error;
+    return data;
+  },
   clone: async (originalId, options) => {
     const { data, error } = await characterRepository.clone(originalId, options);
     if (error) throw error;
@@ -30,5 +40,5 @@ export const characterService = {
     const { data, error } = await characterRepository.copyAsLocal(characterIds, targetStoryId);
     if (error) throw error;
     return data;
-  }
+  },
 };

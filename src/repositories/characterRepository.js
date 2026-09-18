@@ -11,6 +11,65 @@ export const characterRepository = {
   update: (id, data) => supabase.from('characters').update(data).eq('id', id).select().single(),
   delete: (id) => supabase.from('characters').delete().eq('id', id),
   
+  moveToFolder: async (characterIds, folderId) => {
+    const ids = Array.isArray(characterIds) ? characterIds : [characterIds];
+    if (!ids.length) return { data: [], error: null };
+
+    return await supabase
+      .from('characters')
+      .update({ folder_id: folderId || null, updated_at: new Date().toISOString() })
+      .in('id', ids)
+      .select('*');
+  },
+
+  assignTagsBatch: async (characterIds, { addTagIds = [], removeTagIds = [] }) => {
+    const ids = Array.isArray(characterIds) ? characterIds : [characterIds];
+    if (!ids.length) return { data: [], error: null };
+
+    // 1. Obtener personajes actuales para actualizar sus tags
+    const { data: currentChars, error: fetchErr } = await supabase
+      .from('characters')
+      .select('id, custom_tag_ids')
+      .in('id', ids);
+
+    if (fetchErr) return { data: null, error: fetchErr };
+
+    // 2. Actualizar cada personaje
+    const updates = currentChars.map(async (char) => {
+      let currentTags = Array.isArray(char.custom_tag_ids) ? [...char.custom_tag_ids] : [];
+      
+      // Remover tags
+      if (removeTagIds.length > 0) {
+        currentTags = currentTags.filter((t) => !removeTagIds.includes(t));
+      }
+      
+      // Agregar tags (sin duplicados)
+      if (addTagIds.length > 0) {
+        addTagIds.forEach((t) => {
+          if (!currentTags.includes(t)) {
+            currentTags.push(t);
+          }
+        });
+      }
+
+      return supabase
+        .from('characters')
+        .update({ custom_tag_ids: currentTags, updated_at: new Date().toISOString() })
+        .eq('id', char.id)
+        .select()
+        .single();
+    });
+
+    const results = await Promise.all(updates);
+    const hasError = results.some((r) => r.error);
+    if (hasError) {
+      const err = results.find((r) => r.error)?.error;
+      return { data: null, error: err };
+    }
+
+    return { data: results.map((r) => r.data), error: null };
+  },
+
   clone: async (originalId, options) => {
     // 1. Obtener personaje original
     const { data: original, error: fetchError } = await supabase

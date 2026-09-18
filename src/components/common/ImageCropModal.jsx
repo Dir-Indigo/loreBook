@@ -291,8 +291,8 @@ export default function ImageCropModal({
           icon={<AutoFixHighIcon sx={{ fontSize: '15px !important' }} />}
           label={
             isPanoramic
-              ? 'Auto-optimización WebP: ~50-80 KB (Panorámica HD ultrarrápida)'
-              : 'Auto-optimización WebP: ~25-40 KB (Carga ultrarrápida)'
+              ? '~50-80 KB'
+              : '~25-40 KB'
           }
           size="small"
           color="success"

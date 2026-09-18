@@ -1,4 +1,7 @@
 import { characterController } from '../controllers/characterController';
+import { characterFolderController } from '../controllers/characterFolderController';
+import { characterTagController } from '../controllers/characterTagController';
+import { characterArchetypeController } from '../controllers/characterArchetypeController';
 import { storyController } from '../controllers/storyController';
 import { boardController } from '../controllers/boardController';
 import { eventController } from '../controllers/eventController';
@@ -27,7 +30,7 @@ const bridge = async (action, endpoint, controllerMethod, setLoading, ...args) =
 };
 
 export const ApiService = {
-  // 3. Alias directos en la raíz para compatibilidad con AuthContext y StoryContext
+  // Alias directos en la raíz para compatibilidad con AuthContext y StoryContext
   getStories: (userId, setLoading) => bridge('GET_STORIES', 'public.stories', storyController.getAll, setLoading, userId),
 
   characters: {
@@ -35,9 +38,34 @@ export const ApiService = {
     create: (data, setLoading) => bridge('CREATE_CHAR', 'public.characters', characterController.create, setLoading, data),
     update: (id, data, setLoading) => bridge('UPDATE_CHAR', 'public.characters', characterController.update, setLoading, id, data),
     delete: (id, setLoading) => bridge('DELETE_CHAR', 'public.characters', characterController.delete, setLoading, id),
+    moveToFolder: (ids, folderId, setLoading) => bridge('MOVE_CHARS_FOLDER', 'public.characters', characterController.moveToFolder, setLoading, ids, folderId),
+    assignTagsBatch: (ids, options, setLoading) => bridge('ASSIGN_TAGS_BATCH', 'public.characters', characterController.assignTagsBatch, setLoading, ids, options),
     clone: (id, options, setLoading) => bridge('CLONE_CHAR', 'public.characters', characterController.clone, setLoading, id, options),
     copyAsLocal: (ids, targetStoryId, setLoading) => bridge('COPY_LOCAL_CHARS', 'public.characters', characterController.copyAsLocal, setLoading, ids, targetStoryId),
   },
+
+  characterFolders: {
+    getAll: (storyId, setLoading) => bridge('GET_CHAR_FOLDERS', 'public.character_folders', characterFolderController.getAll, setLoading, storyId),
+    create: (data, setLoading) => bridge('CREATE_CHAR_FOLDER', 'public.character_folders', characterFolderController.create, setLoading, data),
+    update: (id, data, setLoading) => bridge('UPDATE_CHAR_FOLDER', 'public.character_folders', characterFolderController.update, setLoading, id, data),
+    delete: (id, storyId, setLoading) => bridge('DELETE_CHAR_FOLDER', 'public.character_folders', characterFolderController.delete, setLoading, id, storyId),
+    ensureDefaultFolder: (storyId, setLoading) => bridge('ENSURE_DEFAULT_CHAR_FOLDER', 'public.character_folders', characterFolderController.ensureDefaultFolder, setLoading, storyId),
+  },
+
+  characterTags: {
+    getAll: (storyId, setLoading) => bridge('GET_CHAR_TAGS', 'public.character_tags', characterTagController.getAll, setLoading, storyId),
+    create: (data, setLoading) => bridge('CREATE_CHAR_TAG', 'public.character_tags', characterTagController.create, setLoading, data),
+    update: (id, data, setLoading) => bridge('UPDATE_CHAR_TAG', 'public.character_tags', characterTagController.update, setLoading, id, data),
+    delete: (id, setLoading) => bridge('DELETE_CHAR_TAG', 'public.character_tags', characterTagController.delete, setLoading, id),
+  },
+
+  characterArchetypes: {
+    getAll: (storyId, setLoading) => bridge('GET_CHAR_ARCHETYPES', 'public.character_archetypes', characterArchetypeController.getAll, setLoading, storyId),
+    create: (data, setLoading) => bridge('CREATE_CHAR_ARCHETYPE', 'public.character_archetypes', characterArchetypeController.create, setLoading, data),
+    update: (id, data, setLoading) => bridge('UPDATE_CHAR_ARCHETYPE', 'public.character_archetypes', characterArchetypeController.update, setLoading, id, data),
+    delete: (id, setLoading) => bridge('DELETE_CHAR_ARCHETYPE', 'public.character_archetypes', characterArchetypeController.delete, setLoading, id),
+  },
+
   stories: {
     getAll: (userId, setLoading) => bridge('GET_STORIES', 'public.stories', storyController.getAll, setLoading, userId),
     getById: (id, setLoading) => bridge('GET_STORY', 'public.stories', storyController.getById, setLoading, id),

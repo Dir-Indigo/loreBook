@@ -6,6 +6,9 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import BookmarkAddOutlinedIcon from '@mui/icons-material/BookmarkAddOutlined';
 import PublicOutlinedIcon from '@mui/icons-material/PublicOutlined';
 import CheckIcon from '@mui/icons-material/Check';
+import DriveFileMoveOutlinedIcon from '@mui/icons-material/DriveFileMoveOutlined';
+import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
+import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import {
   Card,
   Box,
@@ -19,28 +22,34 @@ import {
   MenuItem,
   ListItemIcon,
   ListItemText,
+  Tabs,
+  Tab,
 } from '@mui/material';
-import MoreVertIcon from '@mui/icons-material/MoreVert'; // Icono para el menú de opciones
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { CHARACTER_ARCHETYPES } from '../../constants/constants';
 import { ApiService } from '../../utils/ApiService';
 
 export default function CharacterCard({
   character,
+  allTags = [],
+  allFolders = [],
+  customArchetypes = [],
   onEdit,
   onDelete,
   onClone,
   onMakeLocalCopy,
   onRoleChange,
+  onMoveToFolder,
+  onAssignTags,
   selectable = false,
   selected = false,
   onSelect,
   viewMode = 'compact', // 'compact' | 'medium' | 'detailed'
   showBiography = true,
 }) {
-  // Estado para controlar la apertura y cierre del menú de opciones
   const [anchorEl, setAnchorEl] = useState(null);
-  // Estado para el menú rápido de tipo/arquetipo de personaje
   const [roleAnchorEl, setRoleAnchorEl] = useState(null);
+  const [archMenuTab, setArchMenuTab] = useState(0);
   const open = Boolean(anchorEl);
   const isRoleMenuOpen = Boolean(roleAnchorEl);
 
@@ -54,6 +63,8 @@ export default function CharacterCard({
 
   const handleRoleChipClick = (event) => {
     event.stopPropagation();
+    const isCustom = customArchetypes.some((a) => a.name === character.role_archetype);
+    setArchMenuTab(isCustom ? 1 : 0);
     setRoleAnchorEl(event.currentTarget);
   };
 
@@ -88,6 +99,13 @@ export default function CharacterCard({
   const isDetailed = viewMode === 'detailed';
 
   const avatarSize = isCompact ? 38 : isMedium ? 48 : 56;
+
+  // Custom tags associated with this character
+  const assignedTagIds = Array.isArray(character.custom_tag_ids) ? character.custom_tag_ids : [];
+  const characterTags = allTags.filter((t) => assignedTagIds.includes(t.id));
+
+  // Folder of character
+  const characterFolder = allFolders.find((f) => f.id === character.folder_id);
 
   return (
     <Card
@@ -150,7 +168,7 @@ export default function CharacterCard({
           anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           PaperProps={{
             elevation: 3,
-            sx: { borderRadius: 2, minWidth: 170 }
+            sx: { borderRadius: 2, minWidth: 190 }
           }}
         >
           {character.is_global && onMakeLocalCopy && (
@@ -165,6 +183,34 @@ export default function CharacterCard({
                 <BookmarkAddOutlinedIcon fontSize="small" color="primary" />
               </ListItemIcon>
               <ListItemText primary="Hacer copia local" secondary="Para esta historia" />
+            </MenuItem>
+          )}
+          {onMoveToFolder && (
+            <MenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMenuClose();
+                onMoveToFolder(character);
+              }}
+            >
+              <ListItemIcon>
+                <DriveFileMoveOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primary="Mover a carpeta..." />
+            </MenuItem>
+          )}
+          {onAssignTags && (
+            <MenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMenuClose();
+                onAssignTags(character);
+              }}
+            >
+              <ListItemIcon>
+                <LocalOfferOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primary="Asignar etiquetas..." />
             </MenuItem>
           )}
           {onClone && (
@@ -243,27 +289,41 @@ export default function CharacterCard({
           </Typography>
         
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.3, flexWrap: 'wrap' }}>
-            <Tooltip title="Clic para cambiar tipo de personaje">
-              <Chip
-                label={character.role_archetype || 'Sin rol'}
-                size="small"
-                onClick={handleRoleChipClick}
-                sx={{
-                  height: isCompact ? 18 : 20,
-                  fontSize: isCompact ? '0.62rem' : '0.68rem',
-                  fontWeight: 600,
-                  bgcolor: isRoleMenuOpen ? 'action.selected' : 'background.subtle',
-                  border: '1px solid',
-                  borderColor: isRoleMenuOpen ? 'primary.main' : 'divider',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  '&:hover': {
-                    bgcolor: 'action.hover',
-                    borderColor: 'primary.main',
-                  },
-                }}
-              />
-            </Tooltip>
+            {/* Chip de Rol / Arquetipo */}
+            {(() => {
+              const customArch = customArchetypes.find((a) => a.name === character.role_archetype);
+              const chipColor = customArch?.color;
+              return (
+                <Chip
+                  label={character.role_archetype || 'Sin rol'}
+                  size="small"
+                  onClick={handleRoleChipClick}
+                  sx={{
+                    height: isCompact ? 18 : 20,
+                    fontSize: isCompact ? '0.62rem' : '0.68rem',
+                    fontWeight: 600,
+                    bgcolor: isRoleMenuOpen
+                      ? 'action.selected'
+                      : chipColor
+                      ? alpha(chipColor, 0.15)
+                      : 'background.subtle',
+                    border: '1px solid',
+                    borderColor: isRoleMenuOpen
+                      ? 'primary.main'
+                      : chipColor
+                      ? alpha(chipColor, 0.5)
+                      : 'divider',
+                    color: chipColor || 'inherit',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    '&:hover': {
+                      bgcolor: chipColor ? alpha(chipColor, 0.25) : 'action.hover',
+                      borderColor: chipColor || 'primary.main',
+                    },
+                  }}
+                />
+              );
+            })()}
 
             {/* Menú Rápido de Selección de Tipo de Personaje */}
             <Menu
@@ -274,70 +334,156 @@ export default function CharacterCard({
               transformOrigin={{ horizontal: 'left', vertical: 'top' }}
               anchorOrigin={{ horizontal: 'left', vertical: 'bottom' }}
               PaperProps={{
-                elevation: 4,
+                elevation: 6,
                 sx: {
                   borderRadius: 2.5,
-                  minWidth: 170,
-                  py: 0.5,
+                  minWidth: 220,
+                  maxWidth: 260,
+                  maxHeight: 340,
+                  p: 0,
+                  overflow: 'hidden',
                   border: '1px solid',
                   borderColor: 'divider',
+                  display: 'flex',
+                  flexDirection: 'column',
                 },
               }}
             >
-              <Box sx={{ px: 1.5, py: 0.5 }}>
-                <Typography
-                  variant="caption"
+              {/* Tab Selector */}
+              <Box sx={{ p: 0.8, pb: 0.5, bgcolor: 'background.subtle', borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Tabs
+                  value={archMenuTab}
+                  onChange={(e, val) => setArchMenuTab(val)}
+                  variant="fullWidth"
                   sx={{
-                    fontWeight: 800,
-                    color: 'text.secondary',
-                    textTransform: 'uppercase',
-                    fontSize: '0.65rem',
-                    letterSpacing: '0.04em',
+                    minHeight: 28,
+                    bgcolor: 'action.hover',
+                    borderRadius: 1.5,
+                    p: 0.3,
+                    '& .MuiTabs-indicator': { display: 'none' },
+                    '& .MuiTab-root': {
+                      minHeight: 24,
+                      py: 0.3,
+                      px: 0.8,
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      textTransform: 'none',
+                      borderRadius: 1,
+                      color: 'text.secondary',
+                      '&.Mui-selected': {
+                        bgcolor: 'background.paper',
+                        color: 'primary.main',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                      },
+                    },
                   }}
                 >
-                  Tipo de Personaje
-                </Typography>
+                  <Tab label="Estándar" />
+                  <Tab label={`Propios (${customArchetypes.length})`} />
+                </Tabs>
               </Box>
-              <Divider sx={{ my: 0.3 }} />
-              {CHARACTER_ARCHETYPES.map((arch) => {
-                const isSelected = (character.role_archetype || 'Protagonista') === arch;
-                return (
-                  <MenuItem
-                    key={arch}
-                    selected={isSelected}
-                    onClick={(e) => handleSelectRole(arch, e)}
-                    sx={{
-                      py: 0.5,
-                      px: 1.5,
-                      fontSize: '0.8rem',
-                      fontWeight: isSelected ? 700 : 500,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      borderRadius: 1,
-                      mx: 0.5,
-                    }}
-                  >
-                    <ListItemText
-                      primary={arch}
-                      primaryTypographyProps={{
-                        fontSize: '0.8rem',
-                        fontWeight: isSelected ? 700 : 500,
-                        color: isSelected ? 'primary.main' : 'text.primary',
-                      }}
-                    />
-                    {isSelected && (
-                      <ListItemIcon sx={{ minWidth: 'auto', color: 'primary.main', ml: 1 }}>
-                        <CheckIcon sx={{ fontSize: 16 }} />
-                      </ListItemIcon>
-                    )}
-                  </MenuItem>
-                );
-              })}
+
+              <Box sx={{ overflowY: 'auto', py: 0.5 }}>
+                {archMenuTab === 0 && (
+                  CHARACTER_ARCHETYPES.map((arch) => {
+                    const isSelected = (character.role_archetype || 'Protagonista') === arch;
+                    return (
+                      <MenuItem
+                        key={arch}
+                        selected={isSelected}
+                        onClick={(e) => handleSelectRole(arch, e)}
+                        sx={{
+                          py: 0.5,
+                          px: 1.5,
+                          fontSize: '0.8rem',
+                          fontWeight: isSelected ? 700 : 500,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          borderRadius: 1,
+                          mx: 0.5,
+                        }}
+                      >
+                        <ListItemText
+                          primary={arch}
+                          primaryTypographyProps={{
+                            fontSize: '0.8rem',
+                            fontWeight: isSelected ? 700 : 500,
+                            color: isSelected ? 'primary.main' : 'text.primary',
+                          }}
+                        />
+                        {isSelected && (
+                          <ListItemIcon sx={{ minWidth: 'auto', color: 'primary.main', ml: 1 }}>
+                            <CheckIcon sx={{ fontSize: 16 }} />
+                          </ListItemIcon>
+                        )}
+                      </MenuItem>
+                    );
+                  })
+                )}
+
+                {archMenuTab === 1 && (
+                  customArchetypes.length > 0 ? (
+                    customArchetypes.map((arch) => {
+                      const isSelected = character.role_archetype === arch.name;
+                      return (
+                        <MenuItem
+                          key={arch.id || arch.name}
+                          selected={isSelected}
+                          onClick={(e) => handleSelectRole(arch.name, e)}
+                          sx={{
+                            py: 0.5,
+                            px: 1.5,
+                            fontSize: '0.8rem',
+                            fontWeight: isSelected ? 700 : 500,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            borderRadius: 1,
+                            mx: 0.5,
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, minWidth: 0 }}>
+                            <Box
+                              sx={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: '50%',
+                                bgcolor: arch.color || 'primary.main',
+                                flexShrink: 0,
+                              }}
+                            />
+                            <ListItemText
+                              primary={arch.name}
+                              primaryTypographyProps={{
+                                fontSize: '0.8rem',
+                                fontWeight: isSelected ? 700 : 500,
+                                color: isSelected ? 'primary.main' : 'text.primary',
+                                noWrap: true,
+                              }}
+                            />
+                          </Box>
+                          {isSelected && (
+                            <ListItemIcon sx={{ minWidth: 'auto', color: 'primary.main', ml: 1 }}>
+                              <CheckIcon sx={{ fontSize: 16 }} />
+                            </ListItemIcon>
+                          )}
+                        </MenuItem>
+                      );
+                    })
+                  ) : (
+                    <Box sx={{ p: 2, textAlign: 'center' }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                        No hay arquetipos propios aún.
+                      </Typography>
+                    </Box>
+                  )
+                )}
+              </Box>
             </Menu>
 
             {character.is_global && (
-              <Tooltip title="Personaje Global (Compartido)">
+              <Tooltip title="Personaje Global">
                 <Chip
                   icon={<PublicOutlinedIcon sx={{ fontSize: '12px !important' }} />}
                   size="small"
@@ -347,9 +493,59 @@ export default function CharacterCard({
                 />
               </Tooltip>
             )}
+
+            {/* Folder badge if character is in a custom folder */}
+            {characterFolder && characterFolder.name?.toLowerCase() !== 'principal' && (
+              <Tooltip title={`Carpeta: ${characterFolder.name}`}>
+                <Chip
+                  icon={<FolderOutlinedIcon sx={{ fontSize: '12px !important', color: characterFolder.color || 'primary.main' }} />}
+                  label={characterFolder.name}
+                  size="small"
+                  variant="outlined"
+                  sx={{
+                    height: isCompact ? 18 : 20,
+                    fontSize: '0.6rem',
+                    fontWeight: 600,
+                    borderColor: alpha(characterFolder.color || '#8c6d53', 0.4),
+                    bgcolor: alpha(characterFolder.color || '#8c6d53', 0.08),
+                    color: 'text.secondary',
+                    maxWidth: 110,
+                    '& .MuiChip-label': { px: 0.5 },
+                  }}
+                />
+              </Tooltip>
+            )}
           </Box>
         </Box>
       </Box>
+
+      {/* Etiquetas Personalizadas (Custom Tags) */}
+      {characterTags.length > 0 && (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.4, mt: 0.8, mb: isCompact ? 0 : 0.4 }}>
+          {characterTags.slice(0, isCompact ? 3 : 5).map((tag) => (
+            <Chip
+              key={tag.id}
+              label={tag.name}
+              size="small"
+              sx={{
+                height: 17,
+                fontSize: '0.6rem',
+                fontWeight: 700,
+                color: '#fff',
+                bgcolor: tag.color || '#8c6d53',
+                borderRadius: 1,
+                px: 0.2,
+                '& .MuiChip-label': { px: 0.6 },
+              }}
+            />
+          ))}
+          {characterTags.length > (isCompact ? 3 : 5) && (
+            <Typography variant="caption" sx={{ fontSize: '0.62rem', color: 'text.secondary', fontWeight: 700, alignSelf: 'center' }}>
+              +{characterTags.length - (isCompact ? 3 : 5)}
+            </Typography>
+          )}
+        </Box>
+      )}
 
       {/* Biografía en modo medio o detallado */}
       {showBiography && !isCompact && character.biography && (
