@@ -8,7 +8,7 @@ import PublicOutlinedIcon from '@mui/icons-material/PublicOutlined';
 import CheckIcon from '@mui/icons-material/Check';
 import DriveFileMoveOutlinedIcon from '@mui/icons-material/DriveFileMoveOutlined';
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
-import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
+
 import {
   Card,
   Box,
@@ -103,9 +103,6 @@ export default function CharacterCard({
   // Custom tags associated with this character
   const assignedTagIds = Array.isArray(character.custom_tag_ids) ? character.custom_tag_ids : [];
   const characterTags = allTags.filter((t) => assignedTagIds.includes(t.id));
-
-  // Folder of character
-  const characterFolder = allFolders.find((f) => f.id === character.folder_id);
 
   return (
     <Card
@@ -490,28 +487,6 @@ export default function CharacterCard({
                   color="secondary"
                   variant="outlined"
                   sx={{ height: isCompact ? 18 : 20, fontSize: '0.6rem', px: 0.2 }}
-                />
-              </Tooltip>
-            )}
-
-            {/* Folder badge if character is in a custom folder */}
-            {characterFolder && characterFolder.name?.toLowerCase() !== 'principal' && (
-              <Tooltip title={`Carpeta: ${characterFolder.name}`}>
-                <Chip
-                  icon={<FolderOutlinedIcon sx={{ fontSize: '12px !important', color: characterFolder.color || 'primary.main' }} />}
-                  label={characterFolder.name}
-                  size="small"
-                  variant="outlined"
-                  sx={{
-                    height: isCompact ? 18 : 20,
-                    fontSize: '0.6rem',
-                    fontWeight: 600,
-                    borderColor: alpha(characterFolder.color || '#8c6d53', 0.4),
-                    bgcolor: alpha(characterFolder.color || '#8c6d53', 0.08),
-                    color: 'text.secondary',
-                    maxWidth: 110,
-                    '& .MuiChip-label': { px: 0.5 },
-                  }}
                 />
               </Tooltip>
             )}
