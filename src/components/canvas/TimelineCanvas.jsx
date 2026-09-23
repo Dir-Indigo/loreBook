@@ -54,6 +54,7 @@ export default function TimelineCanvas({
   onInlineUpdateEvent,
   onUpdateEventCharacters,
   onQuickCreateEventAtPosition,
+  onQuickCreateConnectedEvent,
   hasStory = true,
   onOpenStorySelector,
 }) {
@@ -110,6 +111,7 @@ export default function TimelineCanvas({
           onDuplicate: () => onDuplicateEvent(ev),
           onInlineUpdate: (eventId, patchData) => onInlineUpdateEvent && onInlineUpdateEvent(eventId, patchData),
           onUpdateCharacters: (eventId, charIds) => onUpdateEventCharacters && onUpdateEventCharacters(eventId, charIds),
+          onQuickCreateConnected: (sourcePosition) => onQuickCreateConnectedEvent && onQuickCreateConnectedEvent({ sourceEventId: ev.id, sourcePosition }),
         },
       };
     });
@@ -125,6 +127,7 @@ export default function TimelineCanvas({
     onDuplicateEvent,
     onInlineUpdateEvent,
     onUpdateEventCharacters,
+    onQuickCreateConnectedEvent,
   ]);
 
   // Generate DAG cable vector edges from eventConnections
@@ -159,12 +162,19 @@ export default function TimelineCanvas({
   // Sync state when props change
   useEffect(() => {
     if (!isDraggingRef.current) {
-      setNodes(initialNodes.map((node) => ({
-        ...node,
-        selected: selectedNodeIdsRef.current.includes(node.id),
-      })));
+      setNodes((currentNodes) => {
+        return initialNodes.map((newNode) => {
+          const currentNode = currentNodes.find((n) => n.id === newNode.id);
+          return {
+            ...newNode,
+            // Preserve current position if available to prevent snap-back during state updates
+            position: currentNode?.position || newNode.position,
+            selected: selectedNodeIdsRef.current.includes(newNode.id),
+          };
+        });
+      });
     }
-  }, [initialNodes, setNodes]);
+  }, [initialNodes]);
 
   useEffect(() => {
     setEdges(initialEdges);
@@ -269,6 +279,18 @@ export default function TimelineCanvas({
   }, [commitSelection]);
 
   const handlePaneDoubleClick = useCallback((event) => {
+    // onPaneDoubleClick no existe en @xyflow/react v12 — se usa onDoubleClick
+    // guardado en el propio componente ReactFlow (ver abajo)
+  }, []);
+
+  const handleCanvasDoubleClick = useCallback((event) => {
+    // Solo actuar si el click fue directamente sobre el pane (fondo vacío)
+    const target = event.target;
+    const isPaneClick =
+      target?.classList?.contains('react-flow__pane') ||
+      target?.classList?.contains('react-flow__background');
+    if (!isPaneClick) return;
+
     if (onQuickCreateEventAtPosition && reactFlowInstanceRef.current) {
       const position = reactFlowInstanceRef.current.screenToFlowPosition({
         x: event.clientX,
@@ -461,6 +483,28 @@ export default function TimelineCanvas({
             fontSize: '0.85rem',
           }}
         />
+
+        {hasStory && (
+          <Tooltip title="Haz doble click en cualquier lugar vacío del canvas para crear un evento nuevo al instante">
+            <Chip
+              label="2× click → Nuevo evento"
+              size="small"
+              variant="outlined"
+              icon={<AddIcon sx={{ fontSize: '13px !important' }} />}
+              sx={{
+                bgcolor: 'background.paper',
+                borderColor: 'primary.main',
+                color: 'primary.main',
+                fontWeight: 700,
+                fontSize: '0.72rem',
+                cursor: 'default',
+                opacity: 0.75,
+                '&:hover': { opacity: 1 },
+                transition: 'opacity 0.15s ease',
+              }}
+            />
+          </Tooltip>
+        )}
       </Box>
 
 
@@ -550,7 +594,7 @@ export default function TimelineCanvas({
         onNodeDragStop={handleNodeDragStop}
         onNodeClick={handleNodeClick}
         onPaneClick={handlePaneClick}
-        onPaneDoubleClick={handlePaneDoubleClick}
+        onDoubleClick={handleCanvasDoubleClick}
         onInit={(instance) => {
           reactFlowInstanceRef.current = instance;
         }}
@@ -561,6 +605,7 @@ export default function TimelineCanvas({
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.2}
         maxZoom={1.8}
+        zoomOnDoubleClick={false}
         proOptions={{ hideAttribution: true }}
         connectionLineStyle={{
           stroke: currentThemeConfig.palette.primary.main,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, memo } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useNodeConnections } from '@xyflow/react';
 import { alpha } from '@mui/material/styles';
 import {
   Box,
@@ -58,12 +58,15 @@ function EventNodeComponent({ data, selected }) {
     onDuplicate,
     onInlineUpdate,
     onUpdateCharacters,
+    onQuickCreateConnected,
   } = data;
 
   const [expanded, setExpanded] = useState(false);
   // cardMode: null = auto (from zoom/switch), 'compact' = forced summary, 'expanded' = forced detailed
   const [cardMode, setCardMode] = useState(null);
   const [anchorEl, setAnchorEl] = useState(null);
+  // summaryListMode: null = plain text, 'bullets' = • points, 'dashes' = - list
+  const [summaryListMode, setSummaryListMode] = useState(null);
   const isMenuOpen = Boolean(anchorEl);
 
   // Inline title & summary local state
@@ -88,6 +91,12 @@ function EventNodeComponent({ data, selected }) {
   // Show compact if forced compact, OR (auto and global isCompact is true, provided not forced expanded)
   const showCompact = cardMode === 'compact' ? true : cardMode === 'expanded' ? false : isCompact;
   const isVisuallySelected = selected;
+
+  // Detect existing connections per side (to show + button only when unconnected)
+  const targetConnections = useNodeConnections({ type: 'target' });
+  const sourceConnections = useNodeConnections({ type: 'source' });
+  const hasTargetConnection = targetConnections.length > 0;
+  const hasSourceConnection = sourceConnections.length > 0;
 
   // Filter characters for inline picker
   const filteredAllCharacters = (allCharacters || []).filter((c) => {
@@ -181,7 +190,7 @@ function EventNodeComponent({ data, selected }) {
           position: 'relative',
         }}
       >
-        {/* Connection handles */}
+        {/* Connection handles — original design, fully draggable */}
         <Handle
           type="target"
           position={Position.Left}
@@ -192,6 +201,7 @@ function EventNodeComponent({ data, selected }) {
             border: '2px solid #ffffff',
             boxShadow: '0 0 6px rgba(0,0,0,0.3)',
             cursor: 'crosshair',
+            zIndex: 5,
           }}
         />
         <Handle
@@ -204,8 +214,55 @@ function EventNodeComponent({ data, selected }) {
             border: '2px solid #ffffff',
             boxShadow: '0 0 6px rgba(0,0,0,0.3)',
             cursor: 'crosshair',
+            zIndex: 5,
           }}
         />
+
+        {/* + quick-create: solo visible cuando el lado NO tiene conexión */}
+        {!hasTargetConnection && (
+          <Tooltip title="Crear evento conectado aquí" placement="left">
+            <Box
+              className="nodrag nopan"
+              onClick={(e) => { e.stopPropagation(); onQuickCreateConnected && onQuickCreateConnected('left'); }}
+              sx={{
+                position: 'absolute', left: -32, top: '50%', transform: 'translateY(-50%)',
+                width: 16, height: 16, borderRadius: '50%',
+                bgcolor: (theme) => alpha(colorTag || theme.palette.primary.main, 0.85),
+                border: '1.5px solid #fff',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', zIndex: 4,
+                transition: 'transform 120ms ease, opacity 120ms ease',
+                opacity: 0.7,
+                '&:hover': { transform: 'translateY(-50%) scale(1.4)', opacity: 1 },
+              }}
+            >
+              <AddIcon sx={{ fontSize: 10, color: '#fff', pointerEvents: 'none' }} />
+            </Box>
+          </Tooltip>
+        )}
+        {!hasSourceConnection && (
+          <Tooltip title="Crear evento conectado aquí" placement="right">
+            <Box
+              className="nodrag nopan"
+              onClick={(e) => { e.stopPropagation(); onQuickCreateConnected && onQuickCreateConnected('right'); }}
+              sx={{
+                position: 'absolute', right: -32, top: '50%', transform: 'translateY(-50%)',
+                width: 16, height: 16, borderRadius: '50%',
+                bgcolor: (theme) => alpha(colorTag || theme.palette.primary.main, 0.85),
+                border: '1.5px solid #fff',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', zIndex: 4,
+                transition: 'transform 120ms ease, opacity 120ms ease',
+                opacity: 0.7,
+                '&:hover': { transform: 'translateY(-50%) scale(1.4)', opacity: 1 },
+              }}
+            >
+              <AddIcon sx={{ fontSize: 10, color: '#fff', pointerEvents: 'none' }} />
+            </Box>
+          </Tooltip>
+        )}
 
         {/* Top Row: Order Badge + Editable Title + Card Expand Button */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, width: '100%' }}>
@@ -510,11 +567,11 @@ function EventNodeComponent({ data, selected }) {
         animation: isVisuallySelected ? 'selected-event-bounce 360ms ease-out' : 'none',
         transition: 'all 140ms ease',
         userSelect: 'none',
-        overflow: 'hidden',
+        overflow: 'visible',
         position: 'relative',
       }}
     >
-      {/* Handles */}
+      {/* Handles — original design, fully draggable — FULL VIEW */}
       <Handle
         type="target"
         position={Position.Left}
@@ -525,6 +582,7 @@ function EventNodeComponent({ data, selected }) {
           border: '2px solid #ffffff',
           boxShadow: '0 0 6px rgba(0,0,0,0.3)',
           cursor: 'crosshair',
+          zIndex: 5,
         }}
       />
       <Handle
@@ -537,8 +595,55 @@ function EventNodeComponent({ data, selected }) {
           border: '2px solid #ffffff',
           boxShadow: '0 0 6px rgba(0,0,0,0.3)',
           cursor: 'crosshair',
+          zIndex: 5,
         }}
       />
+
+      {/* + quick-create: solo visible cuando el lado NO tiene conexión */}
+      {!hasTargetConnection && (
+        <Tooltip title="Crear evento conectado a la izquierda" placement="left">
+          <Box
+            className="nodrag nopan"
+            onClick={(e) => { e.stopPropagation(); onQuickCreateConnected && onQuickCreateConnected('left'); }}
+            sx={{
+              position: 'absolute', left: -32, top: '50%', transform: 'translateY(-50%)',
+              width: 18, height: 18, borderRadius: '50%',
+              bgcolor: (theme) => alpha(colorTag || theme.palette.primary.main, 0.85),
+              border: '1.5px solid #fff',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.22)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', zIndex: 4,
+              opacity: 0.7,
+              transition: 'transform 120ms ease, opacity 120ms ease',
+              '&:hover': { transform: 'translateY(-50%) scale(1.4)', opacity: 1 },
+            }}
+          >
+            <AddIcon sx={{ fontSize: 11, color: '#fff', pointerEvents: 'none' }} />
+          </Box>
+        </Tooltip>
+      )}
+      {!hasSourceConnection && (
+        <Tooltip title="Crear evento conectado a la derecha" placement="right">
+          <Box
+            className="nodrag nopan"
+            onClick={(e) => { e.stopPropagation(); onQuickCreateConnected && onQuickCreateConnected('right'); }}
+            sx={{
+              position: 'absolute', right: -32, top: '50%', transform: 'translateY(-50%)',
+              width: 18, height: 18, borderRadius: '50%',
+              bgcolor: (theme) => alpha(colorTag || theme.palette.primary.main, 0.85),
+              border: '1.5px solid #fff',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.22)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', zIndex: 4,
+              opacity: 0.7,
+              transition: 'transform 120ms ease, opacity 120ms ease',
+              '&:hover': { transform: 'translateY(-50%) scale(1.4)', opacity: 1 },
+            }}
+          >
+            <AddIcon sx={{ fontSize: 11, color: '#fff', pointerEvents: 'none' }} />
+          </Box>
+        </Tooltip>
+      )}
 
       {/* Node Header: order chip + inline editable title + Collapse Button */}
       <Box sx={{ p: 1.5, pb: 0.8, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 0.8 }}>
@@ -685,42 +790,68 @@ function EventNodeComponent({ data, selected }) {
         )}
       </Box>
 
-      {/* Inline Editable Description / Summary */}
-      <Box sx={{ px: 1.5, pb: 1 }}>
+      {/* Inline Editable Description / Summary — sección principal destacada */}
+      <Box
+        sx={{
+          mx: 1.5,
+          mb: 1,
+          borderRadius: 2,
+          border: '1.5px solid',
+          borderColor: (theme) => alpha(colorTag || theme.palette.primary.main, 0.30),
+          bgcolor: (theme) => alpha(colorTag || theme.palette.primary.main, 0.05),
+          p: 1,
+          transition: 'border-color 0.15s ease, background-color 0.15s ease',
+          '&:focus-within': {
+            borderColor: colorTag || 'primary.main',
+            bgcolor: (theme) => alpha(colorTag || theme.palette.primary.main, 0.09),
+            boxShadow: (theme) => `0 0 0 2px ${alpha(colorTag || theme.palette.primary.main, 0.15)}`,
+          },
+        }}
+      >
         <InputBase
           multiline
-          minRows={expanded ? 4 : 2}
-          maxRows={expanded ? 10 : 3}
+          minRows={expanded ? 5 : 3}
           value={localSummary}
-          onChange={(e) => setLocalSummary(e.target.value)}
+          onChange={(e) => {
+            let val = e.target.value;
+            // Si está en modo lista, al presionar Enter agrega el prefijo automáticamente
+            setLocalSummary(val);
+          }}
           onFocus={(e) => e.stopPropagation()}
           onBlur={handleCommitSummary}
-          onKeyDown={(e) => e.stopPropagation()}
-          placeholder="Escribe la descripción de este suceso..."
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            // Auto-prefijo en nueva línea según modo
+            if (e.key === 'Enter' && summaryListMode) {
+              e.preventDefault();
+              const prefix = summaryListMode === 'bullets' ? '• ' : '- ';
+              const textarea = e.target;
+              const pos = textarea.selectionStart;
+              const before = localSummary.substring(0, pos);
+              const after = localSummary.substring(pos);
+              const updated = before + '\n' + prefix + after;
+              setLocalSummary(updated);
+              // Mueve el cursor después del prefijo
+              setTimeout(() => {
+                textarea.selectionStart = pos + 1 + prefix.length;
+                textarea.selectionEnd = pos + 1 + prefix.length;
+              }, 0);
+            }
+          }}
+          placeholder={summaryListMode === 'bullets' ? '• Escribe el suceso del evento...' : summaryListMode === 'dashes' ? '- Escribe el suceso del evento...' : 'Describe el suceso de este evento...'}
           className="nodrag nopan nowheel"
           sx={{
             width: '100%',
-            fontSize: '0.8rem',
-            lineHeight: 1.35,
-            color: 'text.secondary',
-            px: 0.6,
-            py: 0.4,
-            borderRadius: 1.5,
-            border: '1px solid transparent',
-            transition: 'all 0.15s ease',
-            '&:hover': {
-              bgcolor: 'action.hover',
-              borderColor: 'divider',
-            },
-            '&.Mui-focused': {
-              bgcolor: 'background.paper',
-              borderColor: 'primary.main',
-              color: 'text.primary',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-            },
+            fontSize: '0.92rem',
+            lineHeight: 1.6,
+            fontWeight: 500,
+            color: 'text.primary',
+            px: 0.4,
+            py: 0,
             '& textarea': {
               p: 0,
               cursor: 'text',
+              resize: 'none',
             },
           }}
         />
@@ -766,6 +897,53 @@ function EventNodeComponent({ data, selected }) {
               sx={{ p: 0.5, color: expanded ? 'primary.main' : 'text.secondary', transition: 'color 120ms ease, background-color 120ms ease, transform 120ms ease' }}
             >
               {expanded ? <ViewAgendaOutlinedIcon fontSize="small" /> : <ViewHeadlineIcon fontSize="small" />}
+            </IconButton>
+          </Tooltip>
+
+          {/* List mode toggles for summary */}
+          <Tooltip title={summaryListMode === 'bullets' ? 'Desactivar lista de puntitos' : 'Lista con puntitos (•)'}>
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSummaryListMode(summaryListMode === 'bullets' ? null : 'bullets');
+              }}
+              sx={{
+                p: 0.5,
+                color: summaryListMode === 'bullets' ? 'primary.main' : 'text.disabled',
+                bgcolor: summaryListMode === 'bullets' ? (theme) => alpha(theme.palette.primary.main, 0.12) : 'transparent',
+                
+                fontSize: '0.75rem',
+                fontWeight: 900,
+                width: 24,
+                height: 24,
+                transition: 'all 120ms ease',
+                '&:hover': { color: 'primary.main', bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1) },
+              }}
+            >
+              <Typography sx={{ fontSize: '0.82rem', lineHeight: 1, fontWeight: 900, userSelect: 'none' }}>•≡</Typography>
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title={summaryListMode === 'dashes' ? 'Desactivar lista de guiones' : 'Lista con guiones (-)'}>
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSummaryListMode(summaryListMode === 'dashes' ? null : 'dashes');
+              }}
+              sx={{
+                p: 0.5,
+                color: summaryListMode === 'dashes' ? 'secondary.main' : 'text.disabled',
+                bgcolor: summaryListMode === 'dashes' ? (theme) => alpha(theme.palette.secondary.main, 0.12) : 'transparent',
+                borderRadius: 1,
+                width: 24,
+                height: 24,
+                transition: 'all 120ms ease',
+                '&:hover': { color: 'secondary.main', bgcolor: (theme) => alpha(theme.palette.secondary.main, 0.1) },
+              }}
+            >
+              <Typography sx={{ fontSize: '0.82rem', lineHeight: 1, fontWeight: 900, userSelect: 'none' }}>-≡</Typography>
             </IconButton>
           </Tooltip>
 

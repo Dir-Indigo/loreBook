@@ -36,6 +36,7 @@ export default function DashboardPage({ onOpenStorySelector }) {
     allEvents,
     setAllEvents,
     eventConnections,
+    setEventConnections,
     boards,
     activeBoardId,
     setActiveBoardId,
@@ -324,7 +325,25 @@ export default function DashboardPage({ onOpenStorySelector }) {
       ? Math.max(...events.map((e) => Number(e.order_index) || 0)) + 1
       : 1;
 
-    await saveEvent({
+    // Creación optimista: mostrar el nodo inmediatamente sin esperar al server
+    const tempId = `temp-${Date.now()}`;
+    const optimisticEvent = {
+      id: tempId,
+      title: 'Nuevo Evento',
+      summary: '',
+      pos_x: x,
+      pos_y: y,
+      order_index: nextOrderIndex,
+      color_tag: '#8c6d53',
+      importance_level: 'medium',
+      event_characters: [],
+      event_versions: [],
+      story_id: activeStoryId,
+    };
+    setEvents((prev) => [...prev, optimisticEvent]);
+
+    // Guardar en server en segundo plano
+    const result = await saveEvent({
       storyId: activeStoryId,
       eventData: {
         title: 'Nuevo Evento',
@@ -332,10 +351,94 @@ export default function DashboardPage({ onOpenStorySelector }) {
         pos_x: x,
         pos_y: y,
         order_index: nextOrderIndex,
+        color_tag: '#8c6d53',
       },
       characterIds: [],
       setLoading: null,
     });
+
+    // Reemplazar el nodo temporal con el real
+    if (result?.data?.id) {
+      setEvents((prev) => prev.map((ev) => ev.id === tempId ? { ...optimisticEvent, ...result.data, id: result.data.id } : ev));
+    } else {
+      // Revertir si falló
+      setEvents((prev) => prev.filter((ev) => ev.id !== tempId));
+    }
+
+    return result;
+  };
+
+  const handleQuickCreateConnectedEvent = async ({ sourceEventId, sourcePosition }) => {
+    if (!activeStoryId) return;
+    const sourceEvent = events.find((ev) => ev.id === sourceEventId);
+    if (!sourceEvent) return;
+
+    const offsetX = sourcePosition === 'right' ? 380 : -380;
+    const x = (Number(sourceEvent.pos_x) || 0) + offsetX;
+    const y = Number(sourceEvent.pos_y) || 0;
+    const nextOrderIndex = events.length > 0
+      ? Math.max(...events.map((e) => Number(e.order_index) || 0)) + 1
+      : 1;
+
+    // Creación optimista
+    const tempId = `temp-${Date.now()}`;
+    const optimisticEvent = {
+      id: tempId,
+      title: 'Nuevo Evento',
+      summary: '',
+      pos_x: x,
+      pos_y: y,
+      order_index: nextOrderIndex,
+      color_tag: '#8c6d53',
+      importance_level: 'medium',
+      event_characters: [],
+      event_versions: [],
+      story_id: activeStoryId,
+    };
+    setEvents((prev) => [...prev, optimisticEvent]);
+
+    // Optimistic Connection
+    const tempConnId = `temp-conn-${Date.now()}`;
+    const sourceId = sourcePosition === 'right' ? sourceEventId : tempId;
+    const targetId = sourcePosition === 'right' ? tempId : sourceEventId;
+    const optimisticConnection = {
+      id: tempConnId,
+      story_id: activeStoryId,
+      source_event_id: sourceId,
+      target_event_id: targetId,
+    };
+    setEventConnections((current) => [...current, optimisticConnection]);
+
+    // Guardar evento en server
+    const result = await saveEvent({
+      storyId: activeStoryId,
+      eventData: {
+        title: 'Nuevo Evento',
+        summary: '',
+        pos_x: x,
+        pos_y: y,
+        order_index: nextOrderIndex,
+        color_tag: '#8c6d53',
+      },
+      characterIds: [],
+      setLoading: null,
+    });
+
+    if (result?.data?.id) {
+      const newEventId = result.data.id;
+      setEvents((prev) => prev.map((ev) => ev.id === tempId ? { ...optimisticEvent, ...result.data, id: newEventId } : ev));
+      
+      // Actualizar conexión
+      setEventConnections((current) => current.map((conn) => 
+        conn.id === tempConnId ? { ...conn, source_event_id: sourcePosition === 'right' ? sourceEventId : newEventId, target_event_id: sourcePosition === 'right' ? newEventId : sourceEventId } : conn
+      ));
+      
+      // Crear la conexión real
+      handleCreateConnection(sourceId, targetId);
+    } else {
+      setEvents((prev) => prev.filter((ev) => ev.id !== tempId));
+      setEventConnections((current) => current.filter((conn) => conn.id !== tempConnId));
+    }
   };
 
   const [debouncedSave] = useState(() => {
@@ -476,6 +579,7 @@ export default function DashboardPage({ onOpenStorySelector }) {
               onInlineUpdateEvent={handleInlineUpdateEvent}
               onUpdateEventCharacters={handleUpdateEventCharacters}
               onQuickCreateEventAtPosition={handleQuickCreateEventAtPosition}
+              onQuickCreateConnectedEvent={handleQuickCreateConnectedEvent}
             />
 
           {/* Speed Dial Actions */}
