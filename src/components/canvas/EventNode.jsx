@@ -795,7 +795,7 @@ function EventNodeComponent({ data, selected }) {
         sx={{
           mx: 1.5,
           mb: 1,
-          borderRadius: 2,
+          borderRadius: 1,
           border: '1.5px solid',
           borderColor: (theme) => alpha(colorTag || theme.palette.primary.main, 0.30),
           bgcolor: (theme) => alpha(colorTag || theme.palette.primary.main, 0.05),
