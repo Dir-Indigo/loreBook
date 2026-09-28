@@ -23,6 +23,7 @@ export default function CustomModal({
   icon: TitleIcon,
   children,
   actions,
+  headerActions,
   maxWidth = 'sm',
   fullWidth = true,
 }) {
@@ -68,21 +69,25 @@ export default function CustomModal({
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 }, minWidth: 0, flexGrow: 1 }}>
             {TitleIcon && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: { xs: 32, sm: 38 },
-                  height: { xs: 32, sm: 38 },
-                  borderRadius: 2,
-                  bgcolor: 'primary.main',
-                  color: 'primary.contrastText',
-                  flexShrink: 0,
-                }}
-              >
-                <TitleIcon sx={{ fontSize: { xs: 18, sm: 20 } }} />
-              </Box>
+              React.isValidElement(TitleIcon) ? (
+                TitleIcon
+              ) : (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: { xs: 32, sm: 38 },
+                    height: { xs: 32, sm: 38 },
+                    borderRadius: 2,
+                    bgcolor: 'primary.main',
+                    color: 'primary.contrastText',
+                    flexShrink: 0,
+                  }}
+                >
+                  <TitleIcon sx={{ fontSize: { xs: 18, sm: 20 } }} />
+                </Box>
+              )
             )}
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="h6" component="div" sx={{ fontWeight: 700, fontSize: { xs: '1rem', sm: '1.15rem' }, lineHeight: 1.2 }}>
@@ -95,22 +100,26 @@ export default function CustomModal({
               )}
             </Box>
           </Box>
-          <IconButton
-            aria-label="close"
-            onClick={onClose}
-            size="small"
-            sx={{
-              color: 'text.secondary',
-              flexShrink: 0,
-              p: 0.5,
-              '&:hover': {
-                color: 'text.primary',
-                bgcolor: 'action.hover',
-              },
-            }}
-          >
-            <CloseIcon fontSize="small" />
-          </IconButton>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexShrink: 0 }}>
+            {headerActions}
+            <IconButton
+              aria-label="close"
+              onClick={onClose}
+              size="small"
+              sx={{
+                display: { xs: 'inline-flex', sm: 'none' },
+                color: 'text.secondary',
+                flexShrink: 0,
+                p: 0.5,
+                '&:hover': {
+                  color: 'text.primary',
+                  bgcolor: 'action.hover',
+                },
+              }}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Box>
         </DialogTitle>
       )}
 

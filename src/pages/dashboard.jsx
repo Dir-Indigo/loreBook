@@ -508,6 +508,19 @@ export default function DashboardPage({ onOpenStorySelector }) {
     openCreateEvent();
   };
 
+  // Navigate from EventModal to a connected event (switches immediately for instant smooth transition)
+  const handleNavigateToConnectedEvent = useCallback(async (targetEvent) => {
+    setSelectedEvent(targetEvent);
+    try {
+      const { data: completeEvent } = await getEventDetails({ eventId: targetEvent.id });
+      if (completeEvent) {
+        setSelectedEvent((curr) => (curr?.id === targetEvent.id ? completeEvent : curr));
+      }
+    } catch {
+      // Keep targetEvent if background fetch fails
+    }
+  }, [getEventDetails]);
+
   const openCreateEventModal = useCallback(async (boardId = activeBoardId) => {
     let resolvedBoardId = boardId || activeBoardId;
     if (!resolvedBoardId) {
@@ -669,8 +682,11 @@ export default function DashboardPage({ onOpenStorySelector }) {
         onClose={() => closeCreateEvent()}
         event={selectedEvent}
         characters={characters}
+        allEvents={allEvents}
+        eventConnections={eventConnections}
         nextOrderIndex={events.length > 0 ? Math.max(...events.map((e) => e.order_index || 0)) + 1 : 1}
         onSave={handleSaveEvent}
+        onNavigateToEvent={handleNavigateToConnectedEvent}
       />
 
       <EventVersionsModal
