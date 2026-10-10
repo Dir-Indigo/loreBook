@@ -50,6 +50,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import SortByAlphaIcon from '@mui/icons-material/SortByAlpha';
+import GridViewIcon from '@mui/icons-material/GridView';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import ViewComfyIcon from '@mui/icons-material/ViewComfy';
 import ViewAgendaIcon from '@mui/icons-material/ViewAgenda';
@@ -599,6 +600,13 @@ export default function CharacterManagementPage() {
       if (sortBy === 'name-asc') return (a.name || '').localeCompare(b.name || '');
       if (sortBy === 'name-desc') return (b.name || '').localeCompare(a.name || '');
       if (sortBy === 'recent') return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      if (sortBy === 'has-image') {
+        const hasA = Boolean(a.avatar_url);
+        const hasB = Boolean(b.avatar_url);
+        if (hasB && !hasA) return 1;
+        if (hasA && !hasB) return -1;
+        return (a.name || '').localeCompare(b.name || '');
+      }
       if (sortBy === 'special') {
         if (attrB.is_special && !attrA.is_special) return 1;
         if (attrA.is_special && !attrB.is_special) return -1;
@@ -639,6 +647,7 @@ export default function CharacterManagementPage() {
     'name-asc': { field: (c) => c.role_archetype || 'Sin Rol', order: allArchetypeOrder, label: 'Rol / Arquetipo', color: 'primary' },
     'name-desc': { field: (c) => c.role_archetype || 'Sin Rol', order: allArchetypeOrder, label: 'Rol / Arquetipo', color: 'primary' },
     'recent': { field: (c) => c.role_archetype || 'Sin Rol', order: allArchetypeOrder, label: 'Rol / Arquetipo', color: 'primary' },
+    'has-image': { field: (c) => (c.avatar_url ? '🖼️ Con Imagen' : 'Sin Imagen'), order: ['🖼️ Con Imagen', 'Sin Imagen'], label: 'Tiene Imagen', color: 'info' },
     'special': { field: (c) => (c.attributes?.is_special ? '⭐ Especial' : 'Sin destacar'), order: ['⭐ Especial', 'Sin destacar'], label: 'Destacado', color: 'warning' },
     'vital': { field: (c) => c.attributes?.vital_status || 'Sin definir', order: CHARACTER_VITAL_STATUSES, label: 'Estado Vital', color: 'success' },
     'life-stage': { field: (c) => c.attributes?.life_stage || 'Sin definir', order: CHARACTER_LIFE_STAGES, label: 'Etapa de Vida', color: 'info' },
@@ -676,6 +685,12 @@ export default function CharacterManagementPage() {
   }
 
   const gridTemplateColumns = {
+    gallery: {
+      xs: 'repeat(auto-fill, minmax(105px, 1fr))',
+      sm: 'repeat(auto-fill, minmax(130px, 1fr))',
+      md: 'repeat(auto-fill, minmax(150px, 1fr))',
+      lg: 'repeat(auto-fill, minmax(165px, 1fr))',
+    },
     compact: {
       xs: 'repeat(auto-fill, minmax(150px, 1fr))',
       sm: 'repeat(auto-fill, minmax(180px, 1fr))',
@@ -694,7 +709,10 @@ export default function CharacterManagementPage() {
       md: 'repeat(auto-fill, minmax(340px, 1fr))',
       lg: 'repeat(auto-fill, minmax(380px, 1fr))',
     },
-  }[viewMode];
+  }[viewMode] || {
+    xs: 'repeat(auto-fill, minmax(130px, 1fr))',
+    md: 'repeat(auto-fill, minmax(160px, 1fr))',
+  };
 
   return (
     <>
@@ -997,6 +1015,7 @@ export default function CharacterManagementPage() {
                     <MenuItem value="name-asc">Nombre A-Z</MenuItem>
                     <MenuItem value="name-desc">Nombre Z-A</MenuItem>
                     <MenuItem value="recent">Más recientes</MenuItem>
+                    <MenuItem value="has-image">Con imagen primero</MenuItem>
                     <MenuItem value="special">Especiales primero</MenuItem>
                     <MenuItem value="vital">Estado Vital</MenuItem>
                     <MenuItem value="life-stage">Etapa de Vida</MenuItem>
@@ -1031,6 +1050,15 @@ export default function CharacterManagementPage() {
 
                 {/* Densidad de Vista */}
                 <ButtonGroup size="small" variant="outlined" sx={{ flexShrink: 0 }}>
+                  <Tooltip title="Modo Mosaico (Galería de Retratos)">
+                    <Button
+                      variant={viewMode === 'gallery' ? 'contained' : 'outlined'}
+                      onClick={() => setViewMode('gallery')}
+                      sx={{ p: 0.6, minWidth: 34, height: 34 }}
+                    >
+                      <GridViewIcon fontSize="small" />
+                    </Button>
+                  </Tooltip>
                   <Tooltip title="Vista Compacta">
                     <Button
                       variant={viewMode === 'compact' ? 'contained' : 'outlined'}
@@ -1173,7 +1201,7 @@ export default function CharacterManagementPage() {
                       sx={{
                         display: 'grid',
                         gridTemplateColumns: gridTemplateColumns,
-                        gap: viewMode === 'compact' ? 1.2 : 1.8,
+                        gap: viewMode === 'gallery' ? 1 : viewMode === 'compact' ? 1.2 : 1.8,
                       }}
                     >
                       {chars.map((char) => (
@@ -1210,7 +1238,7 @@ export default function CharacterManagementPage() {
                 sx={{
                   display: 'grid',
                   gridTemplateColumns: gridTemplateColumns,
-                  gap: viewMode === 'compact' ? 1.2 : 1.8,
+                  gap: viewMode === 'gallery' ? 1 : viewMode === 'compact' ? 1.2 : 1.8,
                 }}
               >
                 {processedCharacters.map((char) => (

@@ -1072,6 +1072,7 @@ export default function CharacterModal({
                       />
 
                       {/* Reusable Template Switch */}
+                      {/*}
                       <FormControlLabel
                         control={
                           <Switch
@@ -1092,6 +1093,7 @@ export default function CharacterModal({
                           </Box>
                         }
                       />
+                      {*/}
                     </Box>
                   )}
                 </Box>
