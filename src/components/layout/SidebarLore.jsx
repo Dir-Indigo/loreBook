@@ -59,6 +59,9 @@ import { uploadStoryCover } from "../../services/storageService";
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { APP_CONFIG } from '../../constants/constants';
 import { ApiService } from '../../utils/ApiService';
+import { useStory } from '../../context/StoryContext';
+import { useWorkspace } from '../../context/WorkspaceContext';
+import { useGlobalActions } from '../../context/GlobalActionsContext';
 
 export default function SidebarLore({
   view = 'dashboard',
@@ -96,6 +99,59 @@ export default function SidebarLore({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { notes, notesLoading, toggleOpen: toggleNotesPanel } = useQuickNotes();
+  const { activeStory, updateStory } = useStory();
+  const workspace = useWorkspace() || {};
+  const { openCreateEvent, openCreateChar } = useGlobalActions();
+
+  // Context-aware effective variables
+  const effectiveStory = story || activeStory;
+  const effectiveCharacters = (characters && characters.length > 0) ? characters : (workspace.characters || []);
+  const effectiveBoards = (boards && boards.length > 0) ? boards : (workspace.boards || []);
+  const effectiveEvents = (events && events.length > 0) ? events : (workspace.allEvents || []);
+  const effectiveConnections = (eventConnections && eventConnections.length > 0) ? eventConnections : (workspace.eventConnections || []);
+  const effectiveActiveBoardId = activeBoardId !== undefined && activeBoardId !== null ? activeBoardId : (workspace.activeBoardId || null);
+
+  const handleSelectBoardAction = onSelectBoard || ((bId) => {
+    if (router.pathname !== '/dashboard') {
+      router.push('/dashboard');
+    }
+    if (workspace.selectBoard) {
+      workspace.selectBoard({ storyId: effectiveStory?.id, boardId: bId });
+    }
+  });
+
+  const handleCreateBoardAction = onCreateBoard || ((name, parentId) => {
+    if (workspace.createBoard) {
+      workspace.createBoard({ storyId: effectiveStory?.id, name, parentBoardId: parentId });
+    }
+  });
+
+  const handleRenameBoardAction = onRenameBoard || ((bId, name) => {
+    if (workspace.updateBoard) {
+      workspace.updateBoard({ boardId: bId, patch: { name } });
+    }
+  });
+
+  const handleDeleteBoardAction = onDeleteBoard || ((bId) => {
+    if (workspace.deleteBoard) {
+      workspace.deleteBoard({ storyId: effectiveStory?.id, boardId: bId });
+    }
+  });
+
+  const handleChangeBoardColorAction = onChangeBoardColor || ((bId, color) => {
+    if (workspace.updateBoard) {
+      workspace.updateBoard({ boardId: bId, patch: { color } });
+    }
+  });
+
+  const handleUpdateCoverAction = onUpdateStoryCover || ((sId, url) => {
+    if (updateStory) {
+      updateStory(sId, { cover_url: url });
+    }
+  });
+
+  const handleOpenCreateEventAction = onOpenCreateEvent || openCreateEvent;
+  const handleOpenCharacterModalAction = onOpenCharacterModal || openCreateChar;
 
   const [collapsed, setCollapsed] = useState(false);
   const sidebarRef = useRef(null);
@@ -132,14 +188,14 @@ export default function SidebarLore({
   useEffect(() => {
     if (characterFolders) {
       setLocalFolders(characterFolders);
-    } else if (story?.id) {
-      ApiService.characterFolders.ensureDefaultFolder(story.id).then(() => {
-        ApiService.characterFolders.getAll(story.id).then((res) => {
+    } else if (effectiveStory?.id) {
+      ApiService.characterFolders.ensureDefaultFolder(effectiveStory.id).then(() => {
+        ApiService.characterFolders.getAll(effectiveStory.id).then((res) => {
           if (res.data) setLocalFolders(res.data);
         });
       });
     }
-  }, [characterFolders, story?.id]);
+  }, [characterFolders, effectiveStory?.id]);
 
   const effectiveFolders = characterFolders || localFolders;
 
@@ -173,19 +229,19 @@ export default function SidebarLore({
   const [newBoardParentId, setNewBoardParentId] = useState(null);
 
   const rootBoards = useMemo(
-    () => boards.filter((b) => !b.parent_board_id),
-    [boards]
+    () => effectiveBoards.filter((b) => !b.parent_board_id),
+    [effectiveBoards]
   );
 
   const storyNotes = useMemo(() => {
-    if (!story?.id) return [];
-    return notes.filter((n) => n.story_id === story.id);
-  }, [notes, story?.id]);
+    if (!effectiveStory?.id) return [];
+    return notes.filter((n) => n.story_id === effectiveStory.id);
+  }, [notes, effectiveStory?.id]);
 
   const filteredCharacters = useMemo(() => {
-    let availableCharacters = characters.filter((c) => {
-      if (c.story_id === story?.id) return true;
-      if (c.is_global && (!c.story_id || c.story_id === story?.id)) return true;
+    let availableCharacters = effectiveCharacters.filter((c) => {
+      if (c.story_id === effectiveStory?.id) return true;
+      if (c.is_global && (!c.story_id || c.story_id === effectiveStory?.id)) return true;
       return false;
     });
 
@@ -196,12 +252,12 @@ export default function SidebarLore({
         c.name.toLowerCase().includes(q) ||
         c.role_archetype?.toLowerCase().includes(q)
     );
-  }, [characters, charSearch, story?.id]);
+  }, [effectiveCharacters, charSearch, effectiveStory?.id]);
 
-  const eventOrderMap = useEventOrder(events, eventConnections);
+  const eventOrderMap = useEventOrder(effectiveEvents, effectiveConnections);
 
   const handleOpenQuickCover = () => {
-    const currentUrl = story?.cover_url || "";
+    const currentUrl = effectiveStory?.cover_url || "";
     setNewCoverUrl(currentUrl);
     setCoverMode(currentUrl && !currentUrl.includes('supabase.co/storage') && currentUrl.startsWith('http') ? 'url' : 'upload');
     setQuickCoverOpen(true);
@@ -223,11 +279,11 @@ export default function SidebarLore({
   const handleCropComplete = async (optimizedBlob, previewUrl) => {
     setUploadingCover(true);
     try {
-      const result = await uploadStoryCover(optimizedBlob, story?.id || 'new');
+      const result = await uploadStoryCover(optimizedBlob, effectiveStory?.id || 'new');
       if (result?.url) {
         setNewCoverUrl(result.url);
-        if (story && onUpdateStoryCover) {
-          await onUpdateStoryCover(story.id, result.url);
+        if (effectiveStory && handleUpdateCoverAction) {
+          await handleUpdateCoverAction(effectiveStory.id, result.url);
         }
       } else {
         setNewCoverUrl(previewUrl);
@@ -243,15 +299,15 @@ export default function SidebarLore({
 
   const handleRemoveCover = async () => {
     setNewCoverUrl("");
-    if (story && onUpdateStoryCover) {
-      await onUpdateStoryCover(story.id, null);
+    if (effectiveStory && handleUpdateCoverAction) {
+      await handleUpdateCoverAction(effectiveStory.id, null);
     }
     setQuickCoverOpen(false);
   };
 
   const handleSaveCover = async () => {
-    if (story && onUpdateStoryCover) {
-      await onUpdateStoryCover(story.id, newCoverUrl.trim() || null);
+    if (effectiveStory && handleUpdateCoverAction) {
+      await handleUpdateCoverAction(effectiveStory.id, newCoverUrl.trim() || null);
     }
     setQuickCoverOpen(false);
   };
@@ -264,7 +320,7 @@ export default function SidebarLore({
 
   const handleConfirmCreateBoard = async () => {
     const name = newBoardName.trim() || "Nuevo tablero";
-    onCreateBoard && onCreateBoard(name, newBoardParentId);
+    handleCreateBoardAction && handleCreateBoardAction(name, newBoardParentId);
     setNewBoardDialogOpen(false);
   };
 
@@ -358,13 +414,13 @@ export default function SidebarLore({
 
         <Divider sx={{ width: "80%" }} />
 
-        <Tooltip title={`Historias (${story ? story.title : "Ninguna"})`} placement="right">
+        <Tooltip title={`Historias (${effectiveStory ? effectiveStory.title : "Ninguna"})`} placement="right">
           <IconButton size="small" onClick={onOpenStorySelector}>
             <LayersOutlinedIcon fontSize="small" color="action" />
           </IconButton>
         </Tooltip>
 
-        <Tooltip title={`Tramas (${boards.length} tableros)`} placement="right">
+        <Tooltip title={`Tramas (${effectiveBoards.length} tableros)`} placement="right">
           <IconButton
             size="small"
             onClick={() => { setSidebarTab(0); setCollapsed(false); }}
@@ -405,11 +461,11 @@ export default function SidebarLore({
           </IconButton>
         </Tooltip>
 
-        {activeBoardId && (
+        {effectiveActiveBoardId && (
           <Tooltip title="Crear Evento en Tablero Activo" placement="right">
             <IconButton
               size="small"
-              onClick={() => onOpenCreateEvent && onOpenCreateEvent(activeBoardId)}
+              onClick={() => handleOpenCreateEventAction && handleOpenCreateEventAction(effectiveActiveBoardId)}
               sx={{ bgcolor: "primary.main", color: "#fff", mt: 'auto', '&:hover': { bgcolor: 'primary.dark' } }}
             >
               <AddIcon fontSize="small" />
@@ -420,7 +476,7 @@ export default function SidebarLore({
     );
   }
 
-  const hasCover = Boolean(story?.cover_url);
+  const hasCover = Boolean(effectiveStory?.cover_url);
 
   return (
     <Box
@@ -477,7 +533,7 @@ export default function SidebarLore({
           borderColor: "divider",
           bgcolor: hasCover ? "transparent" : "background.subtle",
           backgroundImage: hasCover
-            ? `linear-gradient(to bottom, rgba(15, 23, 42, 0.6) 0%, rgba(15, 23, 42, 0.92) 100%), url(${story.cover_url})`
+            ? `linear-gradient(to bottom, rgba(15, 23, 42, 0.6) 0%, rgba(15, 23, 42, 0.92) 100%), url(${effectiveStory.cover_url})`
             : "none",
           backgroundSize: "cover",
           backgroundPosition: "center",
@@ -491,7 +547,7 @@ export default function SidebarLore({
           <Chip
             size="small"
             icon={<BookmarkBorderIcon style={{ fontSize: 12, color: '#fff' }} />}
-            label={story?.universe ? story.universe.title : "Historia Activa"}
+            label={effectiveStory?.universe ? effectiveStory.universe.title : "Historia Activa"}
             variant="outlined"
             sx={{
               height: 18,
@@ -514,12 +570,12 @@ export default function SidebarLore({
         </Box>
 
         <Typography variant="subtitle1" sx={{ fontWeight: 800, fontSize: "0.95rem", lineHeight: 1.2 }} noWrap>
-          {story ? story.title : "Sin historia seleccionada"}
+          {effectiveStory ? effectiveStory.title : "Sin historia seleccionada"}
         </Typography>
 
-        {story && (
+        {effectiveStory && (
           <Typography variant="caption" sx={{ opacity: 0.8, fontSize: "0.68rem" }} noWrap>
-            {events.length} escenas · {characters.length} personajes · {effectiveFolders.length} carpetas
+            {effectiveEvents.length} escenas · {effectiveCharacters.length} personajes · {effectiveFolders.length} carpetas
           </Typography>
         )}
       </Box>
@@ -579,7 +635,7 @@ export default function SidebarLore({
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: "uppercase", fontSize: '0.7rem' }}>
-                Tableros Narrativos ({boards.length})
+                Tableros Narrativos ({effectiveBoards.length})
               </Typography>
             </Box>
             <Tooltip title="Crear nuevo tablero raíz">
@@ -606,18 +662,18 @@ export default function SidebarLore({
                 <BoardTreeItem
                   key={board.id}
                   board={board}
-                  boards={boards}
-                  events={events}
+                  boards={effectiveBoards}
+                  events={effectiveEvents}
                   eventOrderMap={eventOrderMap}
                   level={0}
-                  activeBoardId={activeBoardId}
-                  onSelect={(b) => onSelectBoard && onSelectBoard(b.id)}
+                  activeBoardId={effectiveActiveBoardId}
+                  onSelect={(b) => handleSelectBoardAction && handleSelectBoardAction(b.id)}
                   onStartCreateBoard={(parentId) => handleRequestCreateBoard(parentId)}
-                  onRename={(boardId, newName) => onRenameBoard && onRenameBoard(boardId, newName)}
-                  onDelete={(b) => onDeleteBoard && onDeleteBoard(b)}
-                  onChangeColor={(boardId, color) => onChangeBoardColor && onChangeBoardColor(boardId, color)}
+                  onRename={(boardId, newName) => handleRenameBoardAction && handleRenameBoardAction(boardId, newName)}
+                  onDelete={(b) => handleDeleteBoardAction && handleDeleteBoardAction(b)}
+                  onChangeColor={(boardId, color) => handleChangeBoardColorAction && handleChangeBoardColorAction(boardId, color)}
                   onOpenCreateEventForBoard={(boardId) => {
-                    onOpenCreateEvent && onOpenCreateEvent(boardId);
+                    handleOpenCreateEventAction && handleOpenCreateEventAction(boardId);
                   }}
                   onOpenEditEvent={onOpenEditEvent}
                   onDeleteEvent={onDeleteEvent}
@@ -778,7 +834,7 @@ export default function SidebarLore({
                 variant="outlined"
                 size="small"
                 startIcon={<PsychologyOutlinedIcon fontSize="small" />}
-                onClick={() => onOpenArchetypeManager ? onOpenArchetypeManager() : router.push(`/characters/${story?.id}`)}
+                onClick={() => onOpenArchetypeManager ? onOpenArchetypeManager() : router.push(`/characters/${effectiveStory?.id || ''}`)}
                 sx={{ fontSize: '0.7rem', py: 0.4, px: 0.5, textTransform: 'none' }}
               >
                 Arquetipos
@@ -787,7 +843,7 @@ export default function SidebarLore({
                 variant="outlined"
                 size="small"
                 startIcon={<LocalOfferOutlinedIcon fontSize="small" />}
-                onClick={() => onOpenTagManager ? onOpenTagManager() : router.push(`/characters/${story?.id}`)}
+                onClick={() => onOpenTagManager ? onOpenTagManager() : router.push(`/characters/${effectiveStory?.id || ''}`)}
                 sx={{ fontSize: '0.7rem', py: 0.4, px: 0.5, textTransform: 'none' }}
               >
                 Etiquetas
@@ -887,7 +943,7 @@ export default function SidebarLore({
               Descripción / Logline
             </Typography>
             <Typography variant="body2" sx={{ mt: 0.5, fontSize: '0.82rem', color: 'text.primary', lineHeight: 1.5 }}>
-              {story?.description || 'Sin descripción redactada.'}
+              {effectiveStory?.description || 'Sin descripción redactada.'}
             </Typography>
           </Box>
 
@@ -900,15 +956,15 @@ export default function SidebarLore({
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.2, mt: 1 }}>
               <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: 'background.subtle', border: 1, borderColor: 'divider' }}>
                 <Typography variant="caption" color="text.secondary">Escenas / Nodos</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{events.length}</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{effectiveEvents.length}</Typography>
               </Box>
               <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: 'background.subtle', border: 1, borderColor: 'divider' }}>
                 <Typography variant="caption" color="text.secondary">Personajes</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{characters.length}</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{effectiveCharacters.length}</Typography>
               </Box>
               <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: 'background.subtle', border: 1, borderColor: 'divider' }}>
                 <Typography variant="caption" color="text.secondary">Tableros</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{boards.length}</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{effectiveBoards.length}</Typography>
               </Box>
               <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: 'background.subtle', border: 1, borderColor: 'divider' }}>
                 <Typography variant="caption" color="text.secondary">Ideas Vinculadas</Typography>

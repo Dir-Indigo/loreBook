@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { ApiService } from '../utils/ApiService';
 import { useAuth } from './AuthContext';
+import { useBackgroundSync } from './SyncContext';
 
 const QuickNotesContext = createContext(null);
 
@@ -26,6 +27,7 @@ export const NOTE_STATUSES = [
 
 export const QuickNotesProvider = ({ children }) => {
   const { user } = useAuth();
+  const { executeOptimistic } = useBackgroundSync();
   const [notes, setNotes] = useState([]);
   const [notesLoading, setNotesLoading] = useState(false);
   
@@ -107,47 +109,56 @@ export const QuickNotesProvider = ({ children }) => {
     };
     setNotes((prev) => [optimistic, ...prev]);
 
-    const result = await ApiService.quickNotes.create(
-      { user_id: user.id, story_id: targetStoryId, content, color, status },
-      null
+    return await executeOptimistic(
+      async () => {
+        const result = await ApiService.quickNotes.create(
+          { user_id: user.id, story_id: targetStoryId, content, color, status },
+          null
+        );
+        if (result && result.data) {
+          setNotes((prev) => prev.map((n) => (n.id === tempId ? result.data : n)));
+        }
+        return result;
+      },
+      {
+        onRollback: () => {
+          setNotes((prev) => prev.filter((n) => n.id !== tempId));
+        },
+      }
     );
-
-    if (result.error || !result.data) {
-      // Rollback
-      setNotes((prev) => prev.filter((n) => n.id !== tempId));
-      return result;
-    }
-
-    // Replace optimistic with real record
-    setNotes((prev) => prev.map((n) => (n.id === tempId ? result.data : n)));
-    return result;
-  }, [user?.id]);
+  }, [user?.id, executeOptimistic]);
 
   const updateNote = useCallback(async (id, patch) => {
+    const previous = notes;
     // Optimistic local patch
     setNotes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, ...patch, updated_at: new Date().toISOString() } : n))
     );
 
-    const result = await ApiService.quickNotes.update(id, patch, null);
-    if (result.error) {
-      // Re-fetch on error to ensure sync
-      loadNotes();
-    }
-    return result;
-  }, [loadNotes]);
+    return await executeOptimistic(
+      () => ApiService.quickNotes.update(id, patch, null),
+      {
+        onRollback: () => {
+          setNotes(previous);
+        },
+      }
+    );
+  }, [notes, executeOptimistic]);
 
   const deleteNote = useCallback(async (id) => {
     // Optimistic delete
     const previous = notes;
     setNotes((prev) => prev.filter((n) => n.id !== id));
 
-    const result = await ApiService.quickNotes.delete(id, null);
-    if (result.error) {
-      setNotes(previous);
-    }
-    return result;
-  }, [notes]);
+    return await executeOptimistic(
+      () => ApiService.quickNotes.delete(id, null),
+      {
+        onRollback: () => {
+          setNotes(previous);
+        },
+      }
+    );
+  }, [notes, executeOptimistic]);
 
   const togglePin = useCallback((id) => {
     const note = notes.find((n) => n.id === id);

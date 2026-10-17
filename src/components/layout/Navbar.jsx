@@ -27,14 +27,20 @@ import LayersIcon from '@mui/icons-material/Layers';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import ViewSidebarIcon from '@mui/icons-material/ViewSidebar';
+import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined';
+import Badge from '@mui/material/Badge';
 import { useLoreTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useQuickNotes } from '../../context/QuickNotesContext';
+import { SyncStatusIndicator } from '../../context/SyncContext';
 import CustomButton from '../common/CustomButton';
 
 export default function Navbar({ activeStory, onOpenStorySelector }) {
   const router = useRouter();
   const { activeThemeKey, setThemeKey, themes } = useLoreTheme();
   const { user, profile, isSuperAdmin, signOut } = useAuth();
+  const { isOpen: isNotesOpen, toggleOpen: toggleNotesOpen, notes } = useQuickNotes();
 
   const [themeAnchorEl, setThemeAnchorEl] = useState(null);
   const [userAnchorEl, setUserAnchorEl] = useState(null);
@@ -75,7 +81,7 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
         zIndex: (theme) => theme.zIndex.drawer + 1,
       }}
     >
-      <Toolbar variant="dense" sx={{ minHeight: 52, px: { xs: 1, sm: 2 }, display: 'flex', gap: { xs: 1, sm: 1.5 } }}>
+      <Toolbar variant="dense" sx={{ minHeight: 48, px: { xs: 1, sm: 2 }, display: 'flex', gap: { xs: 1, sm: 1.5 } }}>
         {/* Brand */}
         <Box
           sx={{
@@ -246,6 +252,29 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
             </IconButton>
           </Tooltip>
 
+          {/* Toggle Sidebar Derecho (Notas Express / Ideas) */}
+          <Tooltip title={isNotesOpen ? "Ocultar panel derecho de notas" : "Abrir panel derecho de notas (Ideas Express)"}>
+            <IconButton
+              onClick={toggleNotesOpen}
+              size="small"
+              sx={{
+                border: 1,
+                borderColor: isNotesOpen ? 'primary.main' : 'divider',
+                bgcolor: isNotesOpen ? 'action.selected' : 'transparent',
+                borderRadius: 1.5,
+                p: 0.8,
+                color: isNotesOpen ? 'primary.main' : 'inherit',
+              }}
+            >
+              <Badge badgeContent={notes.length} color="primary" max={99}>
+                {isNotesOpen ? <ViewSidebarIcon fontSize="small" /> : <ViewSidebarOutlinedIcon fontSize="small" />}
+              </Badge>
+            </IconButton>
+          </Tooltip>
+
+          {/* Cloud Sync Status Indicator (Word/Docs auto-save style) */}
+          <SyncStatusIndicator />
+
           {/* User Profile / RBAC */}
           <Chip
             avatar={<AccountCircleIcon fontSize="small" />}
@@ -264,6 +293,27 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
 
         {/* Mobile Action Controls (xs only) */}
         <Box sx={{ display: { xs: 'flex', sm: 'none' }, alignItems: 'center', gap: 0.6, flexShrink: 0 }}>
+          {/* Mobile sync indicator */}
+          <SyncStatusIndicator />
+
+          {/* Toggle Sidebar Derecho en móviles */}
+          <IconButton
+            onClick={toggleNotesOpen}
+            size="small"
+            sx={{
+              border: 1,
+              borderColor: isNotesOpen ? 'primary.main' : 'divider',
+              borderRadius: 1.5,
+              p: 0.6,
+              color: isNotesOpen ? 'primary.main' : 'action',
+              bgcolor: isNotesOpen ? 'action.selected' : 'transparent',
+            }}
+          >
+            <Badge badgeContent={notes.length} color="primary" max={99}>
+              {isNotesOpen ? <ViewSidebarIcon fontSize="small" /> : <ViewSidebarOutlinedIcon fontSize="small" />}
+            </Badge>
+          </IconButton>
+
           {/* Quick Palette button */}
           <IconButton
             onClick={handleOpenThemeMenu}

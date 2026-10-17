@@ -24,8 +24,9 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useStory } from '../../context/StoryContext';
 import { useLoading } from '../../context/LoadingContext';
+import { useBackgroundSync } from '../../context/SyncContext';
+import { PageRibbon } from '../../context/NavbarRibbonContext';
 import { ApiService } from '../../utils/ApiService';
-import SidebarLore from '../../components/layout/SidebarLore';
 import CustomLoading from '../../components/common/CustomLoading';
 import CustomModal from '../../components/common/CustomModal';
 import SelectionActionBar from '../../components/common/SelectionActionBar';
@@ -78,6 +79,7 @@ export default function CharacterManagementPage() {
   const { user, loading: authLoading } = useAuth();
   const { activeStory } = useStory();
   const { setLoading } = useLoading();
+  const { executeOptimistic } = useBackgroundSync();
 
   const [characters, setCharacters] = useState([]);
   const [relationships, setRelationships] = useState([]);
@@ -182,10 +184,20 @@ export default function CharacterManagementPage() {
   const handleConfirmDelete = async () => {
     if (!deleteConfirmId) return;
     const charId = deleteConfirmId;
+    const previousCharacters = characters;
     setDeleteConfirmId(null);
     setCharacters((current) => current.filter((c) => c.id !== charId));
     setSelectedCharacterIds((current) => current.filter((id) => id !== charId));
-    await ApiService.characters.delete(charId, setLoading);
+
+    await executeOptimistic(
+      () => ApiService.characters.delete(charId),
+      {
+        onRollback: () => {
+          setCharacters(previousCharacters);
+          window.alert('No se pudo eliminar el personaje. Se han restaurado los datos.');
+        },
+      }
+    );
   };
 
   const toggleCharacterSelection = (characterId, event) => {
@@ -210,20 +222,21 @@ export default function CharacterManagementPage() {
         selectedIds.includes(character.id) ? { ...character, is_global: isGlobal } : character
       )
     );
-
-    const results = await Promise.all(
-      selectedIds.map((characterId) =>
-        ApiService.characters.update(characterId, { is_global: isGlobal }, setLoading)
-      )
-    );
-
-    if (results.some((result) => result.error)) {
-      setCharacters(previousCharacters);
-      window.alert('No se pudo actualizar uno o más personajes.');
-      return;
-    }
-
     setSelectedCharacterIds([]);
+
+    await executeOptimistic(
+      () => Promise.all(
+        selectedIds.map((characterId) =>
+          ApiService.characters.update(characterId, { is_global: isGlobal })
+        )
+      ),
+      {
+        onRollback: () => {
+          setCharacters(previousCharacters);
+          window.alert('No se pudo actualizar la visibilidad de los personajes seleccionados.');
+        },
+      }
+    );
   };
 
   const handleCopyAsLocal = async (idsToCopy) => {
@@ -281,33 +294,58 @@ export default function CharacterManagementPage() {
 
     // Default folder assignment if none specified
     const finalFolderId = charData.folder_id || (activeFolderId !== 'all' ? activeFolderId : defaultFolder?.id || null);
+    const isEdit = Boolean(selectedCharacter && !isCloneCharMode);
+    const targetId = selectedCharacter?.id;
+    const previousCharacters = [...characters];
+    let tempId = null;
 
-    const result =
-      selectedCharacter && !isCloneCharMode
-        ? await ApiService.characters.update(
-            selectedCharacter.id,
-            { ...charData, folder_id: charData.folder_id },
-            setLoading
-          )
-        : await ApiService.characters.create(
-            {
-              ...charData,
-              folder_id: finalFolderId,
-              story_id,
-            },
-            setLoading
-          );
-
-    if (!result.error && result.data) {
+    // 1. Optimistic UI update (Instant feedback, 0ms latency)
+    if (isEdit) {
       setCharacters((current) =>
-        selectedCharacter && !isCloneCharMode
-          ? current.map((character) =>
-              character.id === selectedCharacter.id ? result.data : character
-            )
-          : [...current, result.data].sort((a, b) => a.name.localeCompare(b.name))
+        current.map((character) =>
+          character.id === targetId ? { ...character, ...charData, folder_id: charData.folder_id } : character
+        )
+      );
+    } else {
+      tempId = `temp-${Date.now()}`;
+      const optimisticChar = {
+        id: tempId,
+        ...charData,
+        folder_id: finalFolderId,
+        story_id,
+        created_at: new Date().toISOString(),
+      };
+      setCharacters((current) =>
+        [...current, optimisticChar].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
       );
     }
+
+    // 2. Cerrar el modal DE INMEDIATO para fluidez total
     setCharModalOpen(false);
+
+    // 3. Persistir en segundo plano
+    await executeOptimistic(
+      async () => {
+        const result = isEdit
+          ? await ApiService.characters.update(targetId, { ...charData, folder_id: charData.folder_id })
+          : await ApiService.characters.create({ ...charData, folder_id: finalFolderId, story_id });
+
+        if (result && result.data) {
+          setCharacters((current) =>
+            isEdit
+              ? current.map((c) => (c.id === targetId ? result.data : c))
+              : current.map((c) => (c.id === tempId ? result.data : c))
+          );
+        }
+        return result;
+      },
+      {
+        onRollback: () => {
+          setCharacters(previousCharacters);
+          window.alert('No se pudo guardar el personaje. Se han revertido los cambios.');
+        },
+      }
+    );
   };
 
   const handleRoleChange = async (charId, newRole) => {
@@ -316,11 +354,15 @@ export default function CharacterManagementPage() {
       current.map((char) => (char.id === charId ? { ...char, role_archetype: newRole } : char))
     );
 
-    const result = await ApiService.characters.update(charId, { role_archetype: newRole }, setLoading);
-    if (result.error) {
-      setCharacters(previousCharacters);
-      window.alert('No se pudo actualizar el tipo del personaje.');
-    }
+    await executeOptimistic(
+      () => ApiService.characters.update(charId, { role_archetype: newRole }),
+      {
+        onRollback: () => {
+          setCharacters(previousCharacters);
+          window.alert('No se pudo actualizar el tipo del personaje.');
+        },
+      }
+    );
   };
 
   // ─── Folder Operations ──────────────────────────────────────────────────
@@ -398,14 +440,17 @@ export default function CharacterManagementPage() {
         characterIds.includes(c.id) ? { ...c, folder_id: targetFolderId } : c
       )
     );
-
-    const result = await ApiService.characters.moveToFolder(characterIds, targetFolderId, setLoading);
-    if (result.error) {
-      setCharacters(previousCharacters);
-      window.alert('No se pudo mover uno o más personajes.');
-      return;
-    }
     setSelectedCharacterIds([]);
+
+    await executeOptimistic(
+      () => ApiService.characters.moveToFolder(characterIds, targetFolderId),
+      {
+        onRollback: () => {
+          setCharacters(previousCharacters);
+          window.alert('No se pudo mover uno o más personajes.');
+        },
+      }
+    );
   };
 
   // ─── Custom Tag Operations ──────────────────────────────────────────────
@@ -713,422 +758,270 @@ export default function CharacterManagementPage() {
     xs: 'repeat(auto-fill, minmax(130px, 1fr))',
     md: 'repeat(auto-fill, minmax(160px, 1fr))',
   };
-
   return (
     <>
-      <SidebarLore
-        view="characters"
-        story={activeStory}
-        characters={characters}
-        characterFolders={folders}
-        activeCharacterFolderId={activeFolderId}
-        onSelectCharacterFolder={(fId) => setActiveFolderId(fId)}
-        onCreateCharacterFolder={handleCommitCreateFolder}
-        onRenameCharacterFolder={handleRenameFolder}
-        onDeleteCharacterFolder={handleDeleteFolder}
-        onChangeCharacterFolderColor={handleChangeFolderColor}
-        onMoveCharacterToFolder={(charOrIds, targetFolderId) => {
-          if (targetFolderId !== undefined && targetFolderId !== null) {
-            const ids = Array.isArray(charOrIds) ? charOrIds : [charOrIds?.id || charOrIds];
-            handleConfirmMoveToFolder(ids, targetFolderId);
-          } else {
-            handleOpenMoveToFolder(charOrIds);
-          }
-        }}
-        onOpenArchetypeManager={() => setArchetypeManagerOpen(true)}
-        onOpenTagManager={() => setTagManagerOpen(true)}
-        onOpenCharacterModal={() => {
-          setSelectedCharacter(null);
-          setIsCloneCharMode(false);
-          setCharModalOpen(true);
-        }}
-      />
-
-      <Box sx={{ display: 'flex', flexGrow: 1, height: '100vh', overflow: 'hidden', bgcolor: 'background.default' }}>
+      <Box sx={{ display: 'flex', flexGrow: 1, height: '100%', overflow: 'hidden', bgcolor: 'background.default' }}>
         {/* ─── CONTENIDO PRINCIPAL: GESTOR DE PERSONAJES ─── */}
         <Box sx={{ flexGrow: 1, height: '100%', overflowY: 'auto', p: { xs: 1, sm: 2.5 }, minWidth: 0 }}>
           <Container maxWidth="xl" disableGutters sx={{ px: { xs: 0.5, sm: 2 } }}>
             
-            {/* Header */}
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 1.2,
-                mb: 1.8,
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, minWidth: 0, flexShrink: 1 }}>
-                <Box
-                  sx={{
-                    width: { xs: 32, sm: 38 },
-                    height: { xs: 32, sm: 38 },
-                    borderRadius: 2.5,
-                    bgcolor: 'primary.main',
-                    color: '#fff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                  }}
-                >
-                  <PeopleOutlineIcon sx={{ fontSize: { xs: 18, sm: 22 } }} />
-                </Box>
-                <Box sx={{ minWidth: 0 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                    <Typography
-                      variant="h5"
-                      sx={{
-                        fontWeight: 800,
-                        fontSize: { xs: '1.05rem', sm: '1.35rem' },
-                        lineHeight: 1.2,
-                      }}
-                      noWrap
-                    >
-                      Gestión de Personajes
-                    </Typography>
-                    {currentActiveFolder && (
-                      <Chip
-                        icon={<FolderIcon sx={{ fontSize: '13px !important', color: currentActiveFolder.color }} />}
-                        label={`Carpeta: ${currentActiveFolder.name}`}
-                        onDelete={() => setActiveFolderId('all')}
-                        size="small"
-                        sx={{
-                          height: 24,
-                          fontWeight: 700,
-                          fontSize: '0.72rem',
-                          bgcolor: 'background.paper',
-                          border: '1px solid',
-                          borderColor: currentActiveFolder.color || 'divider',
-                        }}
-                      />
-                    )}
-                  </Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block' }} noWrap>
-                    {processedCharacters.length} personaje(s) mostrados · {activeStory?.title || 'esta historia'}
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-                {/* Archetype Manager Button */}
-                <CustomButton
-                  variant="outlined"
-                  color="inherit"
-                  size="small"
-                  startIcon={<PsychologyOutlinedIcon fontSize="small" />}
-                  onClick={() => setArchetypeManagerOpen(true)}
-                  sx={{ py: 0.6, px: 1.5, borderRadius: 2, display: { xs: 'none', lg: 'inline-flex' } }}
-                >
-                  Arquetipos ({customArchetypes.length})
-                </CustomButton>
-
-                {/* Tag Manager Button */}
-                <CustomButton
-                  variant="outlined"
-                  color="inherit"
-                  size="small"
-                  startIcon={<LocalOfferOutlinedIcon fontSize="small" />}
-                  onClick={() => setTagManagerOpen(true)}
-                  sx={{ py: 0.6, px: 1.5, borderRadius: 2, display: { xs: 'none', md: 'inline-flex' } }}
-                >
-                  Etiquetas ({tags.length})
-                </CustomButton>
-
-                {/* Export Button (Desktop) */}
-                <CustomButton
-                  variant="outlined"
-                  color="inherit"
-                  size="small"
-                  startIcon={<FileDownloadOutlinedIcon fontSize="small" />}
-                  onClick={() => setExportModalOpen(true)}
-                  sx={{ py: 0.6, px: 1.5, borderRadius: 2, display: { xs: 'none', sm: 'inline-flex' } }}
-                >
-                  Exportar
-                </CustomButton>
-
-                {/* Export Button (Mobile) */}
-                <Tooltip title="Exportar Fichas de Personajes">
-                  <IconButton
-                    onClick={() => setExportModalOpen(true)}
+            {/* ─── Word-style Ribbon Contextual de Personajes (Centralizado en el Navbar) ─── */}
+            <PageRibbon>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  gap: 1.5,
+                  minWidth: 'max-content',
+                }}
+              >
+                {/* 1. Tabs de tipo (Locales, Globales, Todos) */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexShrink: 0 }}>
+                  <Tabs
+                    value={characterTab}
+                    onChange={(e, val) => setCharacterTab(val)}
+                    variant="scrollable"
+                    scrollButtons={false}
                     sx={{
-                      display: { xs: 'flex', sm: 'none' },
-                      border: 1,
-                      borderColor: 'divider',
-                      borderRadius: '50%',
-                      width: 36,
-                      height: 36,
-                      bgcolor: 'background.paper',
+                      minHeight: 32,
+                      '& .MuiTab-root': {
+                        fontWeight: 700,
+                        fontSize: '0.78rem',
+                        textTransform: 'none',
+                        minHeight: 32,
+                        py: 0,
+                        px: 1.2,
+                        borderRadius: 1.5,
+                      },
                     }}
                   >
-                    <FileDownloadOutlinedIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                    <Tab label={`Locales (${characters.filter((c) => !c.is_global).length})`} />
+                    <Tab
+                      icon={<PublicOutlinedIcon sx={{ fontSize: 15 }} />}
+                      iconPosition="start"
+                      label={`Globales (${characters.filter((c) => c.is_global).length})`}
+                    />
+                    <Tab
+                      icon={<PeopleOutlineIcon sx={{ fontSize: 15 }} />}
+                      iconPosition="start"
+                      label={`Todos (${characters.length})`}
+                    />
+                  </Tabs>
+                </Box>
 
-                {/* Create Character (Desktop) */}
-                <CustomButton
-                  variant="contained"
-                  color="primary"
-                  size="small"
-                  startIcon={<AddIcon fontSize="small" />}
-                  onClick={() => {
-                    setSelectedCharacter(null);
-                    setIsCloneCharMode(false);
-                    setCharModalOpen(true);
-                  }}
-                  sx={{ py: 0.6, px: 2, borderRadius: 2, display: { xs: 'none', sm: 'inline-flex' } }}
-                >
-                  Nuevo Personaje
-                </CustomButton>
+                <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
 
-                {/* Create Character (Mobile) */}
-                <Tooltip title="Nuevo Personaje">
-                  <IconButton
+                {/* 2. Filtros & Búsqueda compactos */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexShrink: 0 }}>
+                  {/* Buscador */}
+                  <TextField
+                    size="small"
+                    placeholder="Buscar personaje o etiqueta…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    sx={{ width: { xs: 130, md: 175 } }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                        </InputAdornment>
+                      ),
+                      endAdornment: searchQuery ? (
+                        <InputAdornment position="end">
+                          <IconButton size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.2 }}>
+                            <ClearIcon sx={{ fontSize: 14 }} />
+                          </IconButton>
+                        </InputAdornment>
+                      ) : null,
+                      sx: { borderRadius: 1.5, height: 30, fontSize: '0.78rem', bgcolor: 'background.paper' },
+                    }}
+                  />
+
+                  {/* Filtro por Rol */}
+                  <FormControl size="small" sx={{ minWidth: 110 }}>
+                    <Select
+                      value={roleFilter}
+                      onChange={(e) => setRoleFilter(e.target.value)}
+                      sx={{ borderRadius: 1.5, fontSize: '0.75rem', height: 30, bgcolor: 'background.paper' }}
+                    >
+                      <MenuItem value="all">Todos los roles</MenuItem>
+                      {availableRoles.map((role) => (
+                        <MenuItem key={role} value={role}>{role}</MenuItem>
+                      ))}
+                      <MenuItem value="Sin rol">Sin rol</MenuItem>
+                    </Select>
+                  </FormControl>
+
+                  {/* Filtro por Etiqueta */}
+                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                    <Select
+                      value={tagFilter}
+                      onChange={(e) => setTagFilter(e.target.value)}
+                      sx={{ borderRadius: 1.5, fontSize: '0.75rem', height: 30, bgcolor: 'background.paper' }}
+                    >
+                      <MenuItem value="all">Todas las etiquetas</MenuItem>
+                      {tags.map((tag) => (
+                        <MenuItem key={tag.id} value={tag.id}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                            <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: tag.color || '#8c6d53' }} />
+                            {tag.name}
+                          </Box>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  {/* Ordenar */}
+                  <FormControl size="small" sx={{ minWidth: 115 }}>
+                    <Select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      sx={{ borderRadius: 1.5, fontSize: '0.75rem', height: 30, bgcolor: 'background.paper' }}
+                    >
+                      <MenuItem value="name-asc">Nombre A-Z</MenuItem>
+                      <MenuItem value="name-desc">Nombre Z-A</MenuItem>
+                      <MenuItem value="recent">Más recientes</MenuItem>
+                      <MenuItem value="has-image">Con imagen</MenuItem>
+                      <MenuItem value="special">Especiales</MenuItem>
+                      <MenuItem value="vital">Estado Vital</MenuItem>
+                      <MenuItem value="life-stage">Etapa</MenuItem>
+                      <MenuItem value="alignment">Alineamiento</MenuItem>
+                      <MenuItem value="gender">Género</MenuItem>
+                    </Select>
+                  </FormControl>
+
+                  {/* Densidad de Vista */}
+                  <ButtonGroup size="small" variant="outlined" sx={{ bgcolor: 'background.paper', borderRadius: 1.5 }}>
+                    <Tooltip title="Mosaico"><Button variant={viewMode === 'gallery' ? 'contained' : 'outlined'} onClick={() => setViewMode('gallery')} sx={{ p: 0.4, minWidth: 28, height: 28 }}><GridViewIcon sx={{ fontSize: 15 }} /></Button></Tooltip>
+                    <Tooltip title="Compacta"><Button variant={viewMode === 'compact' ? 'contained' : 'outlined'} onClick={() => setViewMode('compact')} sx={{ p: 0.4, minWidth: 28, height: 28 }}><ViewModuleIcon sx={{ fontSize: 15 }} /></Button></Tooltip>
+                    <Tooltip title="Media"><Button variant={viewMode === 'medium' ? 'contained' : 'outlined'} onClick={() => setViewMode('medium')} sx={{ p: 0.4, minWidth: 28, height: 28 }}><ViewComfyIcon sx={{ fontSize: 15 }} /></Button></Tooltip>
+                    <Tooltip title="Detallada"><Button variant={viewMode === 'detailed' ? 'contained' : 'outlined'} onClick={() => setViewMode('detailed')} sx={{ p: 0.4, minWidth: 28, height: 28 }}><ViewAgendaIcon sx={{ fontSize: 15 }} /></Button></Tooltip>
+                  </ButtonGroup>
+
+                  {/* Toggles */}
+                  <Tooltip title={showDescriptions ? 'Ocultar descripciones' : 'Mostrar descripciones'}>
+                    <IconButton
+                      size="small"
+                      onClick={() => setShowDescriptions(!showDescriptions)}
+                      sx={{
+                        border: 1,
+                        borderColor: !showDescriptions ? 'primary.main' : 'divider',
+                        bgcolor: !showDescriptions ? 'action.selected' : 'background.paper',
+                        borderRadius: 1.5,
+                        p: 0.6,
+                        height: 28,
+                        width: 28,
+                      }}
+                    >
+                      <DescriptionOutlinedIcon sx={{ fontSize: 15 }} />
+                    </IconButton>
+                  </Tooltip>
+
+                  <Tooltip title={groupByRole ? 'Desagrupar secciones' : 'Agrupar por rol'}>
+                    <IconButton
+                      size="small"
+                      onClick={() => setGroupByRole(!groupByRole)}
+                      sx={{
+                        border: 1,
+                        borderColor: groupByRole ? 'primary.main' : 'divider',
+                        bgcolor: groupByRole ? 'action.selected' : 'background.paper',
+                        borderRadius: 1.5,
+                        p: 0.6,
+                        height: 28,
+                        width: 28,
+                      }}
+                    >
+                      <AccountTreeOutlinedIcon sx={{ fontSize: 15 }} />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+
+                <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
+
+                {/* 3. Acciones de creación y gestión */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexShrink: 0 }}>
+                  <Button
+                    variant="outlined"
+                    color="inherit"
+                    size="small"
+                    startIcon={<PsychologyOutlinedIcon sx={{ fontSize: 15 }} />}
+                    onClick={() => setArchetypeManagerOpen(true)}
+                    sx={{ py: 0.3, px: 1, borderRadius: 1.5, fontSize: '0.75rem', height: 28 }}
+                  >
+                    Arquetipos ({customArchetypes.length})
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    color="inherit"
+                    size="small"
+                    startIcon={<LocalOfferOutlinedIcon sx={{ fontSize: 15 }} />}
+                    onClick={() => setTagManagerOpen(true)}
+                    sx={{ py: 0.3, px: 1, borderRadius: 1.5, fontSize: '0.75rem', height: 28 }}
+                  >
+                    Etiquetas ({tags.length})
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    color="inherit"
+                    size="small"
+                    startIcon={<FileDownloadOutlinedIcon sx={{ fontSize: 15 }} />}
+                    onClick={() => setExportModalOpen(true)}
+                    sx={{ py: 0.3, px: 1, borderRadius: 1.5, fontSize: '0.75rem', height: 28 }}
+                  >
+                    Exportar
+                  </Button>
+
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    size="small"
+                    startIcon={<AddIcon sx={{ fontSize: 16 }} />}
                     onClick={() => {
                       setSelectedCharacter(null);
                       setIsCloneCharMode(false);
                       setCharModalOpen(true);
                     }}
-                    sx={{
-                      display: { xs: 'flex', sm: 'none' },
-                      bgcolor: 'primary.main',
-                      color: '#fff',
-                      width: 36,
-                      height: 36,
-                      borderRadius: '50%',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                      '&:hover': { bgcolor: 'primary.dark' },
-                    }}
+                    sx={{ py: 0.4, px: 1.6, borderRadius: 1.5, fontSize: '0.78rem', height: 30, fontWeight: 700 }}
                   >
-                    <AddIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                    Nuevo Personaje
+                  </Button>
+                </Box>
+              </Box>
+            </PageRibbon>
+
+            {/* ─── Encabezado Sutil de Contenido y Carpeta Activa ─── */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.8, flexWrap: 'wrap', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                {currentActiveFolder ? (
+                  <Chip
+                    icon={<FolderIcon sx={{ fontSize: '14px !important', color: currentActiveFolder.color }} />}
+                    label={`Carpeta: ${currentActiveFolder.name}`}
+                    onDelete={() => setActiveFolderId('all')}
+                    size="small"
+                    sx={{
+                      height: 26,
+                      fontWeight: 700,
+                      fontSize: '0.75rem',
+                      bgcolor: 'background.paper',
+                      border: '1px solid',
+                      borderColor: currentActiveFolder.color || 'divider',
+                    }}
+                  />
+                ) : (
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                    Todos los personajes
+                  </Typography>
+                )}
+
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                  ({processedCharacters.length} mostrados · {activeStory?.title || 'Historia'})
+                </Typography>
               </Box>
             </Box>
-
-            {/* ─── Control Bar: Tabs + Filtros + Buscador + Selector de Vista ─── */}
-            <Paper
-              elevation={0}
-              sx={{
-                display: 'flex',
-                flexDirection: { xs: 'column', lg: 'row' },
-                alignItems: { xs: 'stretch', lg: 'center' },
-                justifyContent: 'space-between',
-                gap: 1.2,
-                mb: 2.5,
-                p: { xs: 0.6, sm: 0.8 },
-                borderRadius: 2.5,
-                bgcolor: 'background.paper',
-                border: 1,
-                borderColor: 'divider',
-              }}
-            >
-              {/* Tabs de tipo (Locales, Globales, Todos) */}
-              <Tabs
-                value={characterTab}
-                onChange={(e, val) => setCharacterTab(val)}
-                variant="scrollable"
-                scrollButtons="auto"
-                sx={{
-                  minHeight: 36,
-                  '& .MuiTab-root': {
-                    fontWeight: 700,
-                    fontSize: '0.82rem',
-                    textTransform: 'none',
-                    minHeight: 36,
-                    py: 0,
-                    px: { xs: 1.2, sm: 1.8 },
-                  },
-                }}
-              >
-                <Tab label={`Locales (${characters.filter((c) => !c.is_global).length})`} />
-                <Tab
-                  icon={<PublicOutlinedIcon fontSize="small" />}
-                  iconPosition="start"
-                  label={`Globales (${characters.filter((c) => c.is_global).length})`}
-                />
-                <Tab
-                  icon={<PeopleOutlineIcon fontSize="small" />}
-                  iconPosition="start"
-                  label={`Todos (${characters.length})`}
-                />
-              </Tabs>
-
-              {/* Filtros, etiquetas, orden y densidad */}
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  flexWrap: { xs: 'wrap', sm: 'nowrap' },
-                }}
-              >
-                {/* Filtro por Etiqueta Propia */}
-                <FormControl size="small" sx={{ minWidth: { xs: '48%', sm: 140 } }}>
-                  <Select
-                    value={tagFilter}
-                    onChange={(e) => setTagFilter(e.target.value)}
-                    startAdornment={<LocalOfferOutlinedIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />}
-                    sx={{ borderRadius: 2, fontSize: '0.82rem', height: 34 }}
-                  >
-                    <MenuItem value="all">Todas las etiquetas</MenuItem>
-                    {tags.map((tag) => (
-                      <MenuItem key={tag.id} value={tag.id}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
-                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: tag.color || '#8c6d53' }} />
-                          {tag.name}
-                        </Box>
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                {/* Filtro por Rol */}
-                <FormControl size="small" sx={{ minWidth: { xs: '48%', sm: 130 } }}>
-                  <Select
-                    value={roleFilter}
-                    onChange={(e) => setRoleFilter(e.target.value)}
-                    startAdornment={<FilterListIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />}
-                    sx={{ borderRadius: 2, fontSize: '0.82rem', height: 34 }}
-                  >
-                    <MenuItem value="all">Todos los roles</MenuItem>
-                    {availableRoles.map((role) => (
-                      <MenuItem key={role} value={role}>
-                        {role}
-                      </MenuItem>
-                    ))}
-                    <MenuItem value="Sin rol">Sin rol</MenuItem>
-                  </Select>
-                </FormControl>
-
-                {/* Ordenar */}
-                <FormControl size="small" sx={{ minWidth: { xs: '48%', sm: 140 } }}>
-                  <Select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    startAdornment={<SortByAlphaIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />}
-                    sx={{ borderRadius: 2, fontSize: '0.82rem', height: 34 }}
-                  >
-                    <MenuItem value="name-asc">Nombre A-Z</MenuItem>
-                    <MenuItem value="name-desc">Nombre Z-A</MenuItem>
-                    <MenuItem value="recent">Más recientes</MenuItem>
-                    <MenuItem value="has-image">Con imagen primero</MenuItem>
-                    <MenuItem value="special">Especiales primero</MenuItem>
-                    <MenuItem value="vital">Estado Vital</MenuItem>
-                    <MenuItem value="life-stage">Etapa de Vida</MenuItem>
-                    <MenuItem value="alignment">Alineamiento</MenuItem>
-                    <MenuItem value="gender">Género</MenuItem>
-                  </Select>
-                </FormControl>
-
-                {/* Buscador */}
-                <TextField
-                  size="small"
-                  placeholder="Buscar personaje o etiqueta…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  sx={{ width: { xs: '100%', sm: 170 } }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                      </InputAdornment>
-                    ),
-                    endAdornment: searchQuery ? (
-                      <InputAdornment position="end">
-                        <IconButton size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.2 }}>
-                          <ClearIcon fontSize="small" />
-                        </IconButton>
-                      </InputAdornment>
-                    ) : null,
-                    sx: { borderRadius: 2, bgcolor: 'background.subtle', height: 34, fontSize: '0.82rem' },
-                  }}
-                />
-
-                {/* Densidad de Vista */}
-                <ButtonGroup size="small" variant="outlined" sx={{ flexShrink: 0 }}>
-                  <Tooltip title="Modo Mosaico (Galería de Retratos)">
-                    <Button
-                      variant={viewMode === 'gallery' ? 'contained' : 'outlined'}
-                      onClick={() => setViewMode('gallery')}
-                      sx={{ p: 0.6, minWidth: 34, height: 34 }}
-                    >
-                      <GridViewIcon fontSize="small" />
-                    </Button>
-                  </Tooltip>
-                  <Tooltip title="Vista Compacta">
-                    <Button
-                      variant={viewMode === 'compact' ? 'contained' : 'outlined'}
-                      onClick={() => setViewMode('compact')}
-                      sx={{ p: 0.6, minWidth: 34, height: 34 }}
-                    >
-                      <ViewModuleIcon fontSize="small" />
-                    </Button>
-                  </Tooltip>
-                  <Tooltip title="Vista Media">
-                    <Button
-                      variant={viewMode === 'medium' ? 'contained' : 'outlined'}
-                      onClick={() => setViewMode('medium')}
-                      sx={{ p: 0.6, minWidth: 34, height: 34 }}
-                    >
-                      <ViewComfyIcon fontSize="small" />
-                    </Button>
-                  </Tooltip>
-                  <Tooltip title="Vista Detallada">
-                    <Button
-                      variant={viewMode === 'detailed' ? 'contained' : 'outlined'}
-                      onClick={() => setViewMode('detailed')}
-                      sx={{ p: 0.6, minWidth: 34, height: 34 }}
-                    >
-                      <ViewAgendaIcon fontSize="small" />
-                    </Button>
-                  </Tooltip>
-                </ButtonGroup>
-
-                {/* Toggle Descripciones */}
-                <Tooltip title={showDescriptions ? 'Ocultar descripciones' : 'Mostrar descripciones'}>
-                  <IconButton
-                    size="small"
-                    onClick={() => setShowDescriptions(!showDescriptions)}
-                    sx={{
-                      border: 1,
-                      borderColor: !showDescriptions ? 'primary.main' : 'divider',
-                      bgcolor: !showDescriptions ? 'action.selected' : 'transparent',
-                      color: !showDescriptions ? 'primary.main' : 'inherit',
-                      borderRadius: 2,
-                      p: 0.8,
-                      height: 34,
-                      width: 34,
-                    }}
-                  >
-                    <DescriptionOutlinedIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-
-                {/* Toggle Agrupar por Rol */}
-                <Tooltip title={groupByRole ? 'Desagrupar secciones' : 'Agrupar por rol'}>
-                  <IconButton
-                    size="small"
-                    onClick={() => setGroupByRole(!groupByRole)}
-                    sx={{
-                      border: 1,
-                      borderColor: groupByRole ? 'primary.main' : 'divider',
-                      bgcolor: groupByRole ? 'action.selected' : 'transparent',
-                      color: groupByRole ? 'primary.main' : 'inherit',
-                      borderRadius: 2,
-                      p: 0.8,
-                      height: 34,
-                      width: 34,
-                    }}
-                  >
-                    <AccountTreeOutlinedIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            </Paper>
             
             {/* ─── Listado de Personajes ─── */}
             {processedCharacters.length === 0 ? (

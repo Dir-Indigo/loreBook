@@ -24,6 +24,7 @@ import {
   ButtonGroup,
   Select,
   FormControl,
+  Divider,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
@@ -45,7 +46,7 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { useStory } from '../../context/StoryContext';
 import { useQuickNotes, NOTE_COLORS, NOTE_STATUSES } from '../../context/QuickNotesContext';
 import { useWorkspace } from '../../context/WorkspaceContext';
-import SidebarLore from '../../components/layout/SidebarLore';
+import { PageRibbon } from '../../context/NavbarRibbonContext';
 import CustomLoading from '../../components/common/CustomLoading';
 import CustomButton from '../../components/common/CustomButton';
 
@@ -418,62 +419,107 @@ export default function CentralizedIdeasPage() {
 
   return (
     <>
-      <SidebarLore view="ideas" story={activeStory} characters={characters} />
-
       <Box sx={{ flexGrow: 1, overflowY: 'auto', p: { xs: 0.8, sm: 2.5 }, bgcolor: 'background.default' }}>
         <Container maxWidth="xl" disableGutters sx={{ px: { xs: 0.5, sm: 2 } }}>
-          {/* Header Compacto */}
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: { xs: 'column', sm: 'row' },
-              justify: 'space-between',
-              alignItems: { xs: 'flex-start', sm: 'center' },
-              gap: 1.5,
-              mb: 1.5,
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
-              <Box
-                sx={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 2,
-                  bgcolor: 'primary.main',
-                  color: '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justify: 'center',
-                }}
-              >
-                <LightbulbOutlinedIcon sx={{ fontSize: 22 }} />
+          {/* ─── Word-style Ribbon Contextual de Ideas (Centralizado en el Navbar) ─── */}
+          <PageRibbon>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                gap: 1.5,
+                minWidth: 'max-content',
+              }}
+            >
+              {/* 1. Tabs de estado */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexShrink: 0 }}>
+                <Tabs
+                  value={activeTab}
+                  onChange={(e, val) => setActiveTab(val)}
+                  variant="scrollable"
+                  scrollButtons={false}
+                  sx={{
+                    minHeight: 32,
+                    '& .MuiTab-root': {
+                      fontWeight: 700,
+                      fontSize: '0.78rem',
+                      textTransform: 'none',
+                      minHeight: 32,
+                      py: 0,
+                      px: 1.2,
+                      borderRadius: 1.5,
+                    },
+                  }}
+                >
+                  <Tab label={`Todas (${counts.all})`} />
+                  <Tab icon={<LightbulbOutlinedIcon sx={{ fontSize: 15 }} />} iconPosition="start" label={`Ideas (${counts.idea})`} />
+                  <Tab icon={<AccessTimeIcon sx={{ fontSize: 15 }} />} iconPosition="start" label={`Pendientes (${counts.pending})`} />
+                  <Tab icon={<CheckCircleOutlineIcon sx={{ fontSize: 15 }} />} iconPosition="start" label={`Hechas (${counts.done})`} />
+                  <Tab icon={<DeleteOutlineIcon sx={{ fontSize: 15 }} />} iconPosition="start" label={`Descartadas (${counts.discarded})`} />
+                </Tabs>
               </Box>
-              <Typography variant="h5" sx={{ fontWeight: 800, fontSize: { xs: '1.2rem', sm: '1.4rem' } }}>
-                Pizarra Central de Ideas
-              </Typography>
-            </Box>
 
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: { xs: '100%', sm: 'auto' } }}>
-              <ButtonGroup size="small" variant="outlined">
+              <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
+
+              {/* 2. Selector de Historias & Buscador */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexShrink: 0 }}>
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                  <Select
+                    value={storyFilter}
+                    onChange={(e) => setStoryFilter(e.target.value)}
+                    sx={{ borderRadius: 1.5, fontSize: '0.75rem', height: 30, bgcolor: 'background.paper' }}
+                  >
+                    <MenuItem value="all">Todas las Historias ({notes.length})</MenuItem>
+                    <MenuItem value="global">Globales ({notes.filter((n) => !n.story_id).length})</MenuItem>
+                    {stories.map((s) => (
+                      <MenuItem key={s.id} value={s.id}>
+                        {s.title} ({notes.filter((n) => n.story_id === s.id).length})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <TextField
+                  size="small"
+                  placeholder="Buscar en ideas…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                      </InputAdornment>
+                    ),
+                    sx: { borderRadius: 1.5, height: 30, fontSize: '0.78rem', width: 170, bgcolor: 'background.paper' },
+                  }}
+                />
+              </Box>
+
+              <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
+
+              {/* 3. Selector de Vista (Muro / Tablero) */}
+              <ButtonGroup size="small" variant="outlined" sx={{ flexShrink: 0, bgcolor: 'background.paper', borderRadius: 1.5 }}>
                 <Button
                   variant={viewMode === 'grid' ? 'contained' : 'outlined'}
                   onClick={() => setViewMode('grid')}
-                  startIcon={<ViewModuleIcon />}
-                  sx={{ py: 0.4 }}
+                  startIcon={<ViewModuleIcon sx={{ fontSize: 15 }} />}
+                  sx={{ py: 0.3, px: 1.2, height: 28, fontSize: '0.75rem' }}
                 >
                   Muro
                 </Button>
                 <Button
                   variant={viewMode === 'kanban' ? 'contained' : 'outlined'}
                   onClick={() => setViewMode('kanban')}
-                  startIcon={<ViewColumnIcon />}
-                  sx={{ py: 0.4 }}
+                  startIcon={<ViewColumnIcon sx={{ fontSize: 15 }} />}
+                  sx={{ py: 0.3, px: 1.2, height: 28, fontSize: '0.75rem' }}
                 >
                   Tablero
                 </Button>
               </ButtonGroup>
             </Box>
-          </Box>
+          </PageRibbon>
 
           {/* ─── Captura Instantánea Compacta ─── */}
           <Paper

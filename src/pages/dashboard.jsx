@@ -8,7 +8,7 @@ import { useLoading } from '../context/LoadingContext';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { useQuickNotes } from '../context/QuickNotesContext';
 import { useGlobalActions } from '../context/GlobalActionsContext';
-import SidebarLore from '../components/layout/SidebarLore';
+
 import TimelineCanvas from '../components/canvas/TimelineCanvas';
 import CharacterDrawer from '../components/characters/CharacterDrawer';
 import CharacterModal from '../components/characters/CharacterModal';
@@ -543,30 +543,6 @@ export default function DashboardPage({ onOpenStorySelector }) {
 
   return (
     <>
-        <SidebarLore
-          view="dashboard"
-          story={activeStory}
-          characters={characters}
-          events={allEvents}
-          eventConnections={eventConnections}
-          boards={boards}
-          activeBoardId={activeBoardId}
-          onOpenCharactersDrawer={handleOpenCharactersDrawer}
-          onOpenCreateEvent={() => {
-            setSelectedEvent(null);
-            openCreateEvent();
-          }}
-          onUpdateStoryCover={handleUpdateStoryCover}
-          onSelectBoard={handleSelectBoard}
-          onCreateBoard={handleCreateBoard}
-          onRenameBoard={handleRenameBoard}
-          onDeleteBoard={handleDeleteBoard}
-          onChangeBoardColor={handleChangeBoardColor}
-          onOpenEditEvent={handleOpenEditEvent}
-          onDeleteEvent={handleDeleteEvent}
-          onMoveCharacterToFolder={handleMoveCharacterToFolder}
-        />
-
         <Box sx={{ flexGrow: 1, height: '100%', position: 'relative', display: 'flex', overflow: 'hidden' }}>
           <Box sx={{ flexGrow: 1, height: '100%', position: 'relative', minWidth: 0 }}>
             <TimelineCanvas
