@@ -8,13 +8,10 @@ import { useLoading } from '../context/LoadingContext';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { useQuickNotes } from '../context/QuickNotesContext';
 import { useGlobalActions } from '../context/GlobalActionsContext';
-import SidebarLore from '../components/layout/SidebarLore';
+import { useCharacterDrawer } from '../context/CharacterDrawerContext';
 import TimelineCanvas from '../components/canvas/TimelineCanvas';
-import CharacterDrawer from '../components/characters/CharacterDrawer';
-import CharacterModal from '../components/characters/CharacterModal';
 import EventModal from '../components/canvas/EventModal';
 import EventVersionsModal from '../components/canvas/EventVersionsModal';
-import QuickNotesPanel from '../components/common/QuickNotesPanel';
 import SpeedDialActions from '../components/common/SpeedDialActions';
 import CustomLoading from '../components/common/CustomLoading';
 import CustomButton from '../components/common/CustomButton';
@@ -25,7 +22,8 @@ export default function DashboardPage({ onOpenStorySelector }) {
   const { activeStory, activeStoryId, storiesLoading, updateStory } = useStory();
   const { setLoading } = useLoading();
   const { notes, toggleOpen } = useQuickNotes();
-  const { eventModalOpen, charModalOpen, closeCreateEvent, closeCreateChar, openCreateEvent, openCreateChar } = useGlobalActions();
+  const { eventModalOpen, closeCreateEvent, openCreateEvent, openCreateChar } = useGlobalActions();
+  const { openDrawer: openCharacterDrawer, prepareCreateChar } = useCharacterDrawer();
 
 
   const {
@@ -46,7 +44,6 @@ export default function DashboardPage({ onOpenStorySelector }) {
     createBoard,
     updateBoard,
     deleteBoard,
-    refreshBoardEvents,
     createConnection,
     deleteConnection,
     saveEvent,
@@ -58,39 +55,10 @@ export default function DashboardPage({ onOpenStorySelector }) {
     createEventBackup,
     getEventVersions,
     restoreEventVersion,
-    saveCharacter,
-    deleteCharacter,
-    updateCharactersGlobal,
-    copyCharactersAsLocal,
-    createRelationship,
-    deleteRelationship,
   } = useWorkspace();
 
   // UI / Modal States
   const [dataLoading, setDataLoading] = useState(true);
-  const [charDrawerOpen, setCharDrawerOpen] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('lorebook_char_drawer_open') === 'true';
-    }
-    return false;
-  });
-  const [focusedCharacterId, setFocusedCharacterId] = useState(null);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('lorebook_char_drawer_open', charDrawerOpen.toString());
-    }
-  }, [charDrawerOpen]);
-  
-  // Modales gestionados por contexto global
-  const [selectedCharacter, setSelectedCharacter] = useState(null);
-  const [isCloneCharMode, setIsCloneCharMode] = useState(false);
-
-  const handleOpenCharactersDrawer = useCallback((charOrId = null) => {
-    const targetId = typeof charOrId === 'object' && charOrId ? charOrId.id : charOrId;
-    setFocusedCharacterId(targetId || null);
-    setCharDrawerOpen(true);
-  }, []);
 
   const [selectedEvent, setSelectedEvent] = useState(null);
 
@@ -170,76 +138,6 @@ export default function DashboardPage({ onOpenStorySelector }) {
     });
   };
 
-  const handleSaveCharacter = async (charData) => {
-    if (!activeStoryId) return;
-    await saveCharacter({
-      storyId: activeStoryId,
-      charData,
-      selectedCharacterId: selectedCharacter?.id || null,
-      isCloneMode: isCloneCharMode,
-      cloneOptions: null,
-      setLoading,
-    });
-    setCharModalOpen(false);
-  };
-
-  const handleCloneCharacter = async (originalCharId, cloneOptions) => {
-    if (!activeStoryId) return;
-    await saveCharacter({
-      storyId: activeStoryId,
-      selectedCharacterId: originalCharId,
-      isCloneMode: true,
-      cloneOptions,
-      setLoading,
-    });
-    setCharModalOpen(false);
-  };
-
-  const handleDeleteCharacter = async (charId) => {
-    const character = characters.find((item) => item.id === charId);
-    setPendingConfirmation({
-      title: 'Eliminar personaje',
-      message: `¿Eliminar el personaje "${character?.name || ''}"?`,
-      onConfirm: async () => {
-        await deleteCharacter({ storyId: activeStoryId, charId, setLoading });
-        setPendingConfirmation(null);
-      },
-    });
-  };
-
-  const handleSetCharactersGlobal = async (characterIds, isGlobal) => {
-    if (!characterIds?.length) return;
-    const { error } = await updateCharactersGlobal({ storyId: activeStoryId, characterIds, isGlobal, setLoading });
-    if (error) {
-      setFeedback('No se pudo actualizar uno o más personajes.');
-    }
-  };
-
-  const handleCopyCharactersAsLocal = async (characterIds) => {
-    if (!characterIds?.length || !activeStoryId) return;
-    const result = await copyCharactersAsLocal({ storyId: activeStoryId, characterIds, setLoading });
-    if (result?.error) {
-      setFeedback('No se pudo copiar uno o más personajes a esta historia.');
-    }
-    return result;
-  };
-
-  const handleCreateRelationship = async (relData) => {
-    if (!activeStoryId) return;
-    await createRelationship({ storyId: activeStoryId, relData, setLoading });
-  };
-
-  const handleDeleteRelationship = async (relId) => {
-    await deleteRelationship({ storyId: activeStoryId, relId, setLoading });
-  };
-
-  const handleMoveCharacterToFolder = async (charOrIds, targetFolderId) => {
-    const ids = Array.isArray(charOrIds) ? charOrIds : [charOrIds?.id || charOrIds];
-    await ApiService.characters.moveToFolder(ids, targetFolderId);
-    if (activeStoryId) {
-      await loadStoryData({ storyId: activeStoryId });
-    }
-  };
 
   const handleSaveEvent = async ({ eventData, characterIds, createBackup, backupNote }) => {
     const result = await saveEvent({
@@ -498,9 +396,6 @@ export default function DashboardPage({ onOpenStorySelector }) {
     });
   };
 
-  const handleUpdateStoryCover = async (storyId, coverUrl) => {
-    await updateStory(storyId, { cover_url: coverUrl });
-  };
 
   const handleOpenEditEvent = async (event) => {
     const { data: completeEvent } = await getEventDetails({ eventId: event.id, setLoading });
@@ -543,30 +438,6 @@ export default function DashboardPage({ onOpenStorySelector }) {
 
   return (
     <>
-        <SidebarLore
-          view="dashboard"
-          story={activeStory}
-          characters={characters}
-          events={allEvents}
-          eventConnections={eventConnections}
-          boards={boards}
-          activeBoardId={activeBoardId}
-          onOpenCharactersDrawer={handleOpenCharactersDrawer}
-          onOpenCreateEvent={() => {
-            setSelectedEvent(null);
-            openCreateEvent();
-          }}
-          onUpdateStoryCover={handleUpdateStoryCover}
-          onSelectBoard={handleSelectBoard}
-          onCreateBoard={handleCreateBoard}
-          onRenameBoard={handleRenameBoard}
-          onDeleteBoard={handleDeleteBoard}
-          onChangeBoardColor={handleChangeBoardColor}
-          onOpenEditEvent={handleOpenEditEvent}
-          onDeleteEvent={handleDeleteEvent}
-          onMoveCharacterToFolder={handleMoveCharacterToFolder}
-        />
-
         <Box sx={{ flexGrow: 1, height: '100%', position: 'relative', display: 'flex', overflow: 'hidden' }}>
           <Box sx={{ flexGrow: 1, height: '100%', position: 'relative', minWidth: 0 }}>
             <TimelineCanvas
@@ -602,8 +473,7 @@ export default function DashboardPage({ onOpenStorySelector }) {
               openCreateEvent();
             }}
             onOpenCreateCharacter={() => {
-              setSelectedCharacter(null);
-              setIsCloneCharMode(false);
+              prepareCreateChar();
               openCreateChar();
             }}
           />
@@ -630,52 +500,7 @@ export default function DashboardPage({ onOpenStorySelector }) {
             </Fab>
           </Tooltip>
         </Box>
-
-        <CharacterDrawer
-          open={charDrawerOpen}
-          onClose={() => {
-            setCharDrawerOpen(false);
-            setFocusedCharacterId(null);
-          }}
-          storyId={activeStoryId}
-          characters={characters}
-          relationships={relationships}
-          focusedCharacterId={focusedCharacterId}
-          onOpenCreateCharacter={() => openCreateChar()}
-          onOpenEditCharacter={(char) => {
-            setSelectedCharacter(char);
-            setIsCloneCharMode(false);
-            openCreateChar();
-          }}
-          onOpenCloneCharacter={(char) => {
-            setSelectedCharacter(char);
-            setIsCloneCharMode(true);
-            openCreateChar();
-          }}
-          onDeleteCharacter={handleDeleteCharacter}
-          onSetCharactersGlobal={handleSetCharactersGlobal}
-          onCopyCharactersAsLocal={handleCopyCharactersAsLocal}
-          onRoleChange={(charId, newRole) => {
-            saveCharacter({
-              storyId: activeStoryId,
-              charData: { role_archetype: newRole },
-              selectedCharacterId: charId,
-              setLoading,
-            });
-          }}
-          onCreateRelationship={handleCreateRelationship}
-          onDeleteRelationship={handleDeleteRelationship}
-        />
       </Box>
-
-      <CharacterModal
-        open={charModalOpen}
-        onClose={() => closeCreateChar()}
-        character={selectedCharacter}
-        isCloneMode={isCloneCharMode}
-        onSave={handleSaveCharacter}
-        onClone={handleCloneCharacter}
-      />
 
       <EventModal
         open={eventModalOpen}

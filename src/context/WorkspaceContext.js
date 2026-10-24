@@ -1,11 +1,15 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { ApiService } from '../utils/ApiService';
+import { useStory } from './StoryContext';
 
 const WorkspaceContext = createContext(null);
 
 const EMPTY_WORKSPACE = {
   characters: [],
   relationships: [],
+  characterFolders: [],
+  characterTags: [],
+  customArchetypes: [],
   events: [],
   allEvents: [],
   eventConnections: [],
@@ -14,8 +18,16 @@ const EMPTY_WORKSPACE = {
 };
 
 export const WorkspaceProvider = ({ children }) => {
+  const { activeStoryId } = useStory();
+  const loadedStoryIdRef = useRef(null);
+  const isFetchingStoryIdRef = useRef(null);
+  const [dataLoading, setDataLoading] = useState(false);
+
   const [characters, setCharacters] = useState(EMPTY_WORKSPACE.characters);
   const [relationships, setRelationships] = useState(EMPTY_WORKSPACE.relationships);
+  const [characterFolders, setCharacterFolders] = useState(EMPTY_WORKSPACE.characterFolders);
+  const [characterTags, setCharacterTags] = useState(EMPTY_WORKSPACE.characterTags);
+  const [customArchetypes, setCustomArchetypes] = useState(EMPTY_WORKSPACE.customArchetypes);
   const [events, setEvents] = useState(EMPTY_WORKSPACE.events);
   const [allEvents, setAllEvents] = useState(EMPTY_WORKSPACE.allEvents);
   const [eventConnections, setEventConnections] = useState(EMPTY_WORKSPACE.eventConnections);
@@ -25,6 +37,9 @@ export const WorkspaceProvider = ({ children }) => {
   const resetWorkspace = useCallback(() => {
     setCharacters([]);
     setRelationships([]);
+    setCharacterFolders([]);
+    setCharacterTags([]);
+    setCustomArchetypes([]);
     setEvents([]);
     setAllEvents([]);
     setEventConnections([]);
@@ -42,12 +57,15 @@ export const WorkspaceProvider = ({ children }) => {
     if (setDataLoading) setDataLoading(true);
 
     try {
-      const [charsRes, relsRes, boardsRes, treeEventsRes, connsRes] = await Promise.all([
+      const [charsRes, relsRes, boardsRes, treeEventsRes, connsRes, foldersRes, tagsRes, archetypesRes] = await Promise.all([
         ApiService.characters.getAll(storyId, setLoading),
         ApiService.relationships.getAll(storyId, setLoading),
         ApiService.boards.getAll(storyId, setLoading),
         ApiService.events.getTree(storyId, setLoading),
         ApiService.events.getConnections(storyId, setLoading),
+        ApiService.characterFolders.getAll(storyId, setLoading).catch(() => ({ data: [] })),
+        ApiService.characterTags.getAll(storyId, setLoading).catch(() => ({ data: [] })),
+        ApiService.characterArchetypes.getAll(storyId, setLoading).catch(() => ({ data: [] })),
       ]);
 
       const existingBoards = boardsRes.data || [];
@@ -71,6 +89,9 @@ export const WorkspaceProvider = ({ children }) => {
 
       setCharacters(charsRes.data || []);
       setRelationships(relsRes.data || []);
+      setCharacterFolders(foldersRes?.data || []);
+      setCharacterTags(tagsRes?.data || []);
+      setCustomArchetypes(archetypesRes?.data || []);
       setBoards(existingBoards);
       setAllEvents(loadedEvents);
       setEventConnections(connsRes.data || []);
@@ -79,6 +100,7 @@ export const WorkspaceProvider = ({ children }) => {
       const { data: activeEvents } = await ApiService.events.getAll(storyId, targetBoardId, setLoading);
       setEvents(activeEvents || []);
 
+      loadedStoryIdRef.current = storyId;
       return { data: { boards: existingBoards, activeBoardId: targetBoardId, events: activeEvents || [] }, error: null };
     } catch (error) {
       console.error('Failed to load story data:', error);
@@ -87,6 +109,39 @@ export const WorkspaceProvider = ({ children }) => {
       if (setDataLoading) setDataLoading(false);
     }
   }, [resetWorkspace]);
+
+  // Auto-sync story data whenever activeStoryId changes or on initial mount (with caching)
+  useEffect(() => {
+    if (!activeStoryId) {
+      if (loadedStoryIdRef.current) {
+        resetWorkspace();
+        loadedStoryIdRef.current = null;
+      }
+      return;
+    }
+
+    // Skip if already loaded for this story or currently loading
+    if (loadedStoryIdRef.current === activeStoryId || isFetchingStoryIdRef.current === activeStoryId) {
+      return;
+    }
+
+    isFetchingStoryIdRef.current = activeStoryId;
+    loadStoryData({ storyId: activeStoryId, setDataLoading }).then((res) => {
+      if (!res?.error) {
+        loadedStoryIdRef.current = activeStoryId;
+      }
+    }).finally(() => {
+      isFetchingStoryIdRef.current = null;
+    });
+  }, [activeStoryId, loadStoryData, resetWorkspace]);
+
+  const reloadStoryData = useCallback(async ({ force = true, setLoading } = {}) => {
+    if (!activeStoryId) return { data: null, error: null };
+    if (force) {
+      loadedStoryIdRef.current = null;
+    }
+    return loadStoryData({ storyId: activeStoryId, setLoading, setDataLoading });
+  }, [activeStoryId, loadStoryData]);
 
   const ensurePrimaryBoard = useCallback(async ({ storyId, setLoading }) => {
     if (!storyId) return null;
@@ -482,6 +537,12 @@ export const WorkspaceProvider = ({ children }) => {
       setCharacters,
       relationships,
       setRelationships,
+      characterFolders,
+      setCharacterFolders,
+      characterTags,
+      setCharacterTags,
+      customArchetypes,
+      setCustomArchetypes,
       events,
       setEvents,
       allEvents,
@@ -494,6 +555,9 @@ export const WorkspaceProvider = ({ children }) => {
       setActiveBoardId,
       resetWorkspace,
       loadStoryData,
+      reloadStoryData,
+      dataLoading,
+      setDataLoading,
       ensurePrimaryBoard,
       selectBoard,
       createBoard,

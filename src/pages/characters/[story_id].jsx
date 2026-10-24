@@ -25,7 +25,6 @@ import { useAuth } from '../../context/AuthContext';
 import { useStory } from '../../context/StoryContext';
 import { useLoading } from '../../context/LoadingContext';
 import { ApiService } from '../../utils/ApiService';
-import SidebarLore from '../../components/layout/SidebarLore';
 import CustomLoading from '../../components/common/CustomLoading';
 import CustomModal from '../../components/common/CustomModal';
 import SelectionActionBar from '../../components/common/SelectionActionBar';
@@ -716,35 +715,7 @@ export default function CharacterManagementPage() {
 
   return (
     <>
-      <SidebarLore
-        view="characters"
-        story={activeStory}
-        characters={characters}
-        characterFolders={folders}
-        activeCharacterFolderId={activeFolderId}
-        onSelectCharacterFolder={(fId) => setActiveFolderId(fId)}
-        onCreateCharacterFolder={handleCommitCreateFolder}
-        onRenameCharacterFolder={handleRenameFolder}
-        onDeleteCharacterFolder={handleDeleteFolder}
-        onChangeCharacterFolderColor={handleChangeFolderColor}
-        onMoveCharacterToFolder={(charOrIds, targetFolderId) => {
-          if (targetFolderId !== undefined && targetFolderId !== null) {
-            const ids = Array.isArray(charOrIds) ? charOrIds : [charOrIds?.id || charOrIds];
-            handleConfirmMoveToFolder(ids, targetFolderId);
-          } else {
-            handleOpenMoveToFolder(charOrIds);
-          }
-        }}
-        onOpenArchetypeManager={() => setArchetypeManagerOpen(true)}
-        onOpenTagManager={() => setTagManagerOpen(true)}
-        onOpenCharacterModal={() => {
-          setSelectedCharacter(null);
-          setIsCloneCharMode(false);
-          setCharModalOpen(true);
-        }}
-      />
-
-      <Box sx={{ display: 'flex', flexGrow: 1, height: '100vh', overflow: 'hidden', bgcolor: 'background.default' }}>
+      <Box sx={{ display: 'flex', flexGrow: 1, height: '100%', overflow: 'hidden', bgcolor: 'background.default' }}>
         {/* ─── CONTENIDO PRINCIPAL: GESTOR DE PERSONAJES ─── */}
         <Box sx={{ flexGrow: 1, height: '100%', overflowY: 'auto', p: { xs: 1, sm: 2.5 }, minWidth: 0 }}>
           <Container maxWidth="xl" disableGutters sx={{ px: { xs: 0.5, sm: 2 } }}>

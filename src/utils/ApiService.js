@@ -100,7 +100,15 @@ export const ApiService = {
     delete: (id, setLoading) => bridge('DELETE_REL', 'public.character_relationships', relationshipController.delete, setLoading, id),
   },
   quickNotes: {
-    getAll: (userId, storyId, setLoading) => bridge('GET_NOTES', 'public.quick_notes', quickNoteController.getAll, setLoading, userId, storyId),
+    getAll: (userId, storyId, options, setLoading) => {
+      let opts = options;
+      let sl = setLoading;
+      if (typeof options === 'function') {
+        sl = options;
+        opts = {};
+      }
+      return bridge('GET_NOTES', 'public.quick_notes', quickNoteController.getAll, sl, userId, storyId, opts);
+    },
     create: (data, setLoading) => bridge('CREATE_NOTE', 'public.quick_notes', quickNoteController.create, setLoading, data),
     update: (id, patch, setLoading) => bridge('UPDATE_NOTE', 'public.quick_notes', quickNoteController.update, setLoading, id, patch),
     delete: (id, setLoading) => bridge('DELETE_NOTE', 'public.quick_notes', quickNoteController.delete, setLoading, id),

@@ -45,7 +45,6 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { useStory } from '../../context/StoryContext';
 import { useQuickNotes, NOTE_COLORS, NOTE_STATUSES } from '../../context/QuickNotesContext';
 import { useWorkspace } from '../../context/WorkspaceContext';
-import SidebarLore from '../../components/layout/SidebarLore';
 import CustomLoading from '../../components/common/CustomLoading';
 import CustomButton from '../../components/common/CustomButton';
 
@@ -417,10 +416,7 @@ export default function CentralizedIdeasPage() {
   }, [scopedNotes]);
 
   return (
-    <>
-      <SidebarLore view="ideas" story={activeStory} characters={characters} />
-
-      <Box sx={{ flexGrow: 1, overflowY: 'auto', p: { xs: 0.8, sm: 2.5 }, bgcolor: 'background.default' }}>
+    <Box sx={{ flexGrow: 1, overflowY: 'auto', p: { xs: 0.8, sm: 2.5 }, bgcolor: 'background.default' }}>
         <Container maxWidth="xl" disableGutters sx={{ px: { xs: 0.5, sm: 2 } }}>
           {/* Header Compacto */}
           <Box
@@ -731,6 +727,5 @@ export default function CentralizedIdeasPage() {
           )}
         </Container>
       </Box>
-    </>
   );
 }

@@ -2,6 +2,9 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/router";
 import { useEventOrder } from '../../hooks/useEventOrder';
 import { useQuickNotes } from '../../context/QuickNotesContext';
+import { useStory } from '../../context/StoryContext';
+import { useWorkspace } from '../../context/WorkspaceContext';
+import { useGlobalActions } from '../../context/GlobalActionsContext';
 import { alpha } from '@mui/material/styles';
 import {
   Box,
@@ -55,6 +58,8 @@ import BoardTreeItem from "../sidebar/BoardTreeItem";
 import CharacterFolderTreeItem, { InlineFolderInput as InlineCharFolderInput } from "../characters/CharacterFolderTree";
 import MoveToFolderModal from "../characters/MoveToFolderModal";
 import ImageCropModal from "../common/ImageCropModal";
+import SidebarIdeasSection from "./sidebar-lore/SidebarIdeasSection";
+import { useSidebarDetail, DETAIL_VIEWS } from "../../context/SidebarDetailContext";
 import { uploadStoryCover } from "../../services/storageService";
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { APP_CONFIG } from '../../constants/constants';
@@ -95,7 +100,39 @@ export default function SidebarLore({
   const router = useRouter();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { notes, notesLoading, toggleOpen: toggleNotesPanel } = useQuickNotes();
+
+  // Global Contexts
+  const { activeStory, changeActiveStory } = useStory();
+  const {
+    characters: ctxCharacters,
+    allEvents: ctxAllEvents,
+    events: ctxEvents,
+    eventConnections: ctxEventConnections,
+    boards: ctxBoards,
+    activeBoardId: ctxActiveBoardId,
+    selectBoard: ctxSelectBoard,
+    createBoard: ctxCreateBoard,
+    updateBoard: ctxUpdateBoard,
+    deleteBoard: ctxDeleteBoard,
+  } = useWorkspace();
+  const { openCreateEvent, openCreateChar } = useGlobalActions();
+  const {
+    notes,
+    notesLoading,
+    totalCount: notesTotalCount,
+    isOpen: isNotesOpen,
+    setIsOpen: setIsNotesOpen,
+    toggleOpen: toggleNotesPanel,
+  } = useQuickNotes();
+  const { openDetail, closeDetail, activeView, isOpen: isDetailOpen } = useSidebarDetail();
+
+  // Effective fallbacks so SidebarLore works anywhere without missing data
+  const effectiveStory = story || activeStory;
+  const effectiveCharacters = (characters && characters.length > 0) ? characters : (ctxCharacters || []);
+  const effectiveEvents = (events && events.length > 0) ? events : (ctxAllEvents && ctxAllEvents.length > 0 ? ctxAllEvents : (ctxEvents || []));
+  const effectiveConnections = (eventConnections && eventConnections.length > 0) ? eventConnections : (ctxEventConnections || []);
+  const effectiveBoards = (boards && boards.length > 0) ? boards : (ctxBoards || []);
+  const effectiveActiveBoardId = activeBoardId || ctxActiveBoardId;
 
   const [collapsed, setCollapsed] = useState(false);
   const sidebarRef = useRef(null);
@@ -104,13 +141,17 @@ export default function SidebarLore({
   const handleCollapse = useCallback(() => setCollapsed(true), []);
   useSwipeToClose(sidebarRef, handleCollapse, 'left', 60, !collapsed);
   
-  // Persist sidebarTab
-  const [sidebarTab, setSidebarTab] = useState(() => {
+  // Persist sidebarTab (safe against SSR hydration mismatch)
+  const [sidebarTab, setSidebarTab] = useState(0);
+
+  useEffect(() => {
     if (typeof window !== 'undefined') {
-      return parseInt(localStorage.getItem('lorebook_sidebar_tab') || '0', 10);
+      const saved = localStorage.getItem('lorebook_sidebar_tab');
+      if (saved !== null) {
+        setSidebarTab(parseInt(saved, 10));
+      }
     }
-    return 0;
-  });
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -120,6 +161,7 @@ export default function SidebarLore({
   
   // Search states
   const [charSearch, setCharSearch] = useState("");
+
 
   // Internal character folders state if not provided as props
   const [localFolders, setLocalFolders] = useState([]);
@@ -132,14 +174,14 @@ export default function SidebarLore({
   useEffect(() => {
     if (characterFolders) {
       setLocalFolders(characterFolders);
-    } else if (story?.id) {
-      ApiService.characterFolders.ensureDefaultFolder(story.id).then(() => {
-        ApiService.characterFolders.getAll(story.id).then((res) => {
+    } else if (effectiveStory?.id) {
+      ApiService.characterFolders.ensureDefaultFolder(effectiveStory.id).then(() => {
+        ApiService.characterFolders.getAll(effectiveStory.id).then((res) => {
           if (res.data) setLocalFolders(res.data);
         });
       });
     }
-  }, [characterFolders, story?.id]);
+  }, [characterFolders, effectiveStory?.id]);
 
   const effectiveFolders = characterFolders || localFolders;
 
@@ -173,19 +215,19 @@ export default function SidebarLore({
   const [newBoardParentId, setNewBoardParentId] = useState(null);
 
   const rootBoards = useMemo(
-    () => boards.filter((b) => !b.parent_board_id),
-    [boards]
+    () => effectiveBoards.filter((b) => !b.parent_board_id),
+    [effectiveBoards]
   );
 
   const storyNotes = useMemo(() => {
-    if (!story?.id) return [];
-    return notes.filter((n) => n.story_id === story.id);
-  }, [notes, story?.id]);
+    if (!effectiveStory?.id) return [];
+    return notes.filter((n) => n.story_id === effectiveStory.id);
+  }, [notes, effectiveStory?.id]);
 
   const filteredCharacters = useMemo(() => {
-    let availableCharacters = characters.filter((c) => {
-      if (c.story_id === story?.id) return true;
-      if (c.is_global && (!c.story_id || c.story_id === story?.id)) return true;
+    let availableCharacters = effectiveCharacters.filter((c) => {
+      if (c.story_id === effectiveStory?.id) return true;
+      if (c.is_global && (!c.story_id || c.story_id === effectiveStory?.id)) return true;
       return false;
     });
 
@@ -196,9 +238,9 @@ export default function SidebarLore({
         c.name.toLowerCase().includes(q) ||
         c.role_archetype?.toLowerCase().includes(q)
     );
-  }, [characters, charSearch, story?.id]);
+  }, [effectiveCharacters, charSearch, effectiveStory?.id]);
 
-  const eventOrderMap = useEventOrder(events, eventConnections);
+  const eventOrderMap = useEventOrder(effectiveEvents, effectiveConnections);
 
   const handleOpenQuickCover = () => {
     const currentUrl = story?.cover_url || "";
@@ -262,10 +304,71 @@ export default function SidebarLore({
     setNewBoardDialogOpen(true);
   };
 
+  const handleSelectBoardAction = (boardId) => {
+    if (onSelectBoard) {
+      onSelectBoard(boardId);
+    } else {
+      ctxSelectBoard({ storyId: effectiveStory?.id, boardId });
+      if (router.pathname !== '/dashboard') {
+        router.push('/dashboard');
+      }
+    }
+  };
+
   const handleConfirmCreateBoard = async () => {
     const name = newBoardName.trim() || "Nuevo tablero";
-    onCreateBoard && onCreateBoard(name, newBoardParentId);
+    if (onCreateBoard) {
+      onCreateBoard(name, newBoardParentId);
+    } else if (effectiveStory?.id) {
+      await ctxCreateBoard({ storyId: effectiveStory.id, name, parentBoardId: newBoardParentId });
+    }
     setNewBoardDialogOpen(false);
+  };
+
+  const handleRenameBoardAction = async (boardId, name) => {
+    if (onRenameBoard) {
+      onRenameBoard(boardId, name);
+    } else {
+      await ctxUpdateBoard({ boardId, patch: { name } });
+    }
+  };
+
+  const handleDeleteBoardAction = async (board) => {
+    const boardId = board?.id || board;
+    if (onDeleteBoard) {
+      onDeleteBoard(board);
+    } else if (effectiveStory?.id) {
+      await ctxDeleteBoard({ storyId: effectiveStory.id, boardId });
+    }
+  };
+
+  const handleChangeBoardColorAction = async (boardId, color) => {
+    if (onChangeBoardColor) {
+      onChangeBoardColor(boardId, color);
+    } else {
+      await ctxUpdateBoard({ boardId, patch: { color } });
+    }
+  };
+
+  const handleOpenCreateEventAction = (targetBoardId) => {
+    const bId = targetBoardId || effectiveActiveBoardId;
+    if (onOpenCreateEvent) {
+      onOpenCreateEvent(bId);
+    } else if (openCreateEvent) {
+      openCreateEvent(bId);
+    } else {
+      router.push('/dashboard');
+    }
+  };
+
+  const handleOpenCharModalAction = () => {
+    if (onOpenCharacterModal) {
+      onOpenCharacterModal();
+    } else if (openCreateChar) {
+      openCreateChar();
+    } else if (effectiveStory?.id) {
+      router.push(`/characters/${effectiveStory.id}`);
+    }
   };
 
   // Character folder creation handler in Sidebar
@@ -332,112 +435,124 @@ export default function SidebarLore({
     setSidebarMoveChar(null);
   };
 
-  // ─── Collapsed Slim Sidebar View ───────────────────────────────────────────
-  if (collapsed) {
-    return (
-      <Box
-        sx={{
-          width: 54,
-          height: "100%",
-          bgcolor: "custom.sidebar",
-          borderRight: 1,
-          borderColor: "divider",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          py: 1.5,
-          gap: 1.5,
-          zIndex: 5,
-        }}
-      >
-        <Tooltip title="Expandir barra lateral" placement="right">
-          <IconButton size="small" onClick={() => setCollapsed(false)}>
-            <ChevronRightIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-
-        <Divider sx={{ width: "80%" }} />
-
-        <Tooltip title={`Historias (${story ? story.title : "Ninguna"})`} placement="right">
-          <IconButton size="small" onClick={onOpenStorySelector}>
-            <LayersOutlinedIcon fontSize="small" color="action" />
-          </IconButton>
-        </Tooltip>
-
-        <Tooltip title={`Tramas (${boards.length} tableros)`} placement="right">
-          <IconButton
-            size="small"
-            onClick={() => { setSidebarTab(0); setCollapsed(false); }}
-            sx={{ color: sidebarTab === 0 ? 'primary.main' : 'action' }}
-          >
-            <AccountTreeOutlinedIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-
-        <Tooltip title={`Personajes y Carpetas (${filteredCharacters.length})`} placement="right">
-          <IconButton
-            size="small"
-            onClick={() => { setSidebarTab(1); setCollapsed(false); }}
-          >
-            <Badge badgeContent={filteredCharacters.length} color="primary">
-              <PeopleOutlineIcon fontSize="small" color={sidebarTab === 1 ? 'primary' : 'action'} />
-            </Badge>
-          </IconButton>
-        </Tooltip>
-
-        <Tooltip title={`Ideas de la historia (${storyNotes.length})`} placement="right">
-          <IconButton
-            size="small"
-            onClick={() => { setSidebarTab(2); setCollapsed(false); }}
-          >
-            <Badge badgeContent={storyNotes.length} color="secondary">
-              <LightbulbOutlinedIcon fontSize="small" color={sidebarTab === 2 ? 'primary' : 'action'} />
-            </Badge>
-          </IconButton>
-        </Tooltip>
-
-        <Tooltip title="Resumen e información" placement="right">
-          <IconButton
-            size="small"
-            onClick={() => { setSidebarTab(3); setCollapsed(false); }}
-          >
-            <InfoOutlinedIcon fontSize="small" color={sidebarTab === 3 ? 'primary' : 'action'} />
-          </IconButton>
-        </Tooltip>
-
-        {activeBoardId && (
-          <Tooltip title="Crear Evento en Tablero Activo" placement="right">
-            <IconButton
-              size="small"
-              onClick={() => onOpenCreateEvent && onOpenCreateEvent(activeBoardId)}
-              sx={{ bgcolor: "primary.main", color: "#fff", mt: 'auto', '&:hover': { bgcolor: 'primary.dark' } }}
-            >
-              <AddIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
-      </Box>
-    );
-  }
-
-  const hasCover = Boolean(story?.cover_url);
+  const hasCover = Boolean(effectiveStory?.cover_url);
 
   return (
     <Box
-      ref={sidebarRef}
       sx={{
-        width: 340,
-        height: "100%",
-        bgcolor: "custom.sidebar",
-        borderRight: 1,
-        borderColor: "divider",
         display: "flex",
-        flexDirection: "column",
-        zIndex: 5,
-        transition: "width 0.2s ease",
-        position: 'relative',
+        height: "100%",
+        flexShrink: 0,
+        position: "relative",
+        zIndex: 10,
       }}
     >
+      {/* ─── Collapsed Slim Sidebar View (54px) ─────────────────────────── */}
+      {collapsed ? (
+        <Box
+          sx={{
+            width: 54,
+            height: "100%",
+            bgcolor: "custom.sidebar",
+            borderRight: 1,
+            borderColor: "divider",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            py: 1.5,
+            gap: 1.5,
+            zIndex: 5,
+          }}
+        >
+          <Tooltip title="Expandir barra lateral" placement="right">
+            <IconButton size="small" onClick={() => setCollapsed(false)}>
+              <ChevronRightIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+
+          <Divider sx={{ width: "80%" }} />
+
+          <Tooltip title={`Historias (${effectiveStory ? effectiveStory.title : "Ninguna"})`} placement="right">
+            <IconButton size="small" onClick={onOpenStorySelector}>
+              <LayersOutlinedIcon fontSize="small" color="action" />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title={`Tramas (${effectiveBoards.length} tableros)`} placement="right">
+            <IconButton
+              size="small"
+              onClick={() => { setSidebarTab(0); setCollapsed(false); }}
+              sx={{ color: sidebarTab === 0 ? 'primary.main' : 'action' }}
+            >
+              <AccountTreeOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title={`Personajes y Carpetas (${filteredCharacters.length})`} placement="right">
+            <IconButton
+              size="small"
+              onClick={() => { setSidebarTab(1); setCollapsed(false); }}
+            >
+              <Badge badgeContent={filteredCharacters.length} color="primary">
+                <PeopleOutlineIcon fontSize="small" color={sidebarTab === 1 ? 'primary' : 'action'} />
+              </Badge>
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title={`Ideas de la historia (${storyNotes.length})`} placement="right">
+            <IconButton
+              size="small"
+              onClick={() => {
+                setSidebarTab(2);
+                setCollapsed(false);
+                openDetail(DETAIL_VIEWS.NOTES);
+              }}
+            >
+              <Badge badgeContent={storyNotes.length} color="secondary">
+                <LightbulbOutlinedIcon fontSize="small" color={isDetailOpen && activeView === DETAIL_VIEWS.NOTES ? 'primary' : 'action'} />
+              </Badge>
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="Resumen e información" placement="right">
+            <IconButton
+              size="small"
+              onClick={() => { setSidebarTab(3); setCollapsed(false); }}
+            >
+              <InfoOutlinedIcon fontSize="small" color={sidebarTab === 3 ? 'primary' : 'action'} />
+            </IconButton>
+          </Tooltip>
+
+          {effectiveActiveBoardId && (
+            <Tooltip title="Crear Evento en Tablero Activo" placement="right">
+              <IconButton
+                size="small"
+                onClick={() => handleOpenCreateEventAction(effectiveActiveBoardId)}
+                sx={{ bgcolor: "primary.main", color: "#fff", mt: 'auto', '&:hover': { bgcolor: 'primary.dark' } }}
+              >
+                <AddIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Box>
+      ) : (
+        <Box
+          ref={sidebarRef}
+          sx={{
+            width: 340,
+            minWidth: 340,
+            height: "100%",
+            bgcolor: "custom.sidebar",
+            borderRight: 1,
+            borderColor: "divider",
+            display: "flex",
+            flexDirection: "column",
+            zIndex: 5,
+            transition: "width 0.2s ease",
+            position: 'relative',
+            overflowX: 'hidden',
+          }}
+        >
       {/* Top Header */}
       <Box
         sx={{
@@ -579,7 +694,7 @@ export default function SidebarLore({
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: "uppercase", fontSize: '0.7rem' }}>
-                Tableros Narrativos ({boards.length})
+                Tableros Narrativos ({effectiveBoards.length})
               </Typography>
             </Box>
             <Tooltip title="Crear nuevo tablero raíz">
@@ -606,19 +721,17 @@ export default function SidebarLore({
                 <BoardTreeItem
                   key={board.id}
                   board={board}
-                  boards={boards}
-                  events={events}
+                  boards={effectiveBoards}
+                  events={effectiveEvents}
                   eventOrderMap={eventOrderMap}
                   level={0}
-                  activeBoardId={activeBoardId}
-                  onSelect={(b) => onSelectBoard && onSelectBoard(b.id)}
+                  activeBoardId={effectiveActiveBoardId}
+                  onSelect={(b) => handleSelectBoardAction(b.id)}
                   onStartCreateBoard={(parentId) => handleRequestCreateBoard(parentId)}
-                  onRename={(boardId, newName) => onRenameBoard && onRenameBoard(boardId, newName)}
-                  onDelete={(b) => onDeleteBoard && onDeleteBoard(b)}
-                  onChangeColor={(boardId, color) => onChangeBoardColor && onChangeBoardColor(boardId, color)}
-                  onOpenCreateEventForBoard={(boardId) => {
-                    onOpenCreateEvent && onOpenCreateEvent(boardId);
-                  }}
+                  onRename={(boardId, newName) => handleRenameBoardAction(boardId, newName)}
+                  onDelete={(b) => handleDeleteBoardAction(b)}
+                  onChangeColor={(boardId, color) => handleChangeBoardColorAction(boardId, color)}
+                  onOpenCreateEventForBoard={(boardId) => handleOpenCreateEventAction(boardId)}
                   onOpenEditEvent={onOpenEditEvent}
                   onDeleteEvent={onDeleteEvent}
                 />
@@ -648,11 +761,29 @@ export default function SidebarLore({
                 sx: { height: 30, fontSize: '0.8rem', borderRadius: 1.5 },
               }}
             />
+            <Tooltip title="Abrir panel lateral de personajes">
+              <IconButton
+                size="small"
+                onClick={() => {
+                  openDetail(DETAIL_VIEWS.CHARACTERS);
+                  if (onOpenCharactersDrawer) {
+                    onOpenCharactersDrawer();
+                  } else if (onOpenCharacterModal) {
+                    onOpenCharacterModal();
+                  } else if (openCreateChar) {
+                    openCreateChar();
+                  }
+                }}
+                sx={{ border: 1, borderColor: 'divider', borderRadius: 1.5, p: 0.5, color: 'primary.main' }}
+              >
+                <PeopleOutlineIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Crear carpeta de personajes">
               <IconButton
                 size="small"
                 onClick={() => setIsCreatingRootCharFolder(true)}
-                sx={{ border: 1, borderColor: 'divider', borderRadius: 1.5, p: 0.5, color: 'primary.main' }}
+                sx={{ border: 1, borderColor: 'divider', borderRadius: 1.5, p: 0.5, color: 'text.secondary' }}
               >
                 <CreateNewFolderOutlinedIcon fontSize="small" />
               </IconButton>
@@ -799,7 +930,16 @@ export default function SidebarLore({
               size="small"
               fullWidth
               startIcon={<PeopleOutlineIcon fontSize="small" />}
-              onClick={onOpenCharactersDrawer}
+              onClick={() => {
+                openDetail(DETAIL_VIEWS.CHARACTERS);
+                if (onOpenCharactersDrawer) {
+                  onOpenCharactersDrawer();
+                } else if (onOpenCharacterModal) {
+                  onOpenCharacterModal();
+                } else if (openCreateChar) {
+                  openCreateChar();
+                }
+              }}
               sx={{ fontSize: '0.75rem', py: 0.4 }}
             >
               Cajón de Personajes
@@ -808,75 +948,12 @@ export default function SidebarLore({
         </Box>
       )}
 
-      {/* ─── SECTION 2: IDEAS DE LA HISTORIA ─────────────────────────────── */}
+      {/* ─── SECTION 2: IDEAS DE LA HISTORIA (Hub Estructural sin duplicación) ── */}
       {sidebarTab === 2 && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
-          <Box sx={{ p: 1.2, px: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem' }}>
-              Ideas Vinculadas ({storyNotes.length})
-            </Typography>
-            <Tooltip title="Abrir pizarra central de ideas">
-              <IconButton size="small" onClick={() => router.push('/ideas')} sx={{ p: 0.4 }}>
-                <OpenInNewIcon sx={{ fontSize: 16 }} />
-              </IconButton>
-            </Tooltip>
-          </Box>
-
-          <Box sx={{ flexGrow: 1, overflowY: "auto", px: 1.5, pb: 1 }}>
-            {notesLoading && notes.length === 0 ? (
-              <Box sx={{ textAlign: 'center', py: 4, px: 2 }}>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                  Cargando ideas...
-                </Typography>
-              </Box>
-            ) : storyNotes.length === 0 ? (
-              <Box sx={{ textAlign: 'center', py: 4, px: 2 }}>
-                <LightbulbOutlinedIcon sx={{ fontSize: 32, color: 'text.disabled', mb: 1 }} />
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                  No hay ideas vinculadas a esta historia. Usa el Gestor Express para capturar una.
-                </Typography>
-              </Box>
-            ) : (
-              storyNotes.map((n) => (
-                <Box
-                  key={n.id}
-                  onClick={toggleNotesPanel}
-                  sx={{
-                    p: 1.2,
-                    mb: 1,
-                    borderRadius: 2,
-                    bgcolor: n.color || 'background.paper',
-                    border: '1px solid rgba(0,0,0,0.08)',
-                    cursor: 'pointer',
-                    transition: 'transform 0.12s ease',
-                    '&:hover': { transform: 'translateX(2px)' },
-                  }}
-                >
-                  <Typography variant="body2" sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#111', whiteSpace: 'pre-wrap', maxHeight: 44, overflow: 'hidden' }}>
-                    {n.content || 'Idea vacía'}
-                  </Typography>
-                  <Typography variant="caption" sx={{ fontSize: '0.62rem', opacity: 0.6, color: '#333', mt: 0.4, display: 'block' }}>
-                    {new Date(n.updated_at).toLocaleDateString('es', { day: 'numeric', month: 'short' })}
-                  </Typography>
-                </Box>
-              ))
-            )}
-          </Box>
-
-          <Divider />
-          <Box sx={{ p: 1.2 }}>
-            <CustomButton
-              variant="contained"
-              size="small"
-              fullWidth
-              startIcon={<LightbulbOutlinedIcon fontSize="small" />}
-              onClick={toggleNotesPanel}
-              sx={{ fontSize: '0.75rem', py: 0.5 }}
-            >
-              Escribir nueva idea
-            </CustomButton>
-          </Box>
-        </Box>
+        <SidebarIdeasSection
+          story={effectiveStory}
+          storyNotes={storyNotes}
+        />
       )}
 
       {/* ─── SECTION 3: FICHA & METADATOS DE LA HISTORIA ─────────────────── */}
@@ -887,7 +964,7 @@ export default function SidebarLore({
               Descripción / Logline
             </Typography>
             <Typography variant="body2" sx={{ mt: 0.5, fontSize: '0.82rem', color: 'text.primary', lineHeight: 1.5 }}>
-              {story?.description || 'Sin descripción redactada.'}
+              {effectiveStory?.description || 'Sin descripción redactada.'}
             </Typography>
           </Box>
 
@@ -900,15 +977,15 @@ export default function SidebarLore({
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.2, mt: 1 }}>
               <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: 'background.subtle', border: 1, borderColor: 'divider' }}>
                 <Typography variant="caption" color="text.secondary">Escenas / Nodos</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{events.length}</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{effectiveEvents.length}</Typography>
               </Box>
               <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: 'background.subtle', border: 1, borderColor: 'divider' }}>
                 <Typography variant="caption" color="text.secondary">Personajes</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{characters.length}</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{effectiveCharacters.length}</Typography>
               </Box>
               <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: 'background.subtle', border: 1, borderColor: 'divider' }}>
                 <Typography variant="caption" color="text.secondary">Tableros</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{boards.length}</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{effectiveBoards.length}</Typography>
               </Box>
               <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: 'background.subtle', border: 1, borderColor: 'divider' }}>
                 <Typography variant="caption" color="text.secondary">Ideas Vinculadas</Typography>
@@ -939,6 +1016,9 @@ export default function SidebarLore({
           {APP_CONFIG.VERSION}
         </Typography>
       </Box>
+    </Box>
+  )}
+
 
       {/* ─── Move Character Modal in Sidebar ──────────────────────────────── */}
       <MoveToFolderModal

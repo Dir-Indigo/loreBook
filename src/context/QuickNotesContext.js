@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { ApiService } from '../utils/ApiService';
 import { useAuth } from './AuthContext';
 
@@ -28,7 +28,15 @@ export const QuickNotesProvider = ({ children }) => {
   const { user } = useAuth();
   const [notes, setNotes] = useState([]);
   const [notesLoading, setNotesLoading] = useState(false);
-  
+  const [totalCount, setTotalCount] = useState(0);
+
+  // Pagination & Filter States
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+  const [scopeFilter, setScopeFilter] = useState('story'); // 'story' | 'global' | 'all'
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Panel open and pinned (docked) state
   const [isOpen, setIsOpen] = useState(false);
   const [isPinned, setIsPinnedState] = useState(false);
@@ -69,29 +77,104 @@ export const QuickNotesProvider = ({ children }) => {
     setIsOpen((prev) => !prev);
   }, []);
 
-  const loadNotes = useCallback(async (storyId = null) => {
+  // Centralized, optimized note fetcher with pagination & filtering
+  const loadNotes = useCallback(async (optionsArg = null) => {
     if (!user?.id) return;
     setNotesLoading(true);
-    const { data } = await ApiService.quickNotes.getAll(user.id, storyId, null);
-    setNotes(data || []);
-    setNotesLoading(false);
-  }, [user?.id]);
 
-  // Automatically load notes as soon as user is authenticated
+    let opts = {};
+    let targetStoryId = null;
+
+    if (typeof optionsArg === 'string') {
+      targetStoryId = optionsArg;
+    } else if (optionsArg && typeof optionsArg === 'object') {
+      targetStoryId = optionsArg.storyId || null;
+      opts = { ...optionsArg };
+    }
+
+    const currentPage = opts.page ?? page;
+    const currentPageSize = opts.pageSize ?? pageSize;
+    const currentScope = opts.scope ?? scopeFilter;
+    const currentStatus = opts.status ?? statusFilter;
+    const currentSearch = opts.search ?? searchQuery;
+
+    try {
+      const result = await ApiService.quickNotes.getAll(user.id, targetStoryId, {
+        page: currentPage,
+        pageSize: currentPageSize,
+        scope: currentScope,
+        status: currentStatus,
+        search: currentSearch,
+      });
+
+      if (result?.data) {
+        setNotes(result.data);
+        if (typeof result.count === 'number') {
+          setTotalCount(result.count);
+        } else {
+          setTotalCount(result.data.length);
+        }
+      }
+    } catch (err) {
+      console.error('[QuickNotesContext] Error loading notes:', err);
+    } finally {
+      setNotesLoading(false);
+    }
+  }, [user?.id, page, pageSize, scopeFilter, statusFilter, searchQuery]);
+
+  // Load notes initially or when user signs in
   useEffect(() => {
     if (user?.id) {
-      loadNotes(null);
+      loadNotes();
     } else {
       setNotes([]);
+      setTotalCount(0);
     }
-  }, [user?.id, loadNotes]);
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pagination Actions
+  const handleSetPage = useCallback((newPage) => {
+    setPage(newPage);
+    loadNotes({ page: newPage });
+  }, [loadNotes]);
+
+  const nextPage = useCallback(() => {
+    const totalPages = Math.ceil(totalCount / pageSize) || 1;
+    if (page < totalPages) {
+      handleSetPage(page + 1);
+    }
+  }, [page, pageSize, totalCount, handleSetPage]);
+
+  const prevPage = useCallback(() => {
+    if (page > 1) {
+      handleSetPage(page - 1);
+    }
+  }, [page, handleSetPage]);
+
+  const handleSetScopeFilter = useCallback((scope) => {
+    setScopeFilter(scope);
+    setPage(1);
+    loadNotes({ scope, page: 1 });
+  }, [loadNotes]);
+
+  const handleSetStatusFilter = useCallback((status) => {
+    setStatusFilter(status);
+    setPage(1);
+    loadNotes({ status, page: 1 });
+  }, [loadNotes]);
+
+  const handleSetSearchQuery = useCallback((search) => {
+    setSearchQuery(search);
+    setPage(1);
+    loadNotes({ search, page: 1 });
+  }, [loadNotes]);
 
   const createNote = useCallback(async ({ content = '', color = '#f5e6c8', storyId = null, story_id = null, status = 'idea' }) => {
     if (!user?.id) return { data: null, error: new Error('Not authenticated') };
 
     const targetStoryId = storyId || story_id || null;
 
-    // Optimistic insert with a temp id
+    // Optimistic insert with temp id
     const tempId = `temp-${Date.now()}`;
     const optimistic = {
       id: tempId,
@@ -105,7 +188,9 @@ export const QuickNotesProvider = ({ children }) => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+
     setNotes((prev) => [optimistic, ...prev]);
+    setTotalCount((c) => c + 1);
 
     const result = await ApiService.quickNotes.create(
       { user_id: user.id, story_id: targetStoryId, content, color, status },
@@ -115,6 +200,7 @@ export const QuickNotesProvider = ({ children }) => {
     if (result.error || !result.data) {
       // Rollback
       setNotes((prev) => prev.filter((n) => n.id !== tempId));
+      setTotalCount((c) => Math.max(0, c - 1));
       return result;
     }
 
@@ -141,10 +227,12 @@ export const QuickNotesProvider = ({ children }) => {
     // Optimistic delete
     const previous = notes;
     setNotes((prev) => prev.filter((n) => n.id !== id));
+    setTotalCount((c) => Math.max(0, c - 1));
 
     const result = await ApiService.quickNotes.delete(id, null);
     if (result.error) {
       setNotes(previous);
+      setTotalCount((c) => c + 1);
     }
     return result;
   }, [notes]);
@@ -160,10 +248,27 @@ export const QuickNotesProvider = ({ children }) => {
     return new Date(b.updated_at) - new Date(a.updated_at);
   });
 
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const hasMore = page < totalPages;
+
   return (
     <QuickNotesContext.Provider value={{
       notes: sortedNotes,
       notesLoading,
+      totalCount,
+      page,
+      pageSize,
+      totalPages,
+      hasMore,
+      setPage: handleSetPage,
+      nextPage,
+      prevPage,
+      scopeFilter,
+      setScopeFilter: handleSetScopeFilter,
+      statusFilter,
+      setStatusFilter: handleSetStatusFilter,
+      searchQuery,
+      setSearchQuery: handleSetSearchQuery,
       isOpen,
       setIsOpen,
       toggleOpen,

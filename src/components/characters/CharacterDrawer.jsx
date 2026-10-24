@@ -29,6 +29,8 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PushPinIcon from '@mui/icons-material/PushPin';
 import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import BookmarkAddOutlinedIcon from '@mui/icons-material/BookmarkAddOutlined';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CustomButton from '../common/CustomButton';
 import SelectionActionBar from '../common/SelectionActionBar';
 import { RELATIONSHIP_TYPES } from '../../constants/constants';
@@ -58,13 +60,9 @@ export default function CharacterDrawer({
   const [tabIndex, setTabIndex] = useState(0);
   const drawerRef = useRef(null);
 
-  // Pin/Dock state on Desktop
-  const [isPinned, setIsPinnedState] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('lorebook_char_drawer_pinned') === 'true';
-    }
-    return false;
-  });
+  // Pin/Dock state on Desktop (safe against SSR hydration mismatch)
+  const [isPinned, setIsPinnedState] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false); // Capacidad de crecer (360px <-> 540px)
 
   // Confirmation modal state for copying global characters
   const [confirmCopyOpen, setConfirmCopyOpen] = useState(false);
@@ -174,7 +172,7 @@ export default function CharacterDrawer({
         lastHandledFocusIdRef.current = focusedCharacterId;
         const isOnlyGlobal = !characters.some((c) => (!c.is_global || c.story_id === storyId) && c.id === focusedCharacterId) && characters.some((c) => c.is_global && c.id === focusedCharacterId);
         if (isOnlyGlobal) {
-          setTabIndex(2);
+          setTabIndex(1);
         } else {
           setTabIndex(0);
         }
@@ -200,15 +198,23 @@ export default function CharacterDrawer({
     <Box
       ref={drawerRef}
       sx={{
-        width: { xs: '100vw', sm: 400, md: 420 },
+        width: {
+          xs: '100vw',
+          sm: isExpanded ? 520 : 360,
+          md: isExpanded ? 540 : 360,
+        },
         height: '100%',
         bgcolor: 'background.paper',
         display: 'flex',
         flexDirection: 'column',
-        borderLeft: { xs: 0, sm: 1 },
+        borderRight: { xs: 0, sm: 1 },
+        borderLeft: 0,
         borderColor: 'divider',
         position: 'relative',
-        boxShadow: { xs: 'none', sm: isPinned ? 'none' : '0 8px 32px rgba(0,0,0,0.18)' },
+        flexShrink: 0,
+        zIndex: 8,
+        boxShadow: { xs: 'none', sm: '4px 0 24px rgba(0,0,0,0.06)' },
+        transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
       {/* Mobile Drag Indicator */}
@@ -238,10 +244,29 @@ export default function CharacterDrawer({
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+          {/* Grow / Expand Width Toggle on Desktop */}
+          {!isMobile && (
+            <Tooltip title={isExpanded ? 'Reducir a ancho estándar (360px)' : 'Expandir extensión (540px)'}>
+              <IconButton
+                size="small"
+                onClick={() => setIsExpanded((prev) => !prev)}
+                color={isExpanded ? 'primary' : 'default'}
+                sx={{
+                  border: 1,
+                  borderColor: isExpanded ? 'primary.main' : 'divider',
+                  bgcolor: isExpanded ? 'action.selected' : 'transparent',
+                  p: 0.5,
+                }}
+              >
+                {isExpanded ? <ChevronLeftIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+          )}
+
           {/* Pin/Dock Button on Desktop */}
           {!isMobile && (
-            <Tooltip title={isPinned ? 'Desacoplar panel (flotante)' : 'Fijar panel a la derecha (modo acoplado)'}>
+            <Tooltip title={isPinned ? 'Desacoplar panel (flotante)' : 'Fijar panel al lateral (modo acoplado)'}>
               <IconButton
                 size="small"
                 onClick={togglePinned}
@@ -250,7 +275,7 @@ export default function CharacterDrawer({
                   border: 1,
                   borderColor: isPinned ? 'primary.main' : 'divider',
                   bgcolor: isPinned ? 'primary.lighter' : 'transparent',
-                  p: 0.6,
+                  p: 0.5,
                 }}
               >
                 {isPinned ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}
@@ -366,8 +391,39 @@ export default function CharacterDrawer({
         </Box>
       )}
 
-      {/* Tab 1: Relationships Map */}
+      {/* Tab 1: Global Characters */}
       {tabIndex === 1 && (
+        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5, overflowY: 'auto', flex: 1 }}>
+          {globalCharacters.length === 0 ? (
+            <Box sx={{ p: 3, textAlign: 'center', bgcolor: 'background.subtle', borderRadius: 3 }}>
+              <PublicOutlinedIcon sx={{ fontSize: 36, color: 'text.disabled', mb: 1 }} />
+              <Typography variant="body2" color="text.secondary">
+                Aún no hay personajes globales en el workspace.
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2 }}>
+              {globalCharacters.map((character) => (
+                <CharacterCard
+                  key={character.id}
+                  character={character}
+                  selectable
+                  selected={selectedCharacterIds.includes(character.id)}
+                  onSelect={toggleCharacterSelection}
+                  onEdit={onOpenEditCharacter}
+                  onDelete={onDeleteCharacter}
+                  onClone={onOpenCloneCharacter}
+                  onMakeLocalCopy={(char) => handleRequestCopyAsLocal([char])}
+                  onRoleChange={onRoleChange}
+                />
+              ))}
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {/* Tab 2: Relationships Map */}
+      {tabIndex === 2 && (
         <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto', flex: 1 }}>
           {/* New Relationship Form */}
           <Paper
@@ -516,37 +572,6 @@ export default function CharacterDrawer({
               ))
             )}
           </List>
-        </Box>
-      )}
-
-      {/* Tab 2: Global Characters */}
-      {tabIndex === 2 && (
-        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5, overflowY: 'auto', flex: 1 }}>
-          {globalCharacters.length === 0 ? (
-            <Box sx={{ p: 3, textAlign: 'center', bgcolor: 'background.subtle', borderRadius: 3 }}>
-              <PublicOutlinedIcon sx={{ fontSize: 36, color: 'text.disabled', mb: 1 }} />
-              <Typography variant="body2" color="text.secondary">
-                Aún no hay personajes globales en el workspace.
-              </Typography>
-            </Box>
-          ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2 }}>
-              {globalCharacters.map((character) => (
-                <CharacterCard
-                  key={character.id}
-                  character={character}
-                  selectable
-                  selected={selectedCharacterIds.includes(character.id)}
-                  onSelect={toggleCharacterSelection}
-                  onEdit={onOpenEditCharacter}
-                  onDelete={onDeleteCharacter}
-                  onClone={onOpenCloneCharacter}
-                  onMakeLocalCopy={(char) => handleRequestCopyAsLocal([char])}
-                  onRoleChange={onRoleChange}
-                />
-              ))}
-            </Box>
-          )}
         </Box>
       )}
 

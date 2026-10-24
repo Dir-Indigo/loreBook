@@ -15,12 +15,10 @@ import {
   ListItemIcon,
   ListItemText,
   InputAdornment,
-  Button,
-  ButtonGroup,
   useMediaQuery,
   useTheme,
+  CircularProgress,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PushPinIcon from '@mui/icons-material/PushPin';
@@ -32,18 +30,21 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import SendIcon from '@mui/icons-material/Send';
 import PublicIcon from '@mui/icons-material/Public';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
-import ViewSidebarIcon from '@mui/icons-material/ViewSidebar';
-import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined';
+import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon from '@mui/icons-material/Clear';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { useQuickNotes, NOTE_COLORS, NOTE_STATUSES } from '../../context/QuickNotesContext';
 import { useStory } from '../../context/StoryContext';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 
-// ─── Single Editable Note Card ────────────────────────────────────────────────
+// ─── Compact Editable Note Card (Ultra-Optimized Space Management) ─────────────
 function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.content);
   const [colorAnchor, setColorAnchor] = useState(null);
   const [storyAnchor, setStoryAnchor] = useState(null);
+  const [expandedText, setExpandedText] = useState(false);
   const textRef = useRef(null);
 
   useEffect(() => {
@@ -71,21 +72,21 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
     <Box
       sx={{
         position: 'relative',
-        bgcolor: note.color,
-        borderRadius: 2.5,
-        p: { xs: 1.8, sm: 1.5 },
-        mb: 1.4,
+        bgcolor: note.color || '#fff9c4',
+        borderRadius: 2,
+        p: { xs: 1.1, sm: 1 },
+        mb: 0.8,
         boxShadow: note.is_pinned
-          ? '0 4px 16px rgba(0,0,0,0.18)'
-          : '0 2px 8px rgba(0,0,0,0.08)',
-        border: note.is_pinned ? '1.5px solid rgba(0,0,0,0.22)' : '1px solid rgba(0,0,0,0.08)',
-        transition: 'all 0.18s ease',
+          ? '0 3px 12px rgba(0,0,0,0.15)'
+          : '0 1px 4px rgba(0,0,0,0.06)',
+        border: note.is_pinned ? '1.5px solid rgba(0,0,0,0.25)' : '1px solid rgba(0,0,0,0.08)',
+        transition: 'all 0.15s ease',
         '&:hover .note-actions': { opacity: 1 },
       }}
     >
-      {/* Top row: status chip + story chip + actions */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, gap: 0.8, flexWrap: 'wrap' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+      {/* Top Header: status chip + story chip + actions */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5, gap: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, minWidth: 0, flex: 1, overflow: 'hidden' }}>
           <Chip
             label={statusInfo.label}
             size="small"
@@ -95,83 +96,83 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
               onUpdate(note.id, { status: next.value });
             }}
             sx={{
-              height: 20,
-              fontSize: '0.68rem',
+              height: 18,
+              fontSize: '0.62rem',
               fontWeight: 700,
               bgcolor: statusInfo.color,
               color: '#fff',
               cursor: 'pointer',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-              '& .MuiChip-label': { px: 0.8 },
+              flexShrink: 0,
+              '& .MuiChip-label': { px: 0.6 },
             }}
           />
 
-          {/* Story Tag Chip */}
           <Tooltip title="Asignar o cambiar historia vinculada">
             <Chip
-              icon={assignedStory ? <BookmarkBorderIcon sx={{ fontSize: '12px !important' }} /> : <PublicIcon sx={{ fontSize: '12px !important' }} />}
+              icon={assignedStory ? <BookmarkBorderIcon sx={{ fontSize: '11px !important' }} /> : <PublicIcon sx={{ fontSize: '11px !important' }} />}
               label={assignedStory ? assignedStory.title : 'Global'}
               size="small"
               onClick={(e) => setStoryAnchor(e.currentTarget)}
               sx={{
-                height: 20,
-                fontSize: '0.65rem',
+                height: 18,
+                fontSize: '0.62rem',
                 fontWeight: 600,
-                maxWidth: 130,
+                maxWidth: 110,
                 bgcolor: assignedStory ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.04)',
                 color: isDark ? '#fff' : 'inherit',
                 cursor: 'pointer',
-                border: '1px solid rgba(0,0,0,0.12)',
-                '&:hover': { bgcolor: 'rgba(0,0,0,0.15)' },
-                '& .MuiChip-label': { px: 0.6 },
+                border: '1px solid rgba(0,0,0,0.1)',
+                '& .MuiChip-label': { px: 0.5, overflow: 'hidden', textOverflow: 'ellipsis' },
               }}
             />
           </Tooltip>
         </Box>
         
-        {/* Actions bar */}
+        {/* Actions bar (Compact) */}
         <Box
           className="note-actions"
           sx={{
             display: 'flex',
-            gap: { xs: 0.8, sm: 0.4 },
+            alignItems: 'center',
+            gap: 0.1,
             opacity: { xs: 1, sm: 0.6 },
             transition: 'opacity 0.15s',
+            flexShrink: 0,
           }}
         >
           <Tooltip title={note.is_pinned ? 'Desanclar' : 'Anclar'}>
             <IconButton
               size="small"
-              sx={{ p: { xs: 0.6, sm: 0.3 } }}
+              sx={{ p: 0.3 }}
               onClick={() => onTogglePin(note.id)}
             >
               {note.is_pinned
-                ? <PushPinIcon sx={{ fontSize: 16, color: isDark ? '#ffca28' : '#e65100' }} />
-                : <PushPinOutlinedIcon sx={{ fontSize: 16, color: isDark ? '#ccc' : '#666' }} />}
+                ? <PushPinIcon sx={{ fontSize: 14, color: isDark ? '#ffca28' : '#e65100' }} />
+                : <PushPinOutlinedIcon sx={{ fontSize: 14, color: isDark ? '#ccc' : '#666' }} />}
             </IconButton>
           </Tooltip>
           <Tooltip title="Cambiar color">
             <IconButton
               size="small"
-              sx={{ p: { xs: 0.6, sm: 0.3 } }}
+              sx={{ p: 0.3 }}
               onClick={(e) => setColorAnchor(e.currentTarget)}
             >
-              <PaletteOutlinedIcon sx={{ fontSize: 16, color: isDark ? '#ccc' : '#666' }} />
+              <PaletteOutlinedIcon sx={{ fontSize: 14, color: isDark ? '#ccc' : '#666' }} />
             </IconButton>
           </Tooltip>
           <Tooltip title="Eliminar nota">
             <IconButton
               size="small"
-              sx={{ p: { xs: 0.6, sm: 0.3 } }}
+              sx={{ p: 0.3 }}
               onClick={() => onDelete(note.id)}
             >
-              <DeleteOutlineIcon sx={{ fontSize: 16, color: '#e53935' }} />
+              <DeleteOutlineIcon sx={{ fontSize: 14, color: '#e53935' }} />
             </IconButton>
           </Tooltip>
         </Box>
       </Box>
 
-      {/* Note Content */}
+      {/* Note Content (Dense, elegant typography) */}
       {editing ? (
         <TextField
           inputRef={textRef}
@@ -189,13 +190,13 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
           }}
           InputProps={{
             disableUnderline: true,
-            style: { fontSize: '0.9rem', lineHeight: 1.5, fontWeight: 500 },
+            style: { fontSize: '0.82rem', lineHeight: 1.35, fontWeight: 500 },
           }}
           sx={{
             '& textarea': {
               color: isDark ? '#eceff1' : '#212121',
               resize: 'none',
-              minHeight: '40px',
+              minHeight: '32px',
             },
           }}
         />
@@ -204,42 +205,64 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
           variant="body2"
           onClick={() => setEditing(true)}
           sx={{
-            fontSize: '0.9rem',
-            lineHeight: 1.6,
+            fontSize: '0.82rem',
+            lineHeight: 1.35,
             fontWeight: 500,
             color: isDark ? '#eceff1' : '#212121',
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
             cursor: 'text',
-            minHeight: 28,
+            display: '-webkit-box',
+            WebkitLineClamp: expandedText ? 'unset' : 4,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
           }}
         >
           {note.content || <em style={{ opacity: 0.4 }}>Toca para escribir…</em>}
         </Typography>
       )}
 
-      {/* Timestamp */}
-      <Typography
-        variant="caption"
-        sx={{
-          display: 'block',
-          mt: 1,
-          opacity: 0.5,
-          fontSize: '0.68rem',
-          color: isDark ? '#b0bec5' : '#757575',
-        }}
-      >
-        {new Date(note.updated_at).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })}
-      </Typography>
+      {/* Bottom Metadata & Expand */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.4 }}>
+        <Typography
+          variant="caption"
+          sx={{
+            opacity: 0.55,
+            fontSize: '0.62rem',
+            color: isDark ? '#b0bec5' : '#757575',
+          }}
+        >
+          {new Date(note.updated_at).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })}
+        </Typography>
+
+        {note.content && note.content.length > 120 && (
+          <Typography
+            variant="caption"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpandedText((prev) => !prev);
+            }}
+            sx={{
+              fontSize: '0.62rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              color: isDark ? '#90caf9' : 'primary.main',
+              '&:hover': { textDecoration: 'underline' },
+            }}
+          >
+            {expandedText ? 'Menos' : 'Ver más'}
+          </Typography>
+        )}
+      </Box>
 
       {/* Color picker menu */}
       <Menu
         anchorEl={colorAnchor}
         open={Boolean(colorAnchor)}
         onClose={() => setColorAnchor(null)}
-        PaperProps={{ sx: { p: 1.2, borderRadius: 2.5 } }}
+        PaperProps={{ sx: { p: 0.8, borderRadius: 2 } }}
       >
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.8, width: 170 }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, width: 150 }}>
           {NOTE_COLORS.map((c) => (
             <Box
               key={c}
@@ -248,14 +271,14 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
                 setColorAnchor(null);
               }}
               sx={{
-                width: 26,
-                height: 26,
+                width: 20,
+                height: 20,
                 borderRadius: '50%',
                 bgcolor: c,
-                border: c === note.color ? '2.5px solid #111' : '1.5px solid rgba(0,0,0,0.15)',
+                border: c === note.color ? '2px solid #000' : '1px solid rgba(0,0,0,0.15)',
                 cursor: 'pointer',
-                transition: 'transform 0.15s ease',
-                '&:hover': { transform: 'scale(1.2)' },
+                transition: 'transform 0.12s ease',
+                '&:hover': { transform: 'scale(1.15)' },
               }}
             />
           ))}
@@ -267,9 +290,9 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
         anchorEl={storyAnchor}
         open={Boolean(storyAnchor)}
         onClose={() => setStoryAnchor(null)}
-        PaperProps={{ sx: { minWidth: 200, borderRadius: 2.5 } }}
+        PaperProps={{ sx: { minWidth: 190, maxHeight: 220, borderRadius: 2 } }}
       >
-        <Typography variant="caption" sx={{ px: 2, py: 1, fontWeight: 700, color: 'text.secondary', display: 'block' }}>
+        <Typography variant="caption" sx={{ px: 1.5, py: 0.5, fontWeight: 700, color: 'text.secondary', display: 'block', fontSize: '0.68rem' }}>
           VINCULAR A HISTORIA:
         </Typography>
         <MenuItem
@@ -278,13 +301,14 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
             onUpdate(note.id, { story_id: null });
             setStoryAnchor(null);
           }}
+          sx={{ fontSize: '0.78rem', py: 0.4 }}
         >
-          <ListItemIcon>
-            <PublicIcon fontSize="small" />
+          <ListItemIcon sx={{ minWidth: 24 }}>
+            <PublicIcon sx={{ fontSize: 15 }} />
           </ListItemIcon>
-          <ListItemText primary="Global (Sin historia)" />
+          <ListItemText primaryTypographyProps={{ fontSize: '0.75rem' }} primary="Global (Sin historia)" />
         </MenuItem>
-        <Divider />
+        <Divider sx={{ my: 0.4 }} />
         {stories.map((s) => (
           <MenuItem
             key={s.id}
@@ -293,11 +317,12 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
               onUpdate(note.id, { story_id: s.id });
               setStoryAnchor(null);
             }}
+            sx={{ fontSize: '0.78rem', py: 0.4 }}
           >
-            <ListItemIcon>
-              <BookmarkBorderIcon fontSize="small" color="primary" />
+            <ListItemIcon sx={{ minWidth: 24 }}>
+              <BookmarkBorderIcon sx={{ fontSize: 15 }} />
             </ListItemIcon>
-            <ListItemText primary={s.title} />
+            <ListItemText primaryTypographyProps={{ fontSize: '0.75rem', noWrap: true }} primary={s.title} />
           </MenuItem>
         ))}
       </Menu>
@@ -305,8 +330,8 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
   );
 }
 
-// ─── Quick Notes Panel (Drawer / Docked Persistent Sidebar) ───────────────────
-export default function QuickNotesPanel() {
+// ─── Quick Notes Panel (Secondary Extension Sidebar - Capaz de Crecer) ─────────
+export default function QuickNotesPanel({ variant = 'extension', onClose }) {
   const router = useRouter();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -314,11 +339,19 @@ export default function QuickNotesPanel() {
   const {
     notes,
     notesLoading,
+    totalCount,
+    page,
+    totalPages,
+    nextPage,
+    prevPage,
+    scopeFilter,
+    setScopeFilter,
+    statusFilter,
+    setStatusFilter,
+    searchQuery,
+    setSearchQuery,
     isOpen,
     setIsOpen,
-    isPinned,
-    togglePinned,
-    loadNotes,
     createNote,
     updateNote,
     deleteNote,
@@ -327,35 +360,44 @@ export default function QuickNotesPanel() {
   
   const { activeStoryId, activeStory, stories } = useStory();
 
-  // Scope filter: 'story' | 'global' | 'all'
-  const [scopeFilter, setScopeFilter] = useState('story');
-  const [filterStatus, setFilterStatus] = useState('all');
   const [filterAnchor, setFilterAnchor] = useState(null);
+  const [searchInput, setSearchInput] = useState(searchQuery || '');
+  const [isSearchOpen, setIsSearchOpen] = useState(Boolean(searchQuery));
+  const [isExpanded, setIsExpanded] = useState(false); // Capacidad de crecer (360px <-> 540px)
 
   // Fast capture state
   const [quickText, setQuickText] = useState('');
   const [selectedColor, setSelectedColor] = useState(NOTE_COLORS[0]);
+  const [newColorAnchor, setNewColorAnchor] = useState(null);
   const panelRef = useRef(null);
   const quickInputRef = useRef(null);
 
-  // Swipe-to-close: swipe right → close (panel comes from the right side)
-  const handleClose = useCallback(() => setIsOpen(false), [setIsOpen]);
-  useSwipeToClose(panelRef, handleClose, 'right', 60, !isMobile);
+  const handleClose = useCallback(() => {
+    if (onClose) onClose();
+    setIsOpen(false);
+  }, [onClose, setIsOpen]);
 
-  // Load all notes when panel opens or story changes
+  useSwipeToClose(panelRef, handleClose, 'left', 60, !isMobile && isOpen);
+
   useEffect(() => {
     if (isOpen) {
-      loadNotes(null);
-      // Auto-focus quick input
       setTimeout(() => {
         if (quickInputRef.current) {
           quickInputRef.current.focus();
         }
       }, 150);
     }
-  }, [isOpen, loadNotes]);
+  }, [isOpen]);
 
-  // Fast 1-step note creation (Enter or click Send)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== searchQuery) {
+        setSearchQuery(searchInput);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchInput, searchQuery, setSearchQuery]);
+
   const handleQuickAdd = async (e) => {
     if (e) e.preventDefault();
     const text = quickText.trim();
@@ -377,175 +419,237 @@ export default function QuickNotesPanel() {
   };
 
   const handleOpenFullPage = () => {
-    if (!isPinned) setIsOpen(false);
+    setIsOpen(false);
     router.push('/ideas');
   };
 
-  // Filter notes by scope and status
-  const filtered = notes.filter((n) => {
-    // Scope filter
-    if (scopeFilter === 'story' && activeStoryId) {
-      if (n.story_id !== activeStoryId) return false;
-    } else if (scopeFilter === 'global') {
-      if (n.story_id !== null) return false;
-    }
-
-    // Status filter
-    if (filterStatus !== 'all') {
-      if (n.status !== filterStatus) return false;
-    }
-
-    return true;
-  });
-
-  const statusLabel = filterStatus === 'all'
+  const statusLabel = statusFilter === 'all'
     ? 'Todas'
-    : NOTE_STATUSES.find((s) => s.value === filterStatus)?.label || 'Todas';
+    : NOTE_STATUSES.find((s) => s.value === statusFilter)?.label || 'Todas';
 
-  // If panel is not open, don't render anything
   if (!isOpen) return null;
 
   const panelContent = (
     <Box
       ref={panelRef}
       sx={{
-        width: { xs: '100vw', sm: 350, md: 360 },
+        width: {
+          xs: '100vw',
+          sm: isExpanded ? 520 : 360,
+          md: isExpanded ? 540 : 360,
+        },
         height: '100%',
         bgcolor: 'background.paper',
         display: 'flex',
         flexDirection: 'column',
-        borderLeft: { xs: 0, sm: 1 },
+        borderRight: { xs: 0, sm: 1 },
         borderColor: 'divider',
+        boxShadow: { xs: 'none', sm: '4px 0 24px rgba(0,0,0,0.06)' },
+        position: 'relative',
+        zIndex: 8,
+        flexShrink: 0,
+        transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
       {/* Mobile drag handle bar */}
       {isMobile && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1.5, pb: 0.5 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1.2, pb: 0.4 }}>
           <Box sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: 'divider' }} />
         </Box>
       )}
 
-      {/* Header */}
+      {/* ─── Ultra-Compact Header ────────────────────────────────────────── */}
       <Box
         sx={{
-          px: 2,
-          py: 1.3,
+          px: 1.5,
+          py: 0.8,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           borderBottom: 1,
           borderColor: 'divider',
           bgcolor: 'background.paper',
+          minHeight: 40,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <LightbulbOutlinedIcon sx={{ fontSize: 22, color: 'primary.main' }} />
-          <Typography variant="subtitle1" sx={{ fontWeight: 800, fontSize: '0.98rem' }}>
-            Gestor Express
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+          <LightbulbOutlinedIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+          <Typography variant="subtitle2" sx={{ fontWeight: 800, fontSize: '0.86rem' }}>
+            Notas e Ideas
           </Typography>
           <Badge
-            badgeContent={filtered.length}
+            badgeContent={totalCount}
             color="primary"
-            max={99}
-            sx={{ ml: 0.6 }}
+            max={999}
+            sx={{ ml: 0.5, '& .MuiBadge-badge': { fontSize: '0.65rem', height: 16, minWidth: 16 } }}
           />
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-          {/* Pin/Dock Button for Desktop */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+          {/* Grow / Expand Width Toggle on Desktop */}
           {!isMobile && (
-            <Tooltip title={isPinned ? 'Desacoplar panel (flotante)' : 'Fijar panel a la derecha'}>
+            <Tooltip title={isExpanded ? 'Reducir a ancho estándar (360px)' : 'Expandir extensión (540px)'}>
               <IconButton
                 size="small"
-                onClick={togglePinned}
-                color={isPinned ? 'primary' : 'default'}
+                onClick={() => setIsExpanded((prev) => !prev)}
+                color={isExpanded ? 'primary' : 'default'}
                 sx={{
+                  p: 0.4,
                   border: 1,
-                  borderColor: isPinned ? 'primary.main' : 'divider',
-                  bgcolor: isPinned ? 'primary.lighter' : 'transparent',
-                  p: 0.6,
+                  borderColor: isExpanded ? 'primary.main' : 'divider',
+                  bgcolor: isExpanded ? 'action.selected' : 'transparent',
                 }}
               >
-                {isPinned ? <ViewSidebarIcon fontSize="small" /> : <ViewSidebarOutlinedIcon fontSize="small" />}
+                {isExpanded ? <ChevronLeftIcon sx={{ fontSize: 16 }} /> : <ChevronRightIcon sx={{ fontSize: 16 }} />}
               </IconButton>
             </Tooltip>
           )}
 
-          <Tooltip title="Abrir gestor centralizado de ideas">
-            <IconButton size="small" onClick={handleOpenFullPage} sx={{ color: 'primary.main' }}>
-              <OpenInNewIcon fontSize="small" />
+          {/* Toggle search */}
+          <Tooltip title={isSearchOpen ? 'Ocultar búsqueda' : 'Buscar notas'}>
+            <IconButton
+              size="small"
+              onClick={() => setIsSearchOpen((prev) => !prev)}
+              color={isSearchOpen || searchQuery ? 'primary' : 'default'}
+              sx={{ p: 0.4 }}
+            >
+              <SearchIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
 
-          <Tooltip title={`Filtro de estado: ${statusLabel}`}>
-            <IconButton size="small" onClick={(e) => setFilterAnchor(e.currentTarget)}>
-              <FilterListIcon fontSize="small" />
+          {/* Filter menu */}
+          <Tooltip title={`Filtrar estado (${statusLabel})`}>
+            <IconButton
+              size="small"
+              onClick={(e) => setFilterAnchor(e.currentTarget)}
+              color={statusFilter !== 'all' ? 'primary' : 'default'}
+              sx={{ p: 0.4 }}
+            >
+              <FilterListIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
 
-          {/* Obvious, Prominent Close Button */}
-          <Button
+          {/* Open full page */}
+          <Tooltip title="Abrir gestor completo en pantalla">
+            <IconButton size="small" onClick={handleOpenFullPage} sx={{ color: 'primary.main', p: 0.4 }}>
+              <OpenInNewIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+
+          {/* Close Button */}
+          <IconButton
             size="small"
-            variant="outlined"
-            color="inherit"
-            startIcon={<CloseIcon fontSize="small" />}
-            onClick={() => setIsOpen(false)}
+            onClick={handleClose}
             sx={{
-              fontWeight: 700,
-              fontSize: '0.78rem',
-              textTransform: 'none',
-              borderRadius: 2,
-              px: { xs: 1.2, sm: 1.4 },
-              py: 0.35,
+              p: 0.4,
+              border: 1,
               borderColor: 'divider',
-              bgcolor: 'action.hover',
-              '&:hover': {
-                bgcolor: 'error.main',
-                color: '#fff',
-                borderColor: 'error.main',
-              },
-              transition: 'all 0.15s ease',
+              '&:hover': { bgcolor: 'error.main', color: '#fff' },
             }}
           >
-            Cerrar
-          </Button>
+            <CloseIcon sx={{ fontSize: 15 }} />
+          </IconButton>
         </Box>
       </Box>
 
-      {/* Scope Segmented Buttons (Esta Historia | Globales | Todas) */}
-      <Box sx={{ px: 1.5, py: 1, bgcolor: 'background.subtle', borderBottom: 1, borderColor: 'divider' }}>
-        <ButtonGroup size="small" fullWidth variant="outlined" sx={{ borderRadius: 2 }}>
-          <Button
-            variant={scopeFilter === 'story' ? 'contained' : 'outlined'}
-            onClick={() => setScopeFilter('story')}
-            disabled={!activeStoryId}
-            sx={{ fontSize: '0.72rem', py: 0.4, fontWeight: 700, textTransform: 'none' }}
-          >
-            {activeStory ? activeStory.title.slice(0, 12) + '…' : 'Historia'}
-          </Button>
-          <Button
-            variant={scopeFilter === 'global' ? 'contained' : 'outlined'}
+      {/* ─── Compact Scope Pills Bar ─────────────────────────────────────── */}
+      <Box
+        sx={{
+          px: 1.2,
+          py: 0.5,
+          bgcolor: 'background.subtle',
+          borderBottom: 1,
+          borderColor: 'divider',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 0.6,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, overflowX: 'auto', flex: 1 }}>
+          {activeStory && (
+            <Tooltip title={`Ideas de ${activeStory.title}`}>
+              <Chip
+                size="small"
+                label={activeStory.title}
+                onClick={() => setScopeFilter('story')}
+                color={scopeFilter === 'story' ? 'primary' : 'default'}
+                variant={scopeFilter === 'story' ? 'filled' : 'outlined'}
+                sx={{
+                  height: 22,
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  maxWidth: 140,
+                  '& .MuiChip-label': { px: 0.8, overflow: 'hidden', textOverflow: 'ellipsis' },
+                }}
+              />
+            </Tooltip>
+          )}
+          <Chip
+            size="small"
+            label="Globales"
             onClick={() => setScopeFilter('global')}
-            sx={{ fontSize: '0.72rem', py: 0.4, fontWeight: 700, textTransform: 'none' }}
-          >
-            Globales
-          </Button>
-          <Button
-            variant={scopeFilter === 'all' ? 'contained' : 'outlined'}
+            color={scopeFilter === 'global' ? 'primary' : 'default'}
+            variant={scopeFilter === 'global' ? 'filled' : 'outlined'}
+            sx={{ height: 22, fontSize: '0.68rem', fontWeight: 700, '& .MuiChip-label': { px: 0.8 } }}
+          />
+          <Chip
+            size="small"
+            label="Todas"
             onClick={() => setScopeFilter('all')}
-            sx={{ fontSize: '0.72rem', py: 0.4, fontWeight: 700, textTransform: 'none' }}
-          >
-            Todas
-          </Button>
-        </ButtonGroup>
+            color={scopeFilter === 'all' ? 'primary' : 'default'}
+            variant={scopeFilter === 'all' ? 'filled' : 'outlined'}
+            sx={{ height: 22, fontSize: '0.68rem', fontWeight: 700, '& .MuiChip-label': { px: 0.8 } }}
+          />
+        </Box>
+
+        {statusFilter !== 'all' && (
+          <Chip
+            size="small"
+            label={statusLabel}
+            onDelete={() => setStatusFilter('all')}
+            color="secondary"
+            sx={{ height: 20, fontSize: '0.62rem', fontWeight: 700 }}
+          />
+        )}
       </Box>
 
-      {/* ─── Ultra-Fast Capture Bar (Escribe y Enter) ───────────────────────── */}
+      {/* ─── Collapsible Search Bar (Zero space wasted when closed!) ───────── */}
+      {isSearchOpen && (
+        <Box sx={{ px: 1.2, py: 0.5, bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
+          <TextField
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Buscar ideas por palabra clave…"
+            size="small"
+            autoFocus
+            fullWidth
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+              endAdornment: searchInput ? (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setSearchInput('')} sx={{ p: 0.2 }}>
+                    <ClearIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+              sx: { fontSize: '0.78rem', borderRadius: 1.5, height: 28 },
+            }}
+          />
+        </Box>
+      )}
+
+      {/* ─── Ultra-Compact 1-Line Capture Bar ──────────────────────────────── */}
       <Box
         component="form"
         onSubmit={handleQuickAdd}
         sx={{
-          p: 1.5,
+          px: 1.2,
+          py: 0.6,
           bgcolor: 'background.paper',
           borderBottom: 1,
           borderColor: 'divider',
@@ -557,13 +661,11 @@ export default function QuickNotesPanel() {
           onChange={(e) => setQuickText(e.target.value)}
           placeholder={
             scopeFilter === 'global'
-              ? 'Idea global rápida (Enter para guardar)…'
+              ? 'Idea global rápida (Enter)…'
               : `Idea para ${activeStory ? activeStory.title : 'historia'} (Enter)…`
           }
           fullWidth
           size="small"
-          multiline
-          maxRows={3}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
@@ -571,6 +673,25 @@ export default function QuickNotesPanel() {
             }
           }}
           InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Tooltip title="Elegir color de la idea">
+                  <Box
+                    onClick={(e) => setNewColorAnchor(e.currentTarget)}
+                    sx={{
+                      width: 15,
+                      height: 15,
+                      borderRadius: '50%',
+                      bgcolor: selectedColor,
+                      cursor: 'pointer',
+                      border: '1.5px solid rgba(0,0,0,0.2)',
+                      '&:hover': { transform: 'scale(1.2)' },
+                      transition: 'transform 0.1s',
+                    }}
+                  />
+                </Tooltip>
+              </InputAdornment>
+            ),
             endAdornment: (
               <InputAdornment position="end">
                 <IconButton
@@ -579,82 +700,87 @@ export default function QuickNotesPanel() {
                   disabled={!quickText.trim()}
                   color="primary"
                   sx={{
+                    p: 0.3,
                     bgcolor: quickText.trim() ? 'primary.main' : 'transparent',
                     color: quickText.trim() ? '#fff' : 'action.disabled',
                     '&:hover': { bgcolor: 'primary.dark' },
                   }}
                 >
-                  <SendIcon sx={{ fontSize: 16 }} />
+                  <SendIcon sx={{ fontSize: 14 }} />
                 </IconButton>
               </InputAdornment>
             ),
-          }}
-          sx={{
-            bgcolor: 'background.subtle',
-            borderRadius: 2,
-            '& .MuiOutlinedInput-root': {
+            sx: {
+              fontSize: '0.8rem',
+              height: 32,
               borderRadius: 2,
-              fontSize: '0.86rem',
+              bgcolor: 'background.subtle',
             },
           }}
         />
 
-        {/* Color picker pills for new note */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, px: 0.5 }}>
-          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.7rem' }}>
-            Color:
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 0.8 }}>
-            {NOTE_COLORS.slice(0, 5).map((c) => (
+        {/* Color picker popup for new note */}
+        <Menu
+          anchorEl={newColorAnchor}
+          open={Boolean(newColorAnchor)}
+          onClose={() => setNewColorAnchor(null)}
+          PaperProps={{ sx: { p: 0.8, borderRadius: 2 } }}
+        >
+          <Box sx={{ display: 'flex', gap: 0.6 }}>
+            {NOTE_COLORS.slice(0, 6).map((c) => (
               <Box
                 key={c}
-                onClick={() => setSelectedColor(c)}
+                onClick={() => {
+                  setSelectedColor(c);
+                  setNewColorAnchor(null);
+                }}
                 sx={{
-                  width: 18,
-                  height: 18,
+                  width: 20,
+                  height: 20,
                   borderRadius: '50%',
                   bgcolor: c,
-                  border: c === selectedColor ? '2px solid #222' : '1px solid rgba(0,0,0,0.15)',
+                  border: c === selectedColor ? '2px solid #000' : '1px solid rgba(0,0,0,0.15)',
                   cursor: 'pointer',
-                  transform: c === selectedColor ? 'scale(1.25)' : 'scale(1)',
-                  transition: 'transform 0.12s ease',
+                  '&:hover': { transform: 'scale(1.15)' },
                 }}
               />
             ))}
           </Box>
-        </Box>
+        </Menu>
       </Box>
 
-      {/* Filter indicator */}
-      {filterStatus !== 'all' && (
-        <Box sx={{ px: 2, pt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Chip
-            size="small"
-            label={`Filtrado por: ${statusLabel}`}
-            onDelete={() => setFilterStatus('all')}
-            color="primary"
-            variant="outlined"
-          />
-        </Box>
-      )}
-
-      {/* Notes list */}
-      <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5 }}>
+      {/* ─── Notes List (Grid in expanded mode, clean list in compact mode) ─── */}
+      <Box
+        sx={{
+          flex: 1,
+          overflowY: 'auto',
+          p: 1,
+          display: isExpanded ? 'grid' : 'block',
+          gridTemplateColumns: isExpanded ? 'repeat(auto-fill, minmax(230px, 1fr))' : '1fr',
+          gap: 0.8,
+          alignContent: 'start',
+        }}
+      >
         {notesLoading ? (
-          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 4 }}>
-            Cargando tus ideas…
-          </Typography>
-        ) : filtered.length === 0 ? (
-          <Box sx={{ textAlign: 'center', mt: 5, px: 2 }}>
-            <LightbulbOutlinedIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
-            <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.85rem' }}>
-              {filterStatus === 'all'
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 5, gap: 1 }}>
+            <CircularProgress size={22} />
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
+              Cargando tus ideas…
+            </Typography>
+          </Box>
+        ) : notes.length === 0 ? (
+          <Box sx={{ textAlign: 'center', mt: 4, px: 2 }}>
+            <LightbulbOutlinedIcon sx={{ fontSize: 30, color: 'text.disabled', mb: 0.8 }} />
+            <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.78rem' }}>
+              {searchQuery
+                ? `Sin resultados para "${searchQuery}"`
+                : statusFilter === 'all'
                 ? '¡Escribe arriba para capturar tu primera idea al instante!'
                 : 'No hay notas con este filtro.'}
             </Typography>
           </Box>
         ) : (
-          filtered.map((note) => (
+          notes.map((note) => (
             <NoteCard
               key={note.id}
               note={note}
@@ -667,48 +793,82 @@ export default function QuickNotesPanel() {
         )}
       </Box>
 
-      {/* Footer link to full management page */}
-      <Divider />
-      <Box sx={{ p: 1.2, bgcolor: 'background.paper', display: 'flex', justifyContent: 'center' }}>
-        <Button
-          size="small"
-          startIcon={<OpenInNewIcon fontSize="small" />}
-          onClick={handleOpenFullPage}
-          sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.8rem' }}
+      {/* ─── Slim Footer Pagination ────────────────────────────────────────── */}
+      {totalPages > 1 && (
+        <Box
+          sx={{
+            px: 1.5,
+            py: 0.4,
+            borderTop: 1,
+            borderColor: 'divider',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            bgcolor: 'background.subtle',
+            minHeight: 28,
+          }}
         >
-          Abrir Gestor Centralizado
-        </Button>
-      </Box>
+          <Typography variant="caption" sx={{ fontSize: '0.68rem', color: 'text.secondary', fontWeight: 600 }}>
+            Pág. {page}/{totalPages} ({totalCount} ideas)
+          </Typography>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.2 }}>
+            <IconButton
+              size="small"
+              disabled={page <= 1}
+              onClick={prevPage}
+              sx={{ p: 0.2 }}
+            >
+              <ChevronLeftIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+
+            <Typography variant="caption" sx={{ fontSize: '0.72rem', fontWeight: 700, px: 0.4 }}>
+              {page}
+            </Typography>
+
+            <IconButton
+              size="small"
+              disabled={page >= totalPages}
+              onClick={nextPage}
+              sx={{ p: 0.2 }}
+            >
+              <ChevronRightIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Box>
+        </Box>
+      )}
 
       {/* Status filter menu */}
       <Menu
         anchorEl={filterAnchor}
         open={Boolean(filterAnchor)}
         onClose={() => setFilterAnchor(null)}
+        PaperProps={{ sx: { p: 0.5, borderRadius: 2 } }}
       >
-        <MenuItem onClick={() => { setFilterStatus('all'); setFilterAnchor(null); }}>
-          <ListItemText>Todas</ListItemText>
+        <MenuItem onClick={() => { setStatusFilter('all'); setFilterAnchor(null); }} sx={{ fontSize: '0.75rem', py: 0.4 }}>
+          <ListItemText primaryTypographyProps={{ fontSize: '0.75rem' }}>Todas</ListItemText>
         </MenuItem>
-        <Divider />
+        <Divider sx={{ my: 0.4 }} />
         {NOTE_STATUSES.map((s) => (
           <MenuItem
             key={s.value}
             onClick={() => {
-              setFilterStatus(s.value);
+              setStatusFilter(s.value);
               setFilterAnchor(null);
             }}
+            sx={{ fontSize: '0.75rem', py: 0.4 }}
           >
-            <ListItemIcon>
-              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: s.color }} />
+            <ListItemIcon sx={{ minWidth: 20 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: s.color }} />
             </ListItemIcon>
-            <ListItemText>{s.label}</ListItemText>
+            <ListItemText primaryTypographyProps={{ fontSize: '0.75rem' }}>{s.label}</ListItemText>
           </MenuItem>
         ))}
       </Menu>
     </Box>
   );
 
-  // On desktop, render directly in the layout (MainLayout flex row) so clicks in the canvas and rest of the app are NEVER blocked!
+  // On desktop, render directly in the layout flow as the left sidebar extension
   if (!isMobile) {
     return panelContent;
   }
@@ -718,7 +878,7 @@ export default function QuickNotesPanel() {
     <Drawer
       anchor="bottom"
       open={isOpen}
-      onClose={() => setIsOpen(false)}
+      onClose={handleClose}
       variant="temporary"
       PaperProps={{
         sx: {

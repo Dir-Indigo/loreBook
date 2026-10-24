@@ -1,10 +1,17 @@
 import { quickNoteRepository } from '../repositories/quickNoteRepository';
 
 export const quickNoteService = {
-  getAll: async (userId, storyId) => {
-    const { data, error } = await quickNoteRepository.getAll(userId, storyId);
+  getAll: async (userId, storyId, options = {}) => {
+    const { data, count, error } = await quickNoteRepository.getAll(userId, storyId, options);
     if (error) throw error;
-    return data;
+    return {
+      data: data || [],
+      count: count ?? (data?.length || 0),
+      page: options.page || 1,
+      pageSize: options.pageSize || (data?.length || 15),
+      totalPages: options.page && options.pageSize && count ? Math.ceil(count / options.pageSize) : 1,
+      hasMore: options.page && options.pageSize && count ? (options.page * options.pageSize < count) : false,
+    };
   },
 
   create: async (noteData) => {

@@ -7,6 +7,8 @@ import { WorkspaceProvider } from '../context/WorkspaceContext';
 import { LoadingProvider } from '../context/LoadingContext';
 import { QuickNotesProvider } from '../context/QuickNotesContext';
 import { GlobalActionsProvider } from '../context/GlobalActionsContext';
+import { CharacterDrawerProvider } from '../context/CharacterDrawerContext';
+import { SidebarDetailProvider } from '../context/SidebarDetailContext';
 import MainLayout from '../components/layout/MainLayout';
 import '../styles/globals.css';
 
@@ -23,11 +25,15 @@ export default function App({ Component, pageProps }) {
             <WorkspaceProvider>
               <QuickNotesProvider>
                 <GlobalActionsProvider>
-                  <LoreThemeProvider>
-                    <MainLayout>
-                      <Component {...pageProps} />
-                    </MainLayout>
-                  </LoreThemeProvider>
+                  <CharacterDrawerProvider>
+                    <SidebarDetailProvider>
+                      <LoreThemeProvider>
+                        <MainLayout>
+                          <Component {...pageProps} />
+                        </MainLayout>
+                      </LoreThemeProvider>
+                    </SidebarDetailProvider>
+                  </CharacterDrawerProvider>
                 </GlobalActionsProvider>
               </QuickNotesProvider>
             </WorkspaceProvider>
