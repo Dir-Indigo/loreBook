@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
+import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from '../../context/WorkspaceViewContext';
 import {
   Box,
   Typography,
@@ -333,6 +334,7 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
 // ─── Quick Notes Panel (Secondary Extension Sidebar - Capaz de Crecer) ─────────
 export default function QuickNotesPanel({ variant = 'extension', onClose }) {
   const router = useRouter();
+  const { setActiveView } = useWorkspaceView();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
@@ -420,7 +422,10 @@ export default function QuickNotesPanel({ variant = 'extension', onClose }) {
 
   const handleOpenFullPage = () => {
     setIsOpen(false);
-    router.push('/ideas');
+    setActiveView(WORKSPACE_VIEW_KEYS.IDEAS);
+    if (router.pathname !== '/dashboard') {
+      router.push('/dashboard');
+    }
   };
 
   const statusLabel = statusFilter === 'all'

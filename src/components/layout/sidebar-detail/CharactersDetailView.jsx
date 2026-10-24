@@ -27,6 +27,7 @@ import SelectionActionBar from '../../common/SelectionActionBar';
 import { RELATIONSHIP_TYPES } from '../../../constants/constants';
 import CharacterCard from '../../characters/CharacterCard';
 import CopyGlobalConfirmModal from '../../characters/CopyGlobalConfirmModal';
+import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from '../../../context/WorkspaceViewContext';
 
 export default function CharactersDetailView({
   storyId,
@@ -44,6 +45,7 @@ export default function CharactersDetailView({
   onCreateRelationship,
   onDeleteRelationship,
 }) {
+  const { setActiveView } = useWorkspaceView();
   const [tabIndex, setTabIndex] = useState(0);
   const containerRef = useRef(null);
 
@@ -191,11 +193,7 @@ export default function CharactersDetailView({
                 color="secondary"
                 size="small"
                 startIcon={<AccountTreeOutlinedIcon fontSize="small" />}
-                onClick={() => {
-                  if (typeof window !== 'undefined' && storyId) {
-                    window.location.href = `/characters/${storyId}`;
-                  }
-                }}
+                onClick={() => setActiveView(WORKSPACE_VIEW_KEYS.CHARACTERS)}
                 sx={{ flex: 1, py: 0.6, fontSize: '0.75rem', fontWeight: 700 }}
               >
                 Gestión Avanzada

@@ -29,10 +29,12 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { useLoreTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from '../../context/WorkspaceViewContext';
 import CustomButton from '../common/CustomButton';
 
 export default function Navbar({ activeStory, onOpenStorySelector }) {
   const router = useRouter();
+  const { activeView, setActiveView } = useWorkspaceView();
   const { activeThemeKey, setThemeKey, themes } = useLoreTheme();
   const { user, profile, isSuperAdmin, signOut } = useAuth();
 
@@ -176,44 +178,6 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
             </Tooltip>
           )}
 
-          {/* Centralized Ideas Manager */}
-          <Tooltip title="Pizarra central de ideas y notas">
-            <IconButton
-              onClick={() => router.push('/ideas')}
-              size="small"
-              sx={{
-                border: 1,
-                borderColor: 'divider',
-                borderRadius: 1.5,
-                p: 0.8,
-                color: router.pathname.startsWith('/ideas') ? 'primary.main' : 'inherit',
-                bgcolor: router.pathname.startsWith('/ideas') ? 'action.selected' : 'transparent',
-              }}
-            >
-              <LightbulbOutlinedIcon fontSize="small" color={router.pathname.startsWith('/ideas') ? 'primary' : 'action'} />
-            </IconButton>
-          </Tooltip>
-
-          {/* Character Manager */}
-          {activeStory && (
-            <Tooltip title="Gestión avanzada de personajes">
-              <IconButton
-                onClick={() => router.push(`/characters/${activeStory.id}`)}
-                size="small"
-                sx={{
-                  border: 1,
-                  borderColor: 'divider',
-                  borderRadius: 1.5,
-                  p: 0.8,
-                  color: router.pathname.startsWith('/characters') ? 'primary.main' : 'inherit',
-                  bgcolor: router.pathname.startsWith('/characters') ? 'action.selected' : 'transparent',
-                }}
-              >
-                <PeopleOutlineIcon fontSize="small" color={router.pathname.startsWith('/characters') ? 'primary' : 'action'} />
-              </IconButton>
-            </Tooltip>
-          )}
-
           <Tooltip title="Ayuda y guía de uso">
             <IconButton
               onClick={() => router.push('/help')}
@@ -315,24 +279,24 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
           </Box>
           <Divider sx={{ my: 0.5 }} />
 
-          <MenuItem onClick={() => { handleCloseMobileMenu(); router.push('/dashboard'); }} selected={router.pathname === '/dashboard'}>
+          <MenuItem onClick={() => { handleCloseMobileMenu(); setActiveView(WORKSPACE_VIEW_KEYS.EVENTS); if (router.pathname !== '/dashboard') router.push('/dashboard'); }} selected={activeView === WORKSPACE_VIEW_KEYS.EVENTS}>
             <ListItemIcon>
-              <DashboardIcon fontSize="small" color={router.pathname === '/dashboard' ? 'primary' : 'inherit'} />
+              <DashboardIcon fontSize="small" color={activeView === WORKSPACE_VIEW_KEYS.EVENTS ? 'primary' : 'inherit'} />
             </ListItemIcon>
             <ListItemText primary="Lienzo de Eventos" />
           </MenuItem>
 
-          <MenuItem onClick={() => { handleCloseMobileMenu(); router.push('/ideas'); }} selected={router.pathname.startsWith('/ideas')}>
+          <MenuItem onClick={() => { handleCloseMobileMenu(); setActiveView(WORKSPACE_VIEW_KEYS.IDEAS); if (router.pathname !== '/dashboard') router.push('/dashboard'); }} selected={activeView === WORKSPACE_VIEW_KEYS.IDEAS}>
             <ListItemIcon>
-              <LightbulbOutlinedIcon fontSize="small" color={router.pathname.startsWith('/ideas') ? 'primary' : 'inherit'} />
+              <LightbulbOutlinedIcon fontSize="small" color={activeView === WORKSPACE_VIEW_KEYS.IDEAS ? 'primary' : 'inherit'} />
             </ListItemIcon>
             <ListItemText primary="Pizarra de Ideas" />
           </MenuItem>
 
           {activeStory && (
-            <MenuItem onClick={() => { handleCloseMobileMenu(); router.push(`/characters/${activeStory.id}`); }} selected={router.pathname.startsWith('/characters')}>
+            <MenuItem onClick={() => { handleCloseMobileMenu(); setActiveView(WORKSPACE_VIEW_KEYS.CHARACTERS); if (router.pathname !== '/dashboard') router.push('/dashboard'); }} selected={activeView === WORKSPACE_VIEW_KEYS.CHARACTERS}>
               <ListItemIcon>
-                <PeopleOutlineIcon fontSize="small" color={router.pathname.startsWith('/characters') ? 'primary' : 'inherit'} />
+                <PeopleOutlineIcon fontSize="small" color={activeView === WORKSPACE_VIEW_KEYS.CHARACTERS ? 'primary' : 'inherit'} />
               </ListItemIcon>
               <ListItemText primary="Personajes" />
             </MenuItem>

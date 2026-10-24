@@ -30,6 +30,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { useQuickNotes, NOTE_COLORS, NOTE_STATUSES } from '../../../context/QuickNotesContext';
 import { useStory } from '../../../context/StoryContext';
+import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from '../../../context/WorkspaceViewContext';
 
 // ─── Compact Editable Note Card ───────────────────────────────────────────────
 function CompactNoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
@@ -389,6 +390,7 @@ function DenseNoteRow({ note, stories = [], onUpdate, onDelete }) {
 export default function NotesDetailView({ isExpanded = false }) {
   const router = useRouter();
   const { stories, activeStory, activeStoryId } = useStory();
+  const { setActiveView } = useWorkspaceView();
 
   const {
     notes,
@@ -512,7 +514,7 @@ export default function NotesDetailView({ isExpanded = false }) {
           <Tooltip title="Abrir Pizarra Central">
             <IconButton
               size="small"
-              onClick={() => router.push('/ideas')}
+              onClick={() => setActiveView(WORKSPACE_VIEW_KEYS.IDEAS)}
               sx={{ p: 0.4 }}
             >
               <OpenInNewIcon sx={{ fontSize: 15 }} />

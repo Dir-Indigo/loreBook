@@ -7,6 +7,7 @@ import { boardController } from '../controllers/boardController';
 import { eventController } from '../controllers/eventController';
 import { relationshipController } from '../controllers/relationshipController';
 import { quickNoteController } from '../controllers/quickNoteController';
+import { chapterController } from '../controllers/chapterController';
 
 /**
  * ApiService Facade (RF-5.1, RF-5.2)
@@ -112,5 +113,17 @@ export const ApiService = {
     create: (data, setLoading) => bridge('CREATE_NOTE', 'public.quick_notes', quickNoteController.create, setLoading, data),
     update: (id, patch, setLoading) => bridge('UPDATE_NOTE', 'public.quick_notes', quickNoteController.update, setLoading, id, patch),
     delete: (id, setLoading) => bridge('DELETE_NOTE', 'public.quick_notes', quickNoteController.delete, setLoading, id),
+  },
+  chapters: {
+    getAll: (storyId, setLoading) => bridge('GET_CHAPTERS', 'public.chapters', chapterController.getAll, setLoading, storyId),
+    getById: (id, setLoading) => bridge('GET_CHAPTER', 'public.chapters', chapterController.getById, setLoading, id),
+    create: (data, setLoading) => bridge('CREATE_CHAPTER', 'public.chapters', chapterController.create, setLoading, data),
+    updateDraft: (id, patch, setLoading) => bridge('UPDATE_CHAPTER_DRAFT', 'public.chapters', chapterController.updateDraft, setLoading, id, patch),
+    delete: (id, setLoading) => bridge('DELETE_CHAPTER', 'public.chapters', chapterController.delete, setLoading, id),
+    getVersions: (chapterId, setLoading) => bridge('GET_CHAPTER_VERSIONS', 'public.chapter_versions', chapterController.getVersions, setLoading, chapterId),
+    createCommit: (chapterId, commitMessage, title, content, authorId, setLoading) =>
+      bridge('CREATE_CHAPTER_COMMIT', 'public.chapter_versions', chapterController.createCommit, setLoading, chapterId, commitMessage, title, content, authorId),
+    restoreVersion: (chapterId, version, setLoading) =>
+      bridge('RESTORE_CHAPTER_VERSION', 'public.chapter_versions', chapterController.restoreVersion, setLoading, chapterId, version),
   },
 };

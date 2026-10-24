@@ -18,10 +18,12 @@ import AddIcon from '@mui/icons-material/Add';
 import CustomButton from '../../common/CustomButton';
 import { useSidebarDetail, DETAIL_VIEWS } from '../../../context/SidebarDetailContext';
 import { useQuickNotes, NOTE_STATUSES } from '../../../context/QuickNotesContext';
+import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from '../../../context/WorkspaceViewContext';
 
 export default function SidebarIdeasSection({ story, storyNotes = [] }) {
   const router = useRouter();
   const { activeView, isOpen, openDetail, closeDetail } = useSidebarDetail();
+  const { setActiveView } = useWorkspaceView();
   const { notes, setStatusFilter, setScopeFilter } = useQuickNotes();
 
   const isDetailOpen = isOpen && activeView === DETAIL_VIEWS.NOTES;
@@ -87,7 +89,7 @@ export default function SidebarIdeasSection({ story, storyNotes = [] }) {
           </Tooltip>
 
           <Tooltip title="Abrir pizarra central de ideas">
-            <IconButton size="small" onClick={() => router.push('/ideas')} sx={{ p: 0.4 }}>
+            <IconButton size="small" onClick={() => setActiveView(WORKSPACE_VIEW_KEYS.IDEAS)} sx={{ p: 0.4 }}>
               <OpenInNewIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>

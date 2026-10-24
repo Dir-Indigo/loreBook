@@ -31,6 +31,7 @@ import EventNode from './EventNode';
 import CustomButton from '../common/CustomButton';
 import { APP_CONFIG } from '../../constants/constants';
 import { useLoreTheme } from '../../context/ThemeContext';
+import { useWorkspaceView } from '../../context/WorkspaceViewContext';
 
 const nodeTypes = {
   eventNode: EventNode,
@@ -59,14 +60,15 @@ export default function TimelineCanvas({
   onOpenStorySelector,
 }) {
   const { currentThemeConfig } = useLoreTheme();
+  const { eventsCompact } = useWorkspaceView();
   const reactFlowInstanceRef = useRef(null);
 
-  // Compact mode: manual Switch OR auto-trigger at extreme zoom (text unreadable)
+  // Compact mode: toolbar switch OR manual Switch OR auto-trigger at extreme zoom
   const AUTO_COMPACT_THRESHOLD = 0.62;
   const [zoomLevel, setZoomLevel] = useState(1);
   const [manualCompact, setManualCompact] = useState(false);
   const autoCompact = zoomLevel < AUTO_COMPACT_THRESHOLD;
-  const isCompact = manualCompact || autoCompact;
+  const isCompact = eventsCompact || manualCompact || autoCompact;
 
   // Selected node and clipboard state for Ctrl+C and Ctrl+V
   const selectedNodeIdsRef = useRef([]);

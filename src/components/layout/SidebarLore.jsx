@@ -59,7 +59,10 @@ import CharacterFolderTreeItem, { InlineFolderInput as InlineCharFolderInput } f
 import MoveToFolderModal from "../characters/MoveToFolderModal";
 import ImageCropModal from "../common/ImageCropModal";
 import SidebarIdeasSection from "./sidebar-lore/SidebarIdeasSection";
+import SidebarManuscriptSection from "./sidebar-lore/SidebarManuscriptSection";
+import AutoStoriesIcon from "@mui/icons-material/AutoStories";
 import { useSidebarDetail, DETAIL_VIEWS } from "../../context/SidebarDetailContext";
+import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from "../../context/WorkspaceViewContext";
 import { uploadStoryCover } from "../../services/storageService";
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { APP_CONFIG } from '../../constants/constants';
@@ -125,6 +128,7 @@ export default function SidebarLore({
     toggleOpen: toggleNotesPanel,
   } = useQuickNotes();
   const { openDetail, closeDetail, activeView, isOpen: isDetailOpen } = useSidebarDetail();
+  const { activeView: workspaceActiveView, setActiveView: setWorkspaceActiveView } = useWorkspaceView();
 
   // Effective fallbacks so SidebarLore works anywhere without missing data
   const effectiveStory = story || activeStory;
@@ -158,6 +162,8 @@ export default function SidebarLore({
       localStorage.setItem('lorebook_sidebar_tab', sidebarTab.toString());
     }
   }, [sidebarTab]);
+
+  // Tabs of sidebar and workspace are fully independent (no forced synchronization)
   
   // Search states
   const [charSearch, setCharSearch] = useState("");
@@ -366,8 +372,10 @@ export default function SidebarLore({
       onOpenCharacterModal();
     } else if (openCreateChar) {
       openCreateChar();
-    } else if (effectiveStory?.id) {
-      router.push(`/characters/${effectiveStory.id}`);
+    } else {
+      // Switch to characters view without a full page reload
+      setWorkspaceActiveView(WORKSPACE_VIEW_KEYS.CHARACTERS);
+      if (router.pathname !== '/dashboard') router.push('/dashboard');
     }
   };
 
@@ -481,7 +489,10 @@ export default function SidebarLore({
           <Tooltip title={`Tramas (${effectiveBoards.length} tableros)`} placement="right">
             <IconButton
               size="small"
-              onClick={() => { setSidebarTab(0); setCollapsed(false); }}
+              onClick={() => {
+                setSidebarTab(0);
+                setCollapsed(false);
+              }}
               sx={{ color: sidebarTab === 0 ? 'primary.main' : 'action' }}
             >
               <AccountTreeOutlinedIcon fontSize="small" />
@@ -491,7 +502,10 @@ export default function SidebarLore({
           <Tooltip title={`Personajes y Carpetas (${filteredCharacters.length})`} placement="right">
             <IconButton
               size="small"
-              onClick={() => { setSidebarTab(1); setCollapsed(false); }}
+              onClick={() => {
+                setSidebarTab(1);
+                setCollapsed(false);
+              }}
             >
               <Badge badgeContent={filteredCharacters.length} color="primary">
                 <PeopleOutlineIcon fontSize="small" color={sidebarTab === 1 ? 'primary' : 'action'} />
@@ -505,7 +519,6 @@ export default function SidebarLore({
               onClick={() => {
                 setSidebarTab(2);
                 setCollapsed(false);
-                openDetail(DETAIL_VIEWS.NOTES);
               }}
             >
               <Badge badgeContent={storyNotes.length} color="secondary">
@@ -514,12 +527,21 @@ export default function SidebarLore({
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="Resumen e información" placement="right">
+          <Tooltip title="Capítulos del Manuscrito" placement="right">
             <IconButton
               size="small"
               onClick={() => { setSidebarTab(3); setCollapsed(false); }}
             >
-              <InfoOutlinedIcon fontSize="small" color={sidebarTab === 3 ? 'primary' : 'action'} />
+              <AutoStoriesIcon fontSize="small" color={sidebarTab === 3 ? 'primary' : 'action'} />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="Resumen e información" placement="right">
+            <IconButton
+              size="small"
+              onClick={() => { setSidebarTab(4); setCollapsed(false); }}
+            >
+              <InfoOutlinedIcon fontSize="small" color={sidebarTab === 4 ? 'primary' : 'action'} />
             </IconButton>
           </Tooltip>
 
@@ -572,6 +594,8 @@ export default function SidebarLore({
             ? 'Personajes & Carpetas'
             : sidebarTab === 2
             ? 'Ideas del Proyecto'
+            : sidebarTab === 3
+            ? 'Capítulos & Manuscrito'
             : 'Ficha de la Historia'}
         </Typography>
         <Tooltip title="Colapsar panel lateral">
@@ -676,6 +700,7 @@ export default function SidebarLore({
           } 
           label="Ideas" 
         />
+        <Tab icon={<AutoStoriesIcon sx={{ fontSize: 18 }} />} label="Capítulos" />
         <Tab icon={<InfoOutlinedIcon sx={{ fontSize: 18 }} />} label="Ficha" />
       </Tabs>
 
@@ -791,7 +816,7 @@ export default function SidebarLore({
             <Tooltip title="Abrir gestor completo de personajes">
               <IconButton
                 size="small"
-                onClick={() => story?.id && router.push(`/characters/${story.id}`)}
+                onClick={() => setWorkspaceActiveView(WORKSPACE_VIEW_KEYS.CHARACTERS)}
                 sx={{ border: 1, borderColor: 'divider', borderRadius: 1.5, p: 0.5 }}
               >
                 <OpenInNewIcon fontSize="small" />
@@ -909,7 +934,14 @@ export default function SidebarLore({
                 variant="outlined"
                 size="small"
                 startIcon={<PsychologyOutlinedIcon fontSize="small" />}
-                onClick={() => onOpenArchetypeManager ? onOpenArchetypeManager() : router.push(`/characters/${story?.id}`)}
+                onClick={() => {
+                  if (onOpenArchetypeManager) {
+                    onOpenArchetypeManager();
+                  } else {
+                    setWorkspaceActiveView(WORKSPACE_VIEW_KEYS.CHARACTERS);
+                    if (router.pathname !== '/dashboard') router.push('/dashboard');
+                  }
+                }}
                 sx={{ fontSize: '0.7rem', py: 0.4, px: 0.5, textTransform: 'none' }}
               >
                 Arquetipos
@@ -918,7 +950,14 @@ export default function SidebarLore({
                 variant="outlined"
                 size="small"
                 startIcon={<LocalOfferOutlinedIcon fontSize="small" />}
-                onClick={() => onOpenTagManager ? onOpenTagManager() : router.push(`/characters/${story?.id}`)}
+                onClick={() => {
+                  if (onOpenTagManager) {
+                    onOpenTagManager();
+                  } else {
+                    setWorkspaceActiveView(WORKSPACE_VIEW_KEYS.CHARACTERS);
+                    if (router.pathname !== '/dashboard') router.push('/dashboard');
+                  }
+                }}
                 sx={{ fontSize: '0.7rem', py: 0.4, px: 0.5, textTransform: 'none' }}
               >
                 Etiquetas
@@ -956,8 +995,13 @@ export default function SidebarLore({
         />
       )}
 
-      {/* ─── SECTION 3: FICHA & METADATOS DE LA HISTORIA ─────────────────── */}
+      {/* ─── SECTION 3: CAPÍTULOS & MANUSCRITO ────────────────────────────── */}
       {sidebarTab === 3 && (
+        <SidebarManuscriptSection story={effectiveStory} />
+      )}
+
+      {/* ─── SECTION 4: FICHA & METADATOS DE LA HISTORIA ─────────────────── */}
+      {sidebarTab === 4 && (
         <Box sx={{ p: 2, flexGrow: 1, overflowY: "auto", display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Box>
             <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem' }}>

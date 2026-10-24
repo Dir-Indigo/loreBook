@@ -13,9 +13,11 @@ import { useLoading } from '../../context/LoadingContext';
 import { useGlobalActions } from '../../context/GlobalActionsContext';
 import { useCharacterDrawer } from '../../context/CharacterDrawerContext';
 import { useQuickNotes } from '../../context/QuickNotesContext';
+import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from '../../context/WorkspaceViewContext';
 
 export default function MainLayout({ children }) {
   const router = useRouter();
+  const { setActiveView } = useWorkspaceView();
   const { stories, activeStory, activeStoryId, changeActiveStory, createStory, updateStory, deleteStory } = useStory();
   const {
     characters,
@@ -211,7 +213,9 @@ export default function MainLayout({ children }) {
           onSelectStory={(id) => {
             changeActiveStory(id);
             if (router.pathname.startsWith('/characters/')) {
-              router.push(`/characters/${id}`);
+              // Stay on dashboard, switch to characters view without full reload
+              setActiveView(WORKSPACE_VIEW_KEYS.CHARACTERS);
+              router.push('/dashboard');
             }
           }}
           onCreateStory={createStory}
