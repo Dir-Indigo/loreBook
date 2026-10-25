@@ -40,6 +40,7 @@ import CharacterArchetypeManagerModal from '../../characters/CharacterArchetypeM
 import BatchTagAssignModal from '../../characters/BatchTagAssignModal';
 import MoveToFolderModal from '../../characters/MoveToFolderModal';
 import CustomButton from '../../common/CustomButton';
+import CharactersToolbar from '../toolbars/CharactersToolbar';
 import PublicOutlinedIcon from '@mui/icons-material/PublicOutlined';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import FolderIcon from '@mui/icons-material/Folder';
@@ -83,7 +84,17 @@ export default function CharactersWorkspaceView({ storyId = null }) {
   const {
     charactersSearch,
     charactersRoleFilter,
+    setCharactersRoleFilter,
     charactersScope,
+    setCharactersScope,
+    charactersTag: tagFilter,
+    setCharactersTag: setTagFilter,
+    charactersSort: sortBy,
+    charactersViewMode: viewMode,
+    charactersShowDescriptions: showDescriptions,
+    charactersGroupByRole: groupByRole,
+    setCharactersToolbar,
+    hasWorkspaceNavbar,
   } = useWorkspaceView();
 
   // Guard: solo cargar una vez por story_id (evita re-fetches al alternar tabs)
@@ -114,15 +125,7 @@ export default function CharactersWorkspaceView({ storyId = null }) {
   const [creatingInParentId, setCreatingInParentId] = useState(null);
   const [isCreatingRootFolder, setIsCreatingRootFolder] = useState(false);
 
-  // Filters & View states
-  const [characterTab, setCharacterTab] = useState(0); // 0=Locales (Default), 1=Globales, 2=Todos
-  const [showDescriptions, setShowDescriptions] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [tagFilter, setTagFilter] = useState('all'); // 'all' | tag.id
-  const [sortBy, setSortBy] = useState('name-asc');
-  const [viewMode, setViewMode] = useState('compact'); // 'compact' | 'medium' | 'detailed'
-  const [groupByRole, setGroupByRole] = useState(true);
+  // Filtros y modo de vista viven en WorkspaceViewContext (los controla el WorkspaceNavbar)
 
   const [confirmCopyOpen, setConfirmCopyOpen] = useState(false);
   const [pendingCopyList, setPendingCopyList] = useState([]);
@@ -251,7 +254,7 @@ export default function CharactersWorkspaceView({ storyId = null }) {
         [...current, ...result.data].sort((a, b) => a.name.localeCompare(b.name))
       );
       setSelectedCharacterIds([]);
-      setCharacterTab(0);
+      setCharactersScope(0);
     }
   };
 
@@ -267,6 +270,12 @@ export default function CharactersWorkspaceView({ storyId = null }) {
     if (!targetChars.length) return;
     setPendingCopyList(targetChars);
     setConfirmCopyOpen(true);
+  };
+
+  const openCreateCharacter = () => {
+    setSelectedCharacter(null);
+    setIsCloneCharMode(false);
+    setCharModalOpen(true);
   };
 
   const handleClone = (char) => {
@@ -508,7 +517,7 @@ export default function CharactersWorkspaceView({ storyId = null }) {
           c.role_archetype === archName ? { ...c, role_archetype: 'Secundario' } : c
         )
       );
-      if (roleFilter === archName) setRoleFilter('all');
+      if (charactersRoleFilter === archName) setCharactersRoleFilter('all');
     }
 
     await ApiService.characterArchetypes.delete(archId, setLoading);
@@ -567,11 +576,10 @@ export default function CharactersWorkspaceView({ storyId = null }) {
   const processedCharacters = useMemo(() => {
     let result = [...characters];
 
-    // Tab / Scope Filter (0=Locales, 1=Globales, 2=Todos)
-    const effectiveTab = charactersScope !== undefined ? charactersScope : characterTab;
-    if (effectiveTab === 0) {
+    // Scope Filter (0=Locales, 1=Globales, 2=Todos)
+    if (charactersScope === 0) {
       result = result.filter((c) => !c.is_global);
-    } else if (effectiveTab === 1) {
+    } else if (charactersScope === 1) {
       result = result.filter((c) => c.is_global);
     }
 
@@ -590,14 +598,13 @@ export default function CharactersWorkspaceView({ storyId = null }) {
       );
     }
 
-    // Role Filter (from WorkspaceNavbar or local)
-    const effectiveRole = charactersRoleFilter !== 'all' ? charactersRoleFilter : roleFilter;
-    if (effectiveRole !== 'all') {
-      result = result.filter((c) => (c.role_archetype || 'Sin rol') === effectiveRole);
+    // Role Filter
+    if (charactersRoleFilter !== 'all') {
+      result = result.filter((c) => (c.role_archetype || 'Sin rol') === charactersRoleFilter);
     }
 
-    // Search Query (from WorkspaceNavbar or local)
-    const effectiveSearch = (charactersSearch || searchQuery).trim().toLowerCase();
+    // Search Query
+    const effectiveSearch = (charactersSearch || '').trim().toLowerCase();
     if (effectiveSearch) {
       result = result.filter(
         (c) =>
@@ -657,13 +664,10 @@ export default function CharactersWorkspaceView({ storyId = null }) {
     return result;
   }, [
     characters,
-    characterTab,
     charactersScope,
     activeFolderId,
     tagFilter,
-    roleFilter,
     charactersRoleFilter,
-    searchQuery,
     charactersSearch,
     sortBy,
     tags,
@@ -711,6 +715,27 @@ export default function CharactersWorkspaceView({ storyId = null }) {
     if (activeFolderId === 'all') return null;
     return folders.find((f) => f.id === activeFolderId) || null;
   }, [folders, activeFolderId]);
+
+  // Publica datos y acciones para la barra del WorkspaceNavbar (conteos, etiquetas, roles, modales)
+  const localCount = characters.filter((c) => !c.is_global).length;
+  const globalCount = characters.filter((c) => c.is_global).length;
+  const totalCount = characters.length;
+  const shownCount = processedCharacters.length;
+  const archetypesCount = customArchetypes.length;
+  useEffect(() => {
+    setCharactersToolbar({
+      counts: { local: localCount, global: globalCount, all: totalCount, shown: shownCount },
+      tags,
+      roles: availableRoles,
+      archetypesCount,
+      onOpenArchetypes: () => setArchetypeManagerOpen(true),
+      onOpenTags: () => setTagManagerOpen(true),
+      onOpenExport: () => setExportModalOpen(true),
+      onCreate: openCreateCharacter,
+    });
+  }, [setCharactersToolbar, localCount, globalCount, totalCount, shownCount, tags, availableRoles, archetypesCount]);
+
+  useEffect(() => () => setCharactersToolbar(null), [setCharactersToolbar]);
 
   if (authLoading || dataLoading) {
     return (
@@ -782,7 +807,21 @@ export default function CharactersWorkspaceView({ storyId = null }) {
         <Box sx={{ flexGrow: 1, height: '100%', overflowY: 'auto', p: { xs: 1, sm: 2.5 }, minWidth: 0 }}>
           <Container maxWidth="xl" disableGutters sx={{ px: { xs: 0.5, sm: 2 } }}>
             
-            {/* Header */}
+            {/* Con navbar solo se muestra la carpeta activa; el título lo da la pestaña */}
+            {hasWorkspaceNavbar && currentActiveFolder && (
+              <Box sx={{ mb: 1.5 }}>
+                <Chip
+                  icon={<FolderIcon sx={{ fontSize: '13px !important', color: currentActiveFolder.color }} />}
+                  label={`Carpeta: ${currentActiveFolder.name}`}
+                  onDelete={() => setActiveFolderId('all')}
+                  size="small"
+                  sx={{ height: 24, fontWeight: 700, fontSize: '0.72rem', bgcolor: 'background.paper', border: '1px solid', borderColor: currentActiveFolder.color || 'divider' }}
+                />
+              </Box>
+            )}
+
+            {!hasWorkspaceNavbar && (
+              <>
             <Box
               sx={{
                 display: 'flex',
@@ -846,334 +885,57 @@ export default function CharactersWorkspaceView({ storyId = null }) {
                 </Box>
               </Box>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-                {/* Archetype Manager Button */}
-                <CustomButton
-                  variant="outlined"
-                  color="inherit"
-                  size="small"
-                  startIcon={<PsychologyOutlinedIcon fontSize="small" />}
-                  onClick={() => setArchetypeManagerOpen(true)}
-                  sx={{ py: 0.6, px: 1.5, borderRadius: 2, display: { xs: 'none', lg: 'inline-flex' } }}
-                >
-                  Arquetipos ({customArchetypes.length})
-                </CustomButton>
-
-                {/* Tag Manager Button */}
-                <CustomButton
-                  variant="outlined"
-                  color="inherit"
-                  size="small"
-                  startIcon={<LocalOfferOutlinedIcon fontSize="small" />}
-                  onClick={() => setTagManagerOpen(true)}
-                  sx={{ py: 0.6, px: 1.5, borderRadius: 2, display: { xs: 'none', md: 'inline-flex' } }}
-                >
-                  Etiquetas ({tags.length})
-                </CustomButton>
-
-                {/* Export Button (Desktop) */}
-                <CustomButton
-                  variant="outlined"
-                  color="inherit"
-                  size="small"
-                  startIcon={<FileDownloadOutlinedIcon fontSize="small" />}
-                  onClick={() => setExportModalOpen(true)}
-                  sx={{ py: 0.6, px: 1.5, borderRadius: 2, display: { xs: 'none', sm: 'inline-flex' } }}
-                >
-                  Exportar
-                </CustomButton>
-
-                {/* Export Button (Mobile) */}
-                <Tooltip title="Exportar Fichas de Personajes">
-                  <IconButton
-                    onClick={() => setExportModalOpen(true)}
-                    sx={{
-                      display: { xs: 'flex', sm: 'none' },
-                      border: 1,
-                      borderColor: 'divider',
-                      borderRadius: '50%',
-                      width: 36,
-                      height: 36,
-                      bgcolor: 'background.paper',
-                    }}
-                  >
-                    <FileDownloadOutlinedIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-
-                {/* Create Character (Desktop) */}
+              {/* Sin WorkspaceNavbar (página suelta) la acción de crear vive aquí */}
+              {!hasWorkspaceNavbar && (
                 <CustomButton
                   variant="contained"
                   color="primary"
                   size="small"
                   startIcon={<AddIcon fontSize="small" />}
-                  onClick={() => {
-                    setSelectedCharacter(null);
-                    setIsCloneCharMode(false);
-                    setCharModalOpen(true);
-                  }}
-                  sx={{ py: 0.6, px: 2, borderRadius: 2, display: { xs: 'none', sm: 'inline-flex' } }}
+                  onClick={openCreateCharacter}
+                  sx={{ py: 0.6, px: 2, borderRadius: 2, flexShrink: 0 }}
                 >
                   Nuevo Personaje
                 </CustomButton>
-
-                {/* Create Character (Mobile) */}
-                <Tooltip title="Nuevo Personaje">
-                  <IconButton
-                    onClick={() => {
-                      setSelectedCharacter(null);
-                      setIsCloneCharMode(false);
-                      setCharModalOpen(true);
-                    }}
-                    sx={{
-                      display: { xs: 'flex', sm: 'none' },
-                      bgcolor: 'primary.main',
-                      color: '#fff',
-                      width: 36,
-                      height: 36,
-                      borderRadius: '50%',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                      '&:hover': { bgcolor: 'primary.dark' },
-                    }}
-                  >
-                    <AddIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
+              )}
             </Box>
 
-            {/* ─── Control Bar: Tabs + Filtros + Buscador + Selector de Vista ─── */}
-            <Paper
-              elevation={0}
-              sx={{
-                display: 'flex',
-                flexDirection: { xs: 'column', lg: 'row' },
-                alignItems: { xs: 'stretch', lg: 'center' },
-                justifyContent: 'space-between',
-                gap: 1.2,
-                mb: 2.5,
-                p: { xs: 0.6, sm: 0.8 },
-                borderRadius: 2.5,
-                bgcolor: 'background.paper',
-                border: 1,
-                borderColor: 'divider',
-              }}
-            >
-              {/* Tabs de tipo (Locales, Globales, Todos) */}
-              <Tabs
-                value={characterTab}
-                onChange={(e, val) => setCharacterTab(val)}
-                variant="scrollable"
-                scrollButtons="auto"
-                sx={{
-                  minHeight: 36,
-                  '& .MuiTab-root': {
-                    fontWeight: 700,
-                    fontSize: '0.82rem',
-                    textTransform: 'none',
-                    minHeight: 36,
-                    py: 0,
-                    px: { xs: 1.2, sm: 1.8 },
-                  },
-                }}
-              >
-                <Tab label={`Locales (${characters.filter((c) => !c.is_global).length})`} />
-                <Tab
-                  icon={<PublicOutlinedIcon fontSize="small" />}
-                  iconPosition="start"
-                  label={`Globales (${characters.filter((c) => c.is_global).length})`}
-                />
-                <Tab
-                  icon={<PeopleOutlineIcon fontSize="small" />}
-                  iconPosition="start"
-                  label={`Todos (${characters.length})`}
-                />
-              </Tabs>
+              </>
+            )}
 
-              {/* Filtros, etiquetas, orden y densidad */}
-              <Box
+            {/* ─── Controles: viven en el WorkspaceNavbar; aquí solo como respaldo en páginas sueltas ─── */}
+            {!hasWorkspaceNavbar && (
+              <Paper
+                elevation={0}
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
                   gap: 1,
-                  flexWrap: { xs: 'wrap', sm: 'nowrap' },
+                  mb: 2.5,
+                  p: 1,
+                  borderRadius: 2.5,
+                  bgcolor: 'background.paper',
+                  border: 1,
+                  borderColor: 'divider',
                 }}
               >
-                {/* Filtro por Etiqueta Propia */}
-                <FormControl size="small" sx={{ minWidth: { xs: '48%', sm: 140 } }}>
-                  <Select
-                    value={tagFilter}
-                    onChange={(e) => setTagFilter(e.target.value)}
-                    startAdornment={<LocalOfferOutlinedIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />}
-                    sx={{ borderRadius: 2, fontSize: '0.82rem', height: 34 }}
-                  >
-                    <MenuItem value="all">Todas las etiquetas</MenuItem>
-                    {tags.map((tag) => (
-                      <MenuItem key={tag.id} value={tag.id}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
-                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: tag.color || DEFAULT_ENTITY_COLOR }} />
-                          {tag.name}
-                        </Box>
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <CharactersToolbar />
+              </Paper>
+            )}
 
-                {/* Filtro por Rol */}
-                <FormControl size="small" sx={{ minWidth: { xs: '48%', sm: 130 } }}>
-                  <Select
-                    value={roleFilter}
-                    onChange={(e) => setRoleFilter(e.target.value)}
-                    startAdornment={<FilterListIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />}
-                    sx={{ borderRadius: 2, fontSize: '0.82rem', height: 34 }}
-                  >
-                    <MenuItem value="all">Todos los roles</MenuItem>
-                    {availableRoles.map((role) => (
-                      <MenuItem key={role} value={role}>
-                        {role}
-                      </MenuItem>
-                    ))}
-                    <MenuItem value="Sin rol">Sin rol</MenuItem>
-                  </Select>
-                </FormControl>
-
-                {/* Ordenar */}
-                <FormControl size="small" sx={{ minWidth: { xs: '48%', sm: 140 } }}>
-                  <Select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    startAdornment={<SortByAlphaIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />}
-                    sx={{ borderRadius: 2, fontSize: '0.82rem', height: 34 }}
-                  >
-                    <MenuItem value="name-asc">Nombre A-Z</MenuItem>
-                    <MenuItem value="name-desc">Nombre Z-A</MenuItem>
-                    <MenuItem value="recent">Más recientes</MenuItem>
-                    <MenuItem value="has-image">Con imagen primero</MenuItem>
-                    <MenuItem value="special">Especiales primero</MenuItem>
-                    <MenuItem value="vital">Estado Vital</MenuItem>
-                    <MenuItem value="life-stage">Etapa de Vida</MenuItem>
-                    <MenuItem value="alignment">Alineamiento</MenuItem>
-                    <MenuItem value="gender">Género</MenuItem>
-                  </Select>
-                </FormControl>
-
-                {/* Buscador */}
-                <TextField
-                  size="small"
-                  placeholder="Buscar personaje o etiqueta…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  sx={{ width: { xs: '100%', sm: 170 } }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                      </InputAdornment>
-                    ),
-                    endAdornment: searchQuery ? (
-                      <InputAdornment position="end">
-                        <IconAction label="Limpiar búsqueda" size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.2 }}>
-                          <ClearIcon fontSize="small" />
-                        </IconAction>
-                      </InputAdornment>
-                    ) : null,
-                    sx: { borderRadius: 2, bgcolor: 'background.subtle', height: 34, fontSize: '0.82rem' },
-                  }}
-                />
-
-                {/* Densidad de Vista */}
-                <ButtonGroup size="small" variant="outlined" sx={{ flexShrink: 0 }}>
-                  <Tooltip title="Modo Mosaico (Galería de Retratos)">
-                    <Button
-                      variant={viewMode === 'gallery' ? 'contained' : 'outlined'}
-                      onClick={() => setViewMode('gallery')}
-                      sx={{ p: 0.6, minWidth: 34, height: 34 }}
-                    >
-                      <GridViewIcon fontSize="small" />
-                    </Button>
-                  </Tooltip>
-                  <Tooltip title="Vista Compacta">
-                    <Button
-                      variant={viewMode === 'compact' ? 'contained' : 'outlined'}
-                      onClick={() => setViewMode('compact')}
-                      sx={{ p: 0.6, minWidth: 34, height: 34 }}
-                    >
-                      <ViewModuleIcon fontSize="small" />
-                    </Button>
-                  </Tooltip>
-                  <Tooltip title="Vista Media">
-                    <Button
-                      variant={viewMode === 'medium' ? 'contained' : 'outlined'}
-                      onClick={() => setViewMode('medium')}
-                      sx={{ p: 0.6, minWidth: 34, height: 34 }}
-                    >
-                      <ViewComfyIcon fontSize="small" />
-                    </Button>
-                  </Tooltip>
-                  <Tooltip title="Vista Detallada">
-                    <Button
-                      variant={viewMode === 'detailed' ? 'contained' : 'outlined'}
-                      onClick={() => setViewMode('detailed')}
-                      sx={{ p: 0.6, minWidth: 34, height: 34 }}
-                    >
-                      <ViewAgendaIcon fontSize="small" />
-                    </Button>
-                  </Tooltip>
-                </ButtonGroup>
-
-                {/* Toggle Descripciones */}
-                <Tooltip title={showDescriptions ? 'Ocultar descripciones' : 'Mostrar descripciones'}>
-                  <IconButton
-                    size="small"
-                    onClick={() => setShowDescriptions(!showDescriptions)}
-                    sx={{
-                      border: 1,
-                      borderColor: !showDescriptions ? 'primary.main' : 'divider',
-                      bgcolor: !showDescriptions ? 'action.selected' : 'transparent',
-                      color: !showDescriptions ? 'primary.main' : 'inherit',
-                      borderRadius: 2,
-                      p: 0.8,
-                      height: 34,
-                      width: 34,
-                    }}
-                  >
-                    <DescriptionOutlinedIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-
-                {/* Toggle Agrupar por Rol */}
-                <Tooltip title={groupByRole ? 'Desagrupar secciones' : 'Agrupar por rol'}>
-                  <IconButton
-                    size="small"
-                    onClick={() => setGroupByRole(!groupByRole)}
-                    sx={{
-                      border: 1,
-                      borderColor: groupByRole ? 'primary.main' : 'divider',
-                      bgcolor: groupByRole ? 'action.selected' : 'transparent',
-                      color: groupByRole ? 'primary.main' : 'inherit',
-                      borderRadius: 2,
-                      p: 0.8,
-                      height: 34,
-                      width: 34,
-                    }}
-                  >
-                    <AccountTreeOutlinedIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            </Paper>
-            
             {/* ─── Listado de Personajes ─── */}
             {processedCharacters.length === 0 ? (
               <Box sx={{ textAlign: 'center', py: 8, bgcolor: 'background.paper', borderRadius: 3, border: 1, borderColor: 'divider' }}>
                 <PeopleOutlineIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1.5 }} />
                 <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.secondary', mb: 1 }}>
-                  {searchQuery || roleFilter !== 'all' || tagFilter !== 'all' || activeFolderId !== 'all'
+                  {charactersSearch || charactersRoleFilter !== 'all' || tagFilter !== 'all' || activeFolderId !== 'all'
                     ? 'No se encontraron personajes con estos filtros'
                     : 'No hay personajes en esta historia'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  {searchQuery || roleFilter !== 'all' || tagFilter !== 'all' || activeFolderId !== 'all'
+                  {charactersSearch || charactersRoleFilter !== 'all' || tagFilter !== 'all' || activeFolderId !== 'all'
                     ? 'Intenta modificar el término de búsqueda, cambiar de carpeta o quitar los filtros.'
                     : 'Crea tu primer personaje para poblar este universo narrativo.'}
                 </Typography>

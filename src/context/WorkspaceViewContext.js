@@ -94,9 +94,20 @@ export function WorkspaceViewProvider({ children }) {
   const [charactersSearch, setCharactersSearch] = useState('');
   const [charactersRoleFilter, setCharactersRoleFilter] = useState('all');
   const [charactersScope, setCharactersScope] = useState(0); // 0=Locales, 1=Globales, 2=Todos
+  const [charactersTag, setCharactersTag] = useState('all'); // 'all' | tag.id
+  const [charactersSort, setCharactersSort] = useState('name-asc');
+  const [charactersViewMode, setCharactersViewMode] = useState('compact'); // 'gallery' | 'compact' | 'medium' | 'detailed'
+  const [charactersShowDescriptions, setCharactersShowDescriptions] = useState(true);
+  const [charactersGroupByRole, setCharactersGroupByRole] = useState(true);
+  // Datos y acciones que la vista de personajes registra para que el navbar los muestre (tags, roles, conteos, modales)
+  const [charactersToolbar, setCharactersToolbar] = useState(null);
   const [ideasSearch, setIdeasSearch] = useState('');
   const [ideasStatus, setIdeasStatus] = useState('all');
+  const [ideasStoryFilter, setIdeasStoryFilter] = useState('all'); // 'all' | 'global' | story_id
+  const [ideasViewMode, setIdeasViewMode] = useState('grid'); // 'grid' | 'kanban'
   const [eventsCompact, setEventsCompact] = useState(false);
+  // Indica si el WorkspaceNavbar está montado (si no, las vistas muestran su propia barra)
+  const [hasWorkspaceNavbar, setHasWorkspaceNavbar] = useState(false);
 
   // Sync state if user navigates via browser back/forward or route
   useEffect(() => {
@@ -152,12 +163,30 @@ export function WorkspaceViewProvider({ children }) {
     setCharactersRoleFilter,
     charactersScope,
     setCharactersScope,
+    charactersTag,
+    setCharactersTag,
+    charactersSort,
+    setCharactersSort,
+    charactersViewMode,
+    setCharactersViewMode,
+    charactersShowDescriptions,
+    setCharactersShowDescriptions,
+    charactersGroupByRole,
+    setCharactersGroupByRole,
+    charactersToolbar,
+    setCharactersToolbar,
     ideasSearch,
     setIdeasSearch,
     ideasStatus,
     setIdeasStatus,
+    ideasStoryFilter,
+    setIdeasStoryFilter,
+    ideasViewMode,
+    setIdeasViewMode,
     eventsCompact,
     setEventsCompact,
+    hasWorkspaceNavbar,
+    setHasWorkspaceNavbar,
   }), [
     activeView,
     setActiveView,
@@ -166,9 +195,18 @@ export function WorkspaceViewProvider({ children }) {
     charactersSearch,
     charactersRoleFilter,
     charactersScope,
+    charactersTag,
+    charactersSort,
+    charactersViewMode,
+    charactersShowDescriptions,
+    charactersGroupByRole,
+    charactersToolbar,
     ideasSearch,
     ideasStatus,
+    ideasStoryFilter,
+    ideasViewMode,
     eventsCompact,
+    hasWorkspaceNavbar,
   ]);
 
   return (
@@ -198,12 +236,30 @@ export function useWorkspaceView() {
       setCharactersRoleFilter: () => {},
       charactersScope: 0,
       setCharactersScope: () => {},
+      charactersTag: 'all',
+      setCharactersTag: () => {},
+      charactersSort: 'name-asc',
+      setCharactersSort: () => {},
+      charactersViewMode: 'compact',
+      setCharactersViewMode: () => {},
+      charactersShowDescriptions: true,
+      setCharactersShowDescriptions: () => {},
+      charactersGroupByRole: true,
+      setCharactersGroupByRole: () => {},
+      charactersToolbar: null,
+      setCharactersToolbar: () => {},
       ideasSearch: '',
       setIdeasSearch: () => {},
       ideasStatus: 'all',
       setIdeasStatus: () => {},
+      ideasStoryFilter: 'all',
+      setIdeasStoryFilter: () => {},
+      ideasViewMode: 'grid',
+      setIdeasViewMode: () => {},
       eventsCompact: false,
       setEventsCompact: () => {},
+      hasWorkspaceNavbar: false,
+      setHasWorkspaceNavbar: () => {},
     };
   }
   return context;

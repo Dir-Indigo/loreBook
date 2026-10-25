@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Tabs,
@@ -11,8 +11,6 @@ import {
   Chip,
   Menu,
   MenuItem,
-  TextField,
-  InputAdornment,
   Divider,
   Switch,
   FormControl,
@@ -28,8 +26,6 @@ import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import AddIcon from '@mui/icons-material/Add';
 import TuneIcon from '@mui/icons-material/Tune';
-import SearchIcon from '@mui/icons-material/Search';
-import ClearIcon from '@mui/icons-material/Clear';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import CheckIcon from '@mui/icons-material/Check';
@@ -43,12 +39,12 @@ import DifferenceIcon from '@mui/icons-material/Difference';
 
 import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from '../../context/WorkspaceViewContext';
 import { useWorkspace } from '../../context/WorkspaceContext';
-import { useQuickNotes, NOTE_STATUSES } from '../../context/QuickNotesContext';
+import { useQuickNotes } from '../../context/QuickNotesContext';
 import { useGlobalActions } from '../../context/GlobalActionsContext';
 import { useCharacterDrawer } from '../../context/CharacterDrawerContext';
 import { useManuscriptCore } from '../../context/ManuscriptContext';
-import { CHARACTER_ARCHETYPES } from '../../constants/constants';
-import IconAction from '../common/IconAction';
+import CharactersToolbar from './toolbars/CharactersToolbar';
+import IdeasToolbar from './toolbars/IdeasToolbar';
 
 /**
  * WorkspaceNavbar — Barra de herramientas dedicada de 2 pisos para el área de trabajo / lienzo.
@@ -66,19 +62,10 @@ export default function WorkspaceNavbar() {
     views,
     isSubbarOpen,
     toggleSubbar,
-    // Filters & States
-    charactersSearch,
-    setCharactersSearch,
-    charactersRoleFilter,
-    setCharactersRoleFilter,
-    charactersScope,
-    setCharactersScope,
-    ideasSearch,
-    setIdeasSearch,
-    ideasStatus,
-    setIdeasStatus,
+    charactersToolbar,
     eventsCompact,
     setEventsCompact,
+    setHasWorkspaceNavbar,
   } = useWorkspaceView();
 
   const {
@@ -90,7 +77,7 @@ export default function WorkspaceNavbar() {
     setActiveBoardId,
   } = useWorkspace();
 
-  const { notes = [], totalCount: notesCount, openCreateModal: openCreateNoteModal } = useQuickNotes();
+  const { totalCount: notesCount, openCreateModal: openCreateNoteModal } = useQuickNotes();
   const { openCreateEvent, openCreateChar } = useGlobalActions();
   const { prepareCreateChar } = useCharacterDrawer();
 
@@ -120,8 +107,11 @@ export default function WorkspaceNavbar() {
   // Menu de capítulos para el subbar de manuscrito
   const [chapterMenuAnchor, setChapterMenuAnchor] = useState(null);
 
-  // Menu de arquetipos para personajes
-  const [roleMenuAnchor, setRoleMenuAnchor] = useState(null);
+  // Avisa a las vistas que el navbar existe (así no duplican su propia barra de controles)
+  useEffect(() => {
+    setHasWorkspaceNavbar(true);
+    return () => setHasWorkspaceNavbar(false);
+  }, [setHasWorkspaceNavbar]);
 
   // Badge count per view
   const getBadgeCount = (viewId) => {
@@ -137,8 +127,12 @@ export default function WorkspaceNavbar() {
     if (activeView === WORKSPACE_VIEW_KEYS.EVENTS) {
       openCreateEvent(activeBoardId);
     } else if (activeView === WORKSPACE_VIEW_KEYS.CHARACTERS) {
-      prepareCreateChar();
-      openCreateChar();
+      if (charactersToolbar?.onCreate) {
+        charactersToolbar.onCreate();
+      } else {
+        prepareCreateChar();
+        openCreateChar();
+      }
     } else if (activeView === WORKSPACE_VIEW_KEYS.IDEAS) {
       if (openCreateNoteModal) {
         openCreateNoteModal();
@@ -186,11 +180,11 @@ export default function WorkspaceNavbar() {
         }}
       >
         {/* Lado Izquierdo: Pestañas de Áreas de Trabajo */}
-        <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, overflowX: 'auto' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
           <Tabs
             value={activeView}
             onChange={(e, val) => setActiveView(val)}
-            variant="scrollable"
+            variant={isMobile ? 'scrollable' : 'standard'}
             scrollButtons="auto"
             TabIndicatorProps={{
               sx: {
@@ -201,6 +195,7 @@ export default function WorkspaceNavbar() {
             }}
             sx={{
               minHeight: 48,
+              width: '100%',
               '& .MuiTabs-flexContainer': {
                 gap: 0.5,
               },
@@ -274,7 +269,15 @@ export default function WorkspaceNavbar() {
                     minHeight: 48,
                     py: 0,
                     px: { xs: 1.2, sm: 2 },
-                    transition: 'all 0.15s ease',
+                    // En escritorio las pestañas reparten todo el ancho; la activa recibe más espacio
+                    ...(!isMobile && {
+                      flex: isSelected ? '1.7 1 0' : '1 1 0',
+                      maxWidth: 'none',
+                      minWidth: 0,
+                    }),
+                    bgcolor: isSelected ? 'action.selected' : 'transparent',
+                    borderRadius: '8px 8px 0 0',
+                    transition: 'all 0.2s ease',
                     '&:hover': {
                       bgcolor: 'action.hover',
                     },
@@ -342,9 +345,9 @@ export default function WorkspaceNavbar() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 1.5,
-            flexWrap: 'nowrap',
-            overflowX: 'auto',
+            columnGap: 1.5,
+            rowGap: 0.8,
+            flexWrap: 'wrap',
           }}
         >
           {/* ── SUBBAR: TRAMAS & EVENTOS ─────────────────────────────────── */}
@@ -460,215 +463,10 @@ export default function WorkspaceNavbar() {
           )}
 
           {/* ── SUBBAR: PERSONAJES ────────────────────────────────────────── */}
-          {activeView === WORKSPACE_VIEW_KEYS.CHARACTERS && (
-            <>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
-                {/* Buscador de personajes */}
-                <TextField
-                  size="small"
-                  placeholder="Buscar personaje..."
-                  value={charactersSearch}
-                  onChange={(e) => setCharactersSearch(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                      </InputAdornment>
-                    ),
-                    endAdornment: charactersSearch ? (
-                      <InputAdornment position="end">
-                        <IconAction label="Limpiar búsqueda" size="small" onClick={() => setCharactersSearch('')} sx={{ p: 0.2 }}>
-                          <ClearIcon sx={{ fontSize: 14 }} />
-                        </IconAction>
-                      </InputAdornment>
-                    ) : null,
-                  }}
-                  sx={{
-                    width: { xs: 150, sm: 220 },
-                    '& .MuiInputBase-root': {
-                      height: 28,
-                      fontSize: '0.78rem',
-                      bgcolor: 'background.paper',
-                      borderRadius: 1.8,
-                    },
-                  }}
-                />
-
-                {/* Filtro por Ámbito: Locales / Globales / Todos */}
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    bgcolor: 'background.paper',
-                    p: '2px',
-                    borderRadius: 1.8,
-                    border: 1,
-                    borderColor: 'divider',
-                  }}
-                >
-                  {[
-                    { label: 'Locales', value: 0 },
-                    { label: 'Globales', value: 1 },
-                    { label: 'Todos', value: 2 },
-                  ].map((s) => (
-                    <Button
-                      key={s.value}
-                      size="small"
-                      onClick={() => setCharactersScope(s.value)}
-                      sx={{
-                        py: 0.1,
-                        px: 1,
-                        fontSize: '0.7rem',
-                        fontWeight: charactersScope === s.value ? 800 : 500,
-                        textTransform: 'none',
-                        minWidth: 0,
-                        borderRadius: 1.4,
-                        bgcolor: charactersScope === s.value ? 'primary.main' : 'transparent',
-                        color: charactersScope === s.value ? 'primary.contrastText' : 'text.secondary',
-                        '&:hover': {
-                          bgcolor: charactersScope === s.value ? 'primary.dark' : 'action.hover',
-                        },
-                      }}
-                    >
-                      {s.label}
-                    </Button>
-                  ))}
-                </Box>
-
-                {/* Filtro por Rol / Arquetipo */}
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={(e) => setRoleMenuAnchor(e.currentTarget)}
-                  endIcon={<KeyboardArrowDownIcon fontSize="small" />}
-                  sx={{
-                    height: 28,
-                    py: 0,
-                    px: 1.2,
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    textTransform: 'none',
-                    borderRadius: 1.8,
-                    borderColor: 'divider',
-                    bgcolor: 'background.paper',
-                    color: charactersRoleFilter !== 'all' ? 'primary.main' : 'text.secondary',
-                  }}
-                >
-                  {charactersRoleFilter === 'all' ? 'Todos los roles' : charactersRoleFilter}
-                </Button>
-
-                <Menu
-                  anchorEl={roleMenuAnchor}
-                  open={Boolean(roleMenuAnchor)}
-                  onClose={() => setRoleMenuAnchor(null)}
-                  PaperProps={{ sx: { minWidth: 160, borderRadius: 2 } }}
-                >
-                  <MenuItem
-                    selected={charactersRoleFilter === 'all'}
-                    onClick={() => {
-                      setCharactersRoleFilter('all');
-                      setRoleMenuAnchor(null);
-                    }}
-                    sx={{ fontSize: '0.78rem', py: 0.6 }}
-                  >
-                    Todos los roles
-                  </MenuItem>
-                  {CHARACTER_ARCHETYPES.map((role) => (
-                    <MenuItem
-                      key={role}
-                      selected={charactersRoleFilter === role}
-                      onClick={() => {
-                        setCharactersRoleFilter(role);
-                        setRoleMenuAnchor(null);
-                      }}
-                      sx={{ fontSize: '0.78rem', py: 0.6 }}
-                    >
-                      {role}
-                    </MenuItem>
-                  ))}
-                </Menu>
-              </Box>
-
-              {/* Total Personajes */}
-              <Chip
-                size="small"
-                label={`${characters.length} personajes`}
-                variant="outlined"
-                sx={{ height: 24, fontSize: '0.72rem', fontWeight: 600, borderColor: 'divider', bgcolor: 'background.paper' }}
-              />
-            </>
-          )}
+          {activeView === WORKSPACE_VIEW_KEYS.CHARACTERS && <CharactersToolbar />}
 
           {/* ── SUBBAR: PIZARRA DE IDEAS ─────────────────────────────────── */}
-          {activeView === WORKSPACE_VIEW_KEYS.IDEAS && (
-            <>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
-                {/* Status Filter Chips */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Chip
-                    size="small"
-                    label="Todas"
-                    clickable
-                    color={ideasStatus === 'all' ? 'primary' : 'default'}
-                    onClick={() => setIdeasStatus('all')}
-                    sx={{ height: 26, fontSize: '0.72rem', fontWeight: ideasStatus === 'all' ? 800 : 500 }}
-                  />
-                  {NOTE_STATUSES.map((st) => (
-                    <Chip
-                      key={st.value}
-                      size="small"
-                      label={st.label}
-                      clickable
-                      color={ideasStatus === st.value ? 'primary' : 'default'}
-                      onClick={() => setIdeasStatus(st.value)}
-                      sx={{ height: 26, fontSize: '0.72rem', fontWeight: ideasStatus === st.value ? 800 : 500 }}
-                    />
-                  ))}
-                </Box>
-
-                <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
-
-                {/* Buscador de notas */}
-                <TextField
-                  size="small"
-                  placeholder="Buscar en ideas..."
-                  value={ideasSearch}
-                  onChange={(e) => setIdeasSearch(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                      </InputAdornment>
-                    ),
-                    endAdornment: ideasSearch ? (
-                      <InputAdornment position="end">
-                        <IconAction label="Limpiar búsqueda" size="small" onClick={() => setIdeasSearch('')} sx={{ p: 0.2 }}>
-                          <ClearIcon sx={{ fontSize: 14 }} />
-                        </IconAction>
-                      </InputAdornment>
-                    ) : null,
-                  }}
-                  sx={{
-                    width: { xs: 140, sm: 200 },
-                    '& .MuiInputBase-root': {
-                      height: 28,
-                      fontSize: '0.78rem',
-                      bgcolor: 'background.paper',
-                      borderRadius: 1.8,
-                    },
-                  }}
-                />
-              </Box>
-
-              {/* Conteo total */}
-              <Chip
-                size="small"
-                label={`${notesCount} notas`}
-                variant="outlined"
-                sx={{ height: 24, fontSize: '0.72rem', fontWeight: 600, borderColor: 'divider', bgcolor: 'background.paper' }}
-              />
-            </>
-          )}
+          {activeView === WORKSPACE_VIEW_KEYS.IDEAS && <IdeasToolbar />}
 
           {/* ── SUBBAR: MANUSCRITO ───────────────────────────────────────── */}
           {activeView === WORKSPACE_VIEW_KEYS.MANUSCRIPT && (

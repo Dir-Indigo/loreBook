@@ -49,6 +49,7 @@ import { useWorkspaceView } from '../../../context/WorkspaceViewContext';
 import CustomLoading from '../../common/CustomLoading';
 import CustomButton from '../../common/CustomButton';
 import IconAction from '../../common/IconAction';
+import IdeasToolbar from '../toolbars/IdeasToolbar';
 
 
 // ─── Idea Management Card with Story Tagging ──────────────────────────────────
@@ -504,13 +505,15 @@ export default function CentralizedIdeasPage() {
   const hasLoadedRef = useRef(false);
   const { notes, notesLoading, loadNotes, createNote, updateNote, deleteNote, togglePin } = useQuickNotes();
   const { characters } = useWorkspace();
-  const { ideasSearch, ideasStatus } = useWorkspaceView();
+  const {
+    ideasSearch,
+    ideasStatus,
+    ideasStoryFilter: storyFilter,
+    setIdeasStoryFilter: setStoryFilter,
+    ideasViewMode: viewMode,
+    hasWorkspaceNavbar,
+  } = useWorkspaceView();
 
-  const [storyFilter, setStoryFilter] = useState('all'); // 'all' | 'global' | story_id
-  const [activeTab, setActiveTab] = useState(0); // 0=Todas, 1=Ideas, 2=Pendientes, 3=Hechas, 4=Descartadas
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'kanban'
-  const [searchQuery, setSearchQuery] = useState('');
-  
   // Fast note creation
   const [quickInput, setQuickInput] = useState('');
   const [newColor, setNewColor] = useState(NOTE_COLORS[0]);
@@ -536,7 +539,7 @@ export default function CentralizedIdeasPage() {
     if (router.query.story_id) {
       setStoryFilter(router.query.story_id);
     }
-  }, [router.query.story_id]);
+  }, [router.query.story_id, setStoryFilter]);
 
   const handleCreateFast = async (e) => {
     if (e) e.preventDefault();
@@ -562,19 +565,11 @@ export default function CentralizedIdeasPage() {
       result = result.filter((n) => n.story_id === storyFilter);
     }
 
-    // Status filter from WorkspaceNavbar or local tabs
-    const effectiveStatus = ideasStatus !== 'all' ? ideasStatus : null;
-    if (effectiveStatus) {
-      result = result.filter((n) => n.status === effectiveStatus);
-    } else {
-      if (activeTab === 1) result = result.filter((n) => n.status === 'idea');
-      else if (activeTab === 2) result = result.filter((n) => n.status === 'pending');
-      else if (activeTab === 3) result = result.filter((n) => n.status === 'done');
-      else if (activeTab === 4) result = result.filter((n) => n.status === 'discarded');
+    if (ideasStatus !== 'all') {
+      result = result.filter((n) => n.status === ideasStatus);
     }
 
-    // Search query from WorkspaceNavbar or local
-    const effectiveQuery = (ideasSearch || searchQuery).trim().toLowerCase();
+    const effectiveQuery = (ideasSearch || '').trim().toLowerCase();
     if (effectiveQuery) {
       result = result.filter((n) => n.content?.toLowerCase().includes(effectiveQuery));
     }
@@ -588,7 +583,7 @@ export default function CentralizedIdeasPage() {
     });
 
     return result;
-  }, [notes, storyFilter, activeTab, ideasStatus, searchQuery, ideasSearch]);
+  }, [notes, storyFilter, ideasStatus, ideasSearch]);
 
   const scopedNotes = useMemo(() => {
     if (storyFilter === 'global') return notes.filter((n) => !n.story_id);
@@ -596,19 +591,11 @@ export default function CentralizedIdeasPage() {
     return notes;
   }, [notes, storyFilter]);
 
-  const counts = useMemo(() => {
-    return {
-      all: scopedNotes.length,
-      idea: scopedNotes.filter((n) => n.status === 'idea').length,
-      pending: scopedNotes.filter((n) => n.status === 'pending').length,
-      done: scopedNotes.filter((n) => n.status === 'done').length,
-      discarded: scopedNotes.filter((n) => n.status === 'discarded').length,
-    };
-  }, [scopedNotes]);
-
   return (
     <Box sx={{ flexGrow: 1, overflowY: 'auto', p: { xs: 0.8, sm: 2.5 }, bgcolor: 'background.default' }}>
         <Container maxWidth="xl" disableGutters sx={{ px: { xs: 0.5, sm: 2 } }}>
+          {!hasWorkspaceNavbar && (
+            <>
           {/* Header Compacto */}
           <Box
             sx={{
@@ -640,27 +627,10 @@ export default function CentralizedIdeasPage() {
               </Typography>
             </Box>
 
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: { xs: '100%', sm: 'auto' } }}>
-              <ButtonGroup size="small" variant="outlined">
-                <Button
-                  variant={viewMode === 'grid' ? 'contained' : 'outlined'}
-                  onClick={() => setViewMode('grid')}
-                  startIcon={<ViewModuleIcon />}
-                  sx={{ py: 0.4 }}
-                >
-                  Muro
-                </Button>
-                <Button
-                  variant={viewMode === 'kanban' ? 'contained' : 'outlined'}
-                  onClick={() => setViewMode('kanban')}
-                  startIcon={<ViewColumnIcon />}
-                  sx={{ py: 0.4 }}
-                >
-                  Tablero
-                </Button>
-              </ButtonGroup>
-            </Box>
           </Box>
+
+            </>
+          )}
 
           {/* ─── Captura Instantánea Compacta ─── */}
           <Paper
@@ -771,77 +741,26 @@ export default function CentralizedIdeasPage() {
             </Box>
           </Paper>
 
-          {/* ─── Control Bar: Filter por Historia + Status Tabs + Buscador ─── */}
-          <Paper
-            elevation={0}
-            sx={{
-              display: 'flex',
-              flexDirection: { xs: 'column', lg: 'row' },
-              alignItems: { xs: 'stretch', lg: 'center' },
-              justify: 'space-between',
-              gap: 1.5,
-              mb: 2,
-              p: { xs: 0.6, sm: 0.8 },
-              borderRadius: 2.5,
-              bgcolor: 'background.paper',
-              border: 1,
-              borderColor: 'divider',
-            }}
-          >
-            {/* Tabs de estado */}
-            <Tabs
-              value={activeTab}
-              onChange={(e, val) => setActiveTab(val)}
-              variant="scrollable"
-              scrollButtons="auto"
+          {/* ─── Controles: viven en el WorkspaceNavbar; aquí solo como respaldo en páginas sueltas ─── */}
+          {!hasWorkspaceNavbar && (
+            <Paper
+              elevation={0}
               sx={{
-                minHeight: 38,
-                '& .MuiTab-root': { fontWeight: 700, fontSize: '0.82rem', textTransform: 'none', minHeight: 38, py: 0, px: { xs: 1.2, sm: 2 } },
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 1,
+                mb: 2,
+                p: 1,
+                borderRadius: 2.5,
+                bgcolor: 'background.paper',
+                border: 1,
+                borderColor: 'divider',
               }}
             >
-              <Tab label={`Todas (${counts.all})`} />
-              <Tab icon={<LightbulbOutlinedIcon fontSize="small" />} iconPosition="start" label={`Ideas (${counts.idea})`} />
-              <Tab icon={<AccessTimeIcon fontSize="small" />} iconPosition="start" label={`Pendientes (${counts.pending})`} />
-              <Tab icon={<CheckCircleOutlineIcon fontSize="small" />} iconPosition="start" label={`Hechas (${counts.done})`} />
-              <Tab icon={<DeleteOutlineIcon fontSize="small" />} iconPosition="start" label={`Descartadas (${counts.discarded})`} />
-            </Tabs>
-
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
-              {/* Selector compacto de historias */}
-              <FormControl size="small" sx={{ minWidth: 170 }}>
-                <Select
-                  value={storyFilter}
-                  onChange={(e) => setStoryFilter(e.target.value)}
-                  startAdornment={<FilterListIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />}
-                  sx={{ borderRadius: 2, fontSize: '0.82rem', height: 34 }}
-                >
-                  <MenuItem value="all">Ver: Todas las Historias ({notes.length})</MenuItem>
-                  <MenuItem value="global"><PublicIcon fontSize="small" sx={{ mr: 1 }} /> Globales ({notes.filter((n) => !n.story_id).length})</MenuItem>
-                  {stories.map((s) => (
-                    <MenuItem key={s.id} value={s.id}>
-                      <BookmarkBorderIcon fontSize="small" sx={{ mr: 1 }} /> {s.title} ({notes.filter((n) => n.story_id === s.id).length})
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              {/* Buscador */}
-              <TextField
-                size="small"
-                placeholder="Buscar en ideas…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                    </InputAdornment>
-                  ),
-                  sx: { borderRadius: 2, bgcolor: 'background.subtle', height: 34, fontSize: '0.82rem', width: { xs: '100%', sm: 180 } },
-                }}
-              />
-            </Box>
-          </Paper>
+              <IdeasToolbar />
+            </Paper>
+          )}
 
           {/* ─── Main Content Display ─────────────────────────────────────── */}
           {notesLoading ? (
@@ -850,7 +769,7 @@ export default function CentralizedIdeasPage() {
             <Box sx={{ textAlign: 'center', py: 6 }}>
               <LightbulbOutlinedIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
               <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '1rem' }}>
-                {searchQuery ? 'No se encontraron ideas con esa búsqueda' : 'No hay ideas en este filtro'}
+                {ideasSearch ? 'No se encontraron ideas con esa búsqueda' : 'No hay ideas en este filtro'}
               </Typography>
             </Box>
           ) : viewMode === 'grid' ? (
