@@ -12,7 +12,7 @@ import {
   Alert,
 } from '@mui/material';
 import CommitIcon from '@mui/icons-material/Commit';
-import { useManuscript } from '../../context/ManuscriptContext';
+import { useManuscriptCore } from '../../context/ManuscriptContext';
 
 export default function CommitModal({ open, onClose }) {
   const {
@@ -22,7 +22,7 @@ export default function CommitModal({ open, onClose }) {
     wordCount,
     versions,
     commitVersion,
-  } = useManuscript();
+  } = useManuscriptCore();
 
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -87,12 +87,12 @@ export default function CommitModal({ open, onClose }) {
           <Chip
             size="small"
             label={`+${diffSummary.addedLines} líneas`}
-            sx={{ bgcolor: 'rgba(46, 160, 67, 0.15)', color: '#2ea043', fontWeight: 700 }}
+            sx={{ bgcolor: 'custom.diff.addedBg', color: 'custom.diff.added', fontWeight: 700 }}
           />
           <Chip
             size="small"
             label={`-${diffSummary.removedLines} líneas`}
-            sx={{ bgcolor: 'rgba(248, 81, 73, 0.15)', color: '#f85149', fontWeight: 700 }}
+            sx={{ bgcolor: 'custom.diff.removedBg', color: 'custom.diff.removed', fontWeight: 700 }}
           />
           <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
             {wordCount} palabras en borrador

@@ -1,17 +1,7 @@
 import { eventService } from '../services/eventService';
+import { createController } from './_base';
 
-const handleLoading = async (promise, setLoading) => {
-  if (setLoading) setLoading(true);
-  try {
-    const data = await promise;
-    return { data, error: null };
-  } catch (error) {
-    console.error('[EventController Error]:', error);
-    return { data: null, error };
-  } finally {
-    if (setLoading) setLoading(false);
-  }
-};
+const handleLoading = createController('Event').run;
 
 export const eventController = {
   getTree: async (storyId, setLoading) => handleLoading(eventService.getTree(storyId), setLoading),

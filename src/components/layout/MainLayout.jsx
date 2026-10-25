@@ -113,13 +113,13 @@ export default function MainLayout({ children }) {
 
   // El early return va después de todos los hooks para respetar las reglas de hooks
   if (isAuthPage) {
-    return <Box sx={{ height: '100vh', width: '100vw' }}>{children}</Box>;
+    return <Box sx={{ height: '100dvh', width: '100vw' }}>{children}</Box>;
   }
 
   return (
     <StorySelectorProvider value={handleOpenStorySelector}>
       <PullToRefresh>
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden' }}>
           <Navbar activeStory={activeStory} onOpenStorySelector={handleOpenStorySelector} />
 
           <Box sx={{ flexGrow: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>

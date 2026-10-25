@@ -36,6 +36,7 @@ import SelectionActionBar from '../common/SelectionActionBar';
 import { RELATIONSHIP_TYPES } from '../../constants/constants';
 import CharacterCard from './CharacterCard';
 import CopyGlobalConfirmModal from './CopyGlobalConfirmModal';
+import IconAction from '../common/IconAction';
 
 
 export default function CharacterDrawer({
@@ -546,13 +547,13 @@ export default function CharacterDrawer({
                         {rel.target?.name || 'Personaje B'}
                       </Typography>
                     </Box>
-                    <IconButton
+                    <IconAction label="Eliminar relación"
                       size="small"
                       onClick={() => onDeleteRelationship(rel.id)}
                       sx={{ color: 'error.main' }}
                     >
                       <DeleteOutlineIcon fontSize="small" />
-                    </IconButton>
+                    </IconAction>
                   </Box>
 
                   <Chip

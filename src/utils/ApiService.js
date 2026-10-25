@@ -8,31 +8,40 @@ import { eventController } from '../controllers/eventController';
 import { relationshipController } from '../controllers/relationshipController';
 import { quickNoteController } from '../controllers/quickNoteController';
 import { chapterController } from '../controllers/chapterController';
+import { adminController } from '../controllers/adminController';
 
 /**
  * ApiService Facade (RF-5.1, RF-5.2)
  * Centralizes UI access to domain-specific controllers and provides unified logging.
  */
 
-const logRequest = (action, endpoint, payload) => {
+const IS_DEV = process.env.NODE_ENV !== 'production';
+
+// Solo en desarrollo y sin payload: el contenido (capítulos, perfiles) no debe llegar a la consola de producción
+const logRequest = (action, endpoint) => {
+  if (!IS_DEV) return;
   console.groupCollapsed(
     `%c[ApiService REQ] %c${action} %c${endpoint}`,
     'background: #8c6d53; color: #fff; font-weight: bold; padding: 2px 6px; border-radius: 4px;',
     'color: #0d9488; font-weight: bold;',
     'color: #6366f1;'
   );
-  if (payload) console.log('Payload:', payload);
   console.groupEnd();
 };
 
 const bridge = async (action, endpoint, controllerMethod, setLoading, ...args) => {
-  logRequest(action, endpoint, args);
+  logRequest(action, endpoint);
   return await controllerMethod(...args, setLoading);
 };
 
 export const ApiService = {
   // Alias directos en la raíz para compatibilidad con AuthContext y StoryContext
   getStories: (userId, setLoading) => bridge('GET_STORIES', 'public.stories', storyController.getAll, setLoading, userId),
+
+  // Administración de la plataforma (usadas por pages/admin)
+  getAllProfilesForAdmin: (setLoading) => bridge('ADMIN_GET_PROFILES', 'public.profiles', adminController.getProfiles, setLoading),
+  getPlatformStats: (setLoading) => bridge('ADMIN_GET_STATS', 'public.profiles', adminController.getPlatformStats, setLoading),
+  updateProfileRole: (profileId, role, setLoading) => bridge('ADMIN_UPDATE_ROLE', 'public.profiles', adminController.updateProfileRole, setLoading, profileId, role),
 
   characters: {
     getAll: (storyId, setLoading) => bridge('GET_CHARS', 'public.characters', characterController.getAll, setLoading, storyId),

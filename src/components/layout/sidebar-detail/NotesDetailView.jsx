@@ -31,6 +31,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { useQuickNotes, NOTE_COLORS, NOTE_STATUSES } from '../../../context/QuickNotesContext';
 import { useStory } from '../../../context/StoryContext';
 import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from '../../../context/WorkspaceViewContext';
+import IconAction from '../../common/IconAction';
 
 // ─── Compact Editable Note Card ───────────────────────────────────────────────
 function CompactNoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
@@ -138,7 +139,7 @@ function CompactNoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }
             <IconButton
               size="small"
               onClick={() => onTogglePin(note.id, !note.is_pinned)}
-              sx={{ p: 0.3, color: note.is_pinned ? '#d32f2f' : (isDark ? '#bbb' : 'rgba(0,0,0,0.55)') }}
+              sx={{ p: 0.3, color: note.is_pinned ? 'error.main' : (isDark ? '#bbb' : 'rgba(0,0,0,0.55)') }}
             >
               {note.is_pinned ? <PushPinIcon sx={{ fontSize: 14 }} /> : <PushPinOutlinedIcon sx={{ fontSize: 14 }} />}
             </IconButton>
@@ -375,13 +376,13 @@ function DenseNoteRow({ note, stories = [], onUpdate, onDelete }) {
         </Typography>
       )}
 
-      <IconButton
+      <IconAction label="Eliminar nota"
         size="small"
         onClick={() => onDelete(note.id)}
         sx={{ p: 0.2, color: 'text.disabled', '&:hover': { color: 'error.main' } }}
       >
         <DeleteOutlineIcon sx={{ fontSize: 13 }} />
-      </IconButton>
+      </IconAction>
     </Box>
   );
 }
@@ -541,9 +542,9 @@ export default function NotesDetailView({ isExpanded = false }) {
               ),
               endAdornment: searchQuery ? (
                 <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.2 }}>
+                  <IconAction label="Limpiar búsqueda" size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.2 }}>
                     <ClearIcon sx={{ fontSize: 13 }} />
-                  </IconButton>
+                  </IconAction>
                 </InputAdornment>
               ) : null,
               sx: { height: 28, fontSize: '0.76rem', borderRadius: 1.5, bgcolor: 'background.paper' },
@@ -605,7 +606,7 @@ export default function NotesDetailView({ isExpanded = false }) {
             ),
             endAdornment: (
               <InputAdornment position="end">
-                <IconButton
+                <IconAction label="Agregar nota"
                   size="small"
                   type="submit"
                   disabled={!quickText.trim()}
@@ -613,7 +614,7 @@ export default function NotesDetailView({ isExpanded = false }) {
                   sx={{ p: 0.3 }}
                 >
                   <SendIcon sx={{ fontSize: 14 }} />
-                </IconButton>
+                </IconAction>
               </InputAdornment>
             ),
             sx: {
@@ -750,25 +751,25 @@ export default function NotesDetailView({ isExpanded = false }) {
         </Typography>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
-          <IconButton
+          <IconAction label="Página anterior"
             size="small"
             disabled={page <= 1}
             onClick={() => setPage(page - 1)}
             sx={{ p: 0.2 }}
           >
             <ChevronLeftIcon sx={{ fontSize: 16 }} />
-          </IconButton>
+          </IconAction>
           <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 700, px: 0.5 }}>
             {page}
           </Typography>
-          <IconButton
+          <IconAction label="Página siguiente"
             size="small"
             disabled={page >= totalPages}
             onClick={() => setPage(page + 1)}
             sx={{ p: 0.2 }}
           >
             <ChevronRightIcon sx={{ fontSize: 16 }} />
-          </IconButton>
+          </IconAction>
         </Box>
       </Box>
     </Box>

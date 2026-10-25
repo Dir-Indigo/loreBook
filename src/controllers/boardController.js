@@ -1,21 +1,7 @@
 import { supabase } from '../utils/supabaseClient';
+import { createController } from './_base';
 
-const handleLoading = async (promise, setLoading) => {
-  if (setLoading) setLoading(true);
-  try {
-    const { data, error } = await promise;
-    if (error) {
-      console.error('[BoardController Error]:', error);
-      return { data: null, error };
-    }
-    return { data, error: null };
-  } catch (error) {
-    console.error('[BoardController Error]:', error);
-    return { data: null, error };
-  } finally {
-    if (setLoading) setLoading(false);
-  }
-};
+const handleLoading = createController('Board').runQuery;
 
 export const boardController = {
   getAll: async (storyId, setLoading) => handleLoading(supabase.from('narrative_boards').select('*').eq('story_id', storyId).order('position', { ascending: true }), setLoading),

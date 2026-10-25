@@ -620,7 +620,7 @@ export default function TimelineCanvas({
           variant={BackgroundVariant.Dots}
           gap={20}
           size={1.5}
-          color={currentThemeConfig.mode === 'dark' ? '#333b4d' : '#d7cabb'}
+          color={currentThemeConfig.palette.node.border}
         />
         <Controls
           showInteractive={false}

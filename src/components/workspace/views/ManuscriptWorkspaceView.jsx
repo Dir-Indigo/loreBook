@@ -25,6 +25,7 @@ import EditNoteIcon from '@mui/icons-material/EditNote';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import CloudDoneOutlinedIcon from '@mui/icons-material/CloudDoneOutlined';
+import CloudOffOutlinedIcon from '@mui/icons-material/CloudOffOutlined';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
 
 import { useManuscript } from '../../../context/ManuscriptContext';
@@ -88,15 +89,15 @@ function ManuscriptDiffPanel({ diffSummary, versions }) {
         const prefix = isAdded ? '+' : isRemoved ? '−' : ' ';
 
         const bg = isAdded
-          ? 'rgba(46, 160, 67, 0.12)'
+          ? 'custom.diff.addedBg'
           : isRemoved
-          ? 'rgba(248, 81, 73, 0.12)'
+          ? 'custom.diff.removedBg'
           : 'transparent';
 
         const color = isAdded
-          ? '#2ea043'
+          ? 'custom.diff.added'
           : isRemoved
-          ? '#da3633'
+          ? 'custom.diff.removed'
           : 'text.primary';
 
         return (
@@ -112,7 +113,8 @@ function ManuscriptDiffPanel({ diffSummary, versions }) {
               alignItems: 'flex-start',
               gap: 1,
               my: 0.2,
-              borderLeft: isAdded ? '3px solid #2ea043' : isRemoved ? '3px solid #da3633' : '3px solid transparent',
+              borderLeft: '3px solid',
+              borderLeftColor: isAdded ? 'custom.diff.added' : isRemoved ? 'custom.diff.removed' : 'transparent',
             }}
           >
             <Typography
@@ -168,6 +170,9 @@ export default function ManuscriptWorkspaceView() {
     wordDiff,
     lastCommittedContent,
     isDirty,
+    saveStatus,
+    hasUnsavedDraft,
+    saveDraft,
     wordCount,
     totalManuscriptWords,
     versions,
@@ -588,8 +593,8 @@ export default function ManuscriptWorkspaceView() {
                         sx={{
                           height: 20,
                           fontSize: '0.68rem',
-                          bgcolor: 'rgba(46, 160, 67, 0.15)',
-                          color: '#2ea043',
+                          bgcolor: 'custom.diff.addedBg',
+                          color: 'custom.diff.added',
                           fontWeight: 700,
                         }}
                       />
@@ -599,8 +604,8 @@ export default function ManuscriptWorkspaceView() {
                         sx={{
                           height: 20,
                           fontSize: '0.68rem',
-                          bgcolor: 'rgba(248, 81, 73, 0.15)',
-                          color: '#f85149',
+                          bgcolor: 'custom.diff.removedBg',
+                          color: 'custom.diff.removed',
                           fontWeight: 700,
                         }}
                       />
@@ -634,9 +639,30 @@ export default function ManuscriptWorkspaceView() {
                 </Typography>
               </Box>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-                <CloudDoneOutlinedIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
-                <Typography variant="caption">Autoguardado activo</Typography>
+              <Box
+                role="status"
+                aria-live="polite"
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.6, color: saveStatus === 'error' ? 'error.main' : 'text.secondary' }}
+              >
+                {saveStatus === 'error' ? (
+                  <CloudOffOutlinedIcon sx={{ fontSize: 15 }} />
+                ) : (
+                  <CloudDoneOutlinedIcon sx={{ fontSize: 15 }} />
+                )}
+                <Typography variant="caption">
+                  {saveStatus === 'error'
+                    ? 'No se pudo guardar'
+                    : saveStatus === 'saving'
+                      ? 'Guardando…'
+                      : hasUnsavedDraft
+                        ? 'Cambios sin guardar'
+                        : 'Guardado'}
+                </Typography>
+                {saveStatus === 'error' && (
+                  <Button size="small" color="inherit" onClick={() => saveDraft(true)} sx={{ minWidth: 0, py: 0, px: 0.75, fontSize: '0.75rem', textDecoration: 'underline' }}>
+                    Reintentar
+                  </Button>
+                )}
               </Box>
             </Box>
           </Paper>

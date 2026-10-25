@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useCharacterDrawer } from './CharacterDrawerContext';
 import { useQuickNotes } from './QuickNotesContext';
 
@@ -131,7 +131,7 @@ export function SidebarDetailProvider({ children }) {
 
   const isOpen = activeView !== null;
 
-  const value = {
+  const value = useMemo(() => ({
     activeView,
     isOpen,
     isExpanded,
@@ -141,7 +141,7 @@ export function SidebarDetailProvider({ children }) {
     openDetail,
     closeDetail,
     setDetailView,
-  };
+  }), [activeView, isOpen, isExpanded, isPinned, toggleExpand, togglePinned, openDetail, closeDetail, setDetailView]);
 
   return (
     <SidebarDetailContext.Provider value={value}>

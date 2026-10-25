@@ -1,5 +1,5 @@
 import { createTheme } from '@mui/material/styles';
-import { MATTE_THEMES } from './constants';
+import { MATTE_THEMES, STATUS_COLORS } from './constants';
 
 /**
  * Builds a clean, matte, anti-fatigue Material UI theme without glossy/heavy shadows
@@ -8,6 +8,7 @@ import { MATTE_THEMES } from './constants';
 export function createLoreTheme(themeKey = 'warm_sand') {
   const currentTheme = MATTE_THEMES[themeKey] || MATTE_THEMES.warm_sand;
   const { palette, mode } = currentTheme;
+  const status = STATUS_COLORS[mode] || STATUS_COLORS.light;
 
   return createTheme({
     palette: {
@@ -26,11 +27,20 @@ export function createLoreTheme(themeKey = 'warm_sand') {
         subtle: palette.background.subtle,
         node: palette.node,
         tagColors: palette.tagColors,
+        status: {
+          success: status.success,
+          warning: status.warning,
+          danger: status.danger,
+          info: status.info,
+        },
+        diff: status.diff,
       },
     },
     typography: {
       fontFamily: [
+        'var(--font-outfit)',
         'Outfit',
+        'var(--font-inter)',
         'Inter',
         '-apple-system',
         'BlinkMacSystemFont',

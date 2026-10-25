@@ -44,7 +44,7 @@ export default function CustomHelpTooltip({ title, content }) {
         </Box>
       }
     >
-      <IconButton size="small" sx={{ ml: 0.5, p: 0.5 }}>
+      <IconButton size="small" aria-label="Más información" sx={{ ml: 0.5, p: 0.5 }}>
         <InfoOutlinedIcon fontSize="small" sx={{ color: 'text.disabled', '&:hover': { color: 'primary.main' } }} />
       </IconButton>
     </Tooltip>

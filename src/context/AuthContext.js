@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { ApiService } from '../utils/ApiService';
 
@@ -17,7 +17,9 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const currentProfileIdRef = React.useRef(null); // <--- Añadido para rastrear el ID ya cargado
+  const currentProfileIdRef = useRef(null); // ID cuyo perfil ya se cargó
+  const profileRef = useRef(null); // último perfil, para que fetchProfile no dependa del estado
+  profileRef.current = profile;
 
   const fetchProfile = useCallback(async (userId) => {
     if (!userId) {
@@ -27,7 +29,7 @@ export const AuthProvider = ({ children }) => {
     }
     // Evitar peticiones HTTP duplicadas para el mismo usuario
     if (currentProfileIdRef.current === userId) {
-      return profile;
+      return profileRef.current;
     }
     currentProfileIdRef.current = userId;
     const { data, error } = await supabase
@@ -42,7 +44,7 @@ export const AuthProvider = ({ children }) => {
       currentProfileIdRef.current = null; // Resetear en caso de fallo
     }
     return null;
-  }, [profile]);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -89,7 +91,7 @@ export const AuthProvider = ({ children }) => {
     };
   }, [fetchProfile]);
 
-  const signInWithPassword = async (email, password) => {
+  const signInWithPassword = useCallback(async (email, password) => {
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -107,9 +109,9 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchProfile]);
 
-  const signUp = async (email, password, fullName, role = 'writer') => {
+  const signUp = useCallback(async (email, password, fullName, role = 'writer') => {
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -144,9 +146,9 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchProfile]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     setLoading(true);
     try {
       await supabase.auth.signOut();
@@ -157,30 +159,30 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (user?.id) {
       return await fetchProfile(user.id);
     }
     return null;
-  };
+  }, [user?.id, fetchProfile]);
 
   const isSuperAdmin = profile?.role === 'superadmin';
 
+  const value = useMemo(() => ({
+    user,
+    profile,
+    isSuperAdmin,
+    loading,
+    signInWithPassword,
+    signUp,
+    signOut,
+    refreshProfile,
+  }), [user, profile, isSuperAdmin, loading, signInWithPassword, signUp, signOut, refreshProfile]);
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        profile,
-        isSuperAdmin,
-        loading,
-        signInWithPassword,
-        signUp,
-        signOut,
-        refreshProfile,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

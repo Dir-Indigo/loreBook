@@ -29,6 +29,8 @@ import DriveFileMoveOutlinedIcon from '@mui/icons-material/DriveFileMoveOutlined
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import PublicOutlinedIcon from '@mui/icons-material/PublicOutlined';
+import IconAction from '../common/IconAction';
+import { DEFAULT_ENTITY_COLOR } from '../../constants/constants';
 
 const FOLDER_COLORS = [
   '#8c6d53', '#6d7a8c', '#5a8c6d', '#8c5a6d',
@@ -214,7 +216,7 @@ export default function CharacterFolderTreeItem({
           cursor: 'pointer',
           bgcolor: isDragOverFolder ? 'action.selected' : isActive ? 'action.selected' : 'transparent',
           borderLeft: isActive
-            ? `3px solid ${folder.color || '#8c6d53'}`
+            ? `3px solid ${folder.color || DEFAULT_ENTITY_COLOR}`
             : '3px solid transparent',
           border: isDragOverFolder ? `2px dashed ${folder.color || 'primary.main'}` : undefined,
           boxShadow: isDragOverFolder ? '0 0 10px rgba(2, 132, 199, 0.25)' : 'none',
@@ -227,7 +229,7 @@ export default function CharacterFolderTreeItem({
       >
         {/* Expand / Collapse arrow */}
         {hasExpandableContent ? (
-          <IconButton
+          <IconAction label={open ? 'Contraer carpeta' : 'Expandir carpeta'}
             size="small"
             onClick={(e) => {
               e.stopPropagation();
@@ -240,7 +242,7 @@ export default function CharacterFolderTreeItem({
             ) : (
               <ExpandMoreIcon sx={{ fontSize: 14 }} />
             )}
-          </IconButton>
+          </IconAction>
         ) : (
           <Box sx={{ width: 22, flexShrink: 0 }} />
         )}
@@ -334,7 +336,7 @@ export default function CharacterFolderTreeItem({
               <AddIcon sx={{ fontSize: 14 }} />
             </IconButton>
           </Tooltip>
-          <IconButton
+          <IconAction label="Opciones de la carpeta"
             size="small"
             onClick={(e) => {
               e.stopPropagation();
@@ -343,7 +345,7 @@ export default function CharacterFolderTreeItem({
             sx={{ p: 0.3, color: 'text.secondary' }}
           >
             <MoreVertIcon sx={{ fontSize: 14 }} />
-          </IconButton>
+          </IconAction>
         </Box>
       </Box>
 

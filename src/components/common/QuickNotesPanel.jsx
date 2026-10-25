@@ -38,6 +38,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { useQuickNotes, NOTE_COLORS, NOTE_STATUSES } from '../../context/QuickNotesContext';
 import { useStory } from '../../context/StoryContext';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
+import IconAction from './IconAction';
 
 // ─── Compact Editable Note Card (Ultra-Optimized Space Management) ─────────────
 function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
@@ -167,7 +168,7 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
               sx={{ p: 0.3 }}
               onClick={() => onDelete(note.id)}
             >
-              <DeleteOutlineIcon sx={{ fontSize: 14, color: '#e53935' }} />
+              <DeleteOutlineIcon sx={{ fontSize: 14, color: 'error.main' }} />
             </IconButton>
           </Tooltip>
         </Box>
@@ -542,7 +543,7 @@ export default function QuickNotesPanel({ variant = 'extension', onClose }) {
           </Tooltip>
 
           {/* Close Button */}
-          <IconButton
+          <IconAction label="Cerrar notas rápidas"
             size="small"
             onClick={handleClose}
             sx={{
@@ -553,7 +554,7 @@ export default function QuickNotesPanel({ variant = 'extension', onClose }) {
             }}
           >
             <CloseIcon sx={{ fontSize: 15 }} />
-          </IconButton>
+          </IconAction>
         </Box>
       </Box>
 
@@ -637,9 +638,9 @@ export default function QuickNotesPanel({ variant = 'extension', onClose }) {
               ),
               endAdornment: searchInput ? (
                 <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => setSearchInput('')} sx={{ p: 0.2 }}>
+                  <IconAction label="Limpiar búsqueda" size="small" onClick={() => setSearchInput('')} sx={{ p: 0.2 }}>
                     <ClearIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
+                  </IconAction>
                 </InputAdornment>
               ) : null,
               sx: { fontSize: '0.78rem', borderRadius: 1.5, height: 28 },
@@ -699,7 +700,7 @@ export default function QuickNotesPanel({ variant = 'extension', onClose }) {
             ),
             endAdornment: (
               <InputAdornment position="end">
-                <IconButton
+                <IconAction label="Agregar nota"
                   size="small"
                   onClick={handleQuickAdd}
                   disabled={!quickText.trim()}
@@ -712,7 +713,7 @@ export default function QuickNotesPanel({ variant = 'extension', onClose }) {
                   }}
                 >
                   <SendIcon sx={{ fontSize: 14 }} />
-                </IconButton>
+                </IconAction>
               </InputAdornment>
             ),
             sx: {
@@ -818,27 +819,27 @@ export default function QuickNotesPanel({ variant = 'extension', onClose }) {
           </Typography>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.2 }}>
-            <IconButton
+            <IconAction label="Página anterior"
               size="small"
               disabled={page <= 1}
               onClick={prevPage}
               sx={{ p: 0.2 }}
             >
               <ChevronLeftIcon sx={{ fontSize: 16 }} />
-            </IconButton>
+            </IconAction>
 
             <Typography variant="caption" sx={{ fontSize: '0.72rem', fontWeight: 700, px: 0.4 }}>
               {page}
             </Typography>
 
-            <IconButton
+            <IconAction label="Página siguiente"
               size="small"
               disabled={page >= totalPages}
               onClick={nextPage}
               sx={{ p: 0.2 }}
             >
               <ChevronRightIcon sx={{ fontSize: 16 }} />
-            </IconButton>
+            </IconAction>
           </Box>
         </Box>
       )}

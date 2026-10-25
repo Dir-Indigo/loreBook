@@ -22,10 +22,13 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
-import { useManuscript } from '../../../context/ManuscriptContext';
+import { useManuscriptCore } from '../../../context/ManuscriptContext';
 import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from '../../../context/WorkspaceViewContext';
+import { useConfirm } from '../../../context/FeedbackContext';
+import IconAction from '../../common/IconAction';
 
 export default function SidebarManuscriptSection({ story }) {
+  const confirm = useConfirm();
   const {
     chapters,
     activeChapterId,
@@ -34,7 +37,7 @@ export default function SidebarManuscriptSection({ story }) {
     deleteChapter,
     totalManuscriptWords,
     isDirty,
-  } = useManuscript();
+  } = useManuscriptCore();
 
   const { setActiveView } = useWorkspaceView();
 
@@ -54,11 +57,17 @@ export default function SidebarManuscriptSection({ story }) {
 
   const handleDelete = async () => {
     if (!selectedMenuChapter) return;
-    const confirm = window.confirm(`¿Seguro que deseas eliminar "${selectedMenuChapter.title}"?`);
-    if (confirm) {
-      await deleteChapter(selectedMenuChapter.id);
-    }
+    const chapter = selectedMenuChapter;
     handleCloseMenu();
+    const accepted = await confirm({
+      title: 'Eliminar capítulo',
+      description: `Se eliminará "${chapter.title}" junto con su historial de versiones. Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      tone: 'danger',
+    });
+    if (accepted) {
+      await deleteChapter(chapter.id);
+    }
   };
 
   const statusColors = {
@@ -223,13 +232,13 @@ export default function SidebarManuscriptSection({ story }) {
                     </Box>
                   </Box>
 
-                  <IconButton
+                  <IconAction label="Opciones del capítulo"
                     size="small"
                     onClick={(e) => handleOpenMenu(e, ch)}
                     sx={{ p: 0.4, color: 'text.secondary' }}
                   >
                     <MoreVertIcon sx={{ fontSize: 16 }} />
-                  </IconButton>
+                  </IconAction>
                 </ListItem>
               );
             })}

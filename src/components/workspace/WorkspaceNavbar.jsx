@@ -46,8 +46,9 @@ import { useWorkspace } from '../../context/WorkspaceContext';
 import { useQuickNotes, NOTE_STATUSES } from '../../context/QuickNotesContext';
 import { useGlobalActions } from '../../context/GlobalActionsContext';
 import { useCharacterDrawer } from '../../context/CharacterDrawerContext';
-import { useManuscript } from '../../context/ManuscriptContext';
+import { useManuscriptCore } from '../../context/ManuscriptContext';
 import { CHARACTER_ARCHETYPES } from '../../constants/constants';
+import IconAction from '../common/IconAction';
 
 /**
  * WorkspaceNavbar — Barra de herramientas dedicada de 2 pisos para el área de trabajo / lienzo.
@@ -110,7 +111,7 @@ export default function WorkspaceNavbar() {
     setIsCommitModalOpen,
     setIsHistoryDrawerOpen,
     setIsDiffModalOpen,
-  } = useManuscript();
+  } = useManuscriptCore();
 
   // Menu de tableros para la vista de eventos
   const [boardMenuAnchor, setBoardMenuAnchor] = useState(null);
@@ -476,9 +477,9 @@ export default function WorkspaceNavbar() {
                     ),
                     endAdornment: charactersSearch ? (
                       <InputAdornment position="end">
-                        <IconButton size="small" onClick={() => setCharactersSearch('')} sx={{ p: 0.2 }}>
+                        <IconAction label="Limpiar búsqueda" size="small" onClick={() => setCharactersSearch('')} sx={{ p: 0.2 }}>
                           <ClearIcon sx={{ fontSize: 14 }} />
-                        </IconButton>
+                        </IconAction>
                       </InputAdornment>
                     ) : null,
                   }}
@@ -641,9 +642,9 @@ export default function WorkspaceNavbar() {
                     ),
                     endAdornment: ideasSearch ? (
                       <InputAdornment position="end">
-                        <IconButton size="small" onClick={() => setIdeasSearch('')} sx={{ p: 0.2 }}>
+                        <IconAction label="Limpiar búsqueda" size="small" onClick={() => setIdeasSearch('')} sx={{ p: 0.2 }}>
                           <ClearIcon sx={{ fontSize: 14 }} />
-                        </IconButton>
+                        </IconAction>
                       </InputAdornment>
                     ) : null,
                   }}

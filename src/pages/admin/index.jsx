@@ -25,9 +25,11 @@ import Navbar from '../../components/layout/Navbar';
 import CustomTable from '../../components/common/CustomTable';
 import CustomButton from '../../components/common/CustomButton';
 import CustomLoading from '../../components/common/CustomLoading';
+import { useConfirm } from '../../context/FeedbackContext';
 
 export default function AdminPage() {
   const router = useRouter();
+  const confirm = useConfirm();
   const { user, profile, isSuperAdmin, loading: authLoading } = useAuth();
 
   const [profiles, setProfiles] = useState([]);
@@ -65,6 +67,12 @@ export default function AdminPage() {
     if (statsRes.data) {
       setStats(statsRes.data);
     }
+    if (profilesRes.error || statsRes.error) {
+      setAlertInfo({
+        severity: 'error',
+        text: 'No se pudieron cargar todos los datos de administración. Inténtalo de nuevo.',
+      });
+    }
     setLoading(false);
   }, []);
 
@@ -77,9 +85,13 @@ export default function AdminPage() {
   const handleToggleRole = async (targetUser) => {
     const nextRole = targetUser.role === 'superadmin' ? 'writer' : 'superadmin';
     if (targetUser.id === user?.id && targetUser.role === 'superadmin') {
-      if (!window.confirm('¿Estás seguro de quitarte a ti mismo los permisos de SuperAdmin?')) {
-        return;
-      }
+      const accepted = await confirm({
+        title: 'Quitarte permisos de SuperAdmin',
+        description: 'Perderás el acceso a este panel y solo otro SuperAdmin podrá devolvértelo.',
+        confirmText: 'Quitar permisos',
+        tone: 'danger',
+      });
+      if (!accepted) return;
     }
 
     setUpdatingId(targetUser.id);
@@ -93,7 +105,7 @@ export default function AdminPage() {
     } else {
       setAlertInfo({
         severity: 'error',
-        text: 'No se pudo actualizar el rol del usuario.',
+        text: 'No se pudo actualizar el rol del usuario. Es posible que no tengas permiso para modificarlo.',
       });
     }
     setUpdatingId(null);
@@ -232,6 +244,13 @@ export default function AdminPage() {
               Volver al Lienzo
             </CustomButton>
           </Box>
+
+          {!loading && profiles.length === 1 && (
+            <Alert severity="info" sx={{ borderRadius: 2 }}>
+              Solo se muestra tu propio perfil. Si esperas ver más usuarios, la base de datos debe permitir
+              al SuperAdmin leer la tabla de perfiles.
+            </Alert>
+          )}
 
           {alertInfo && (
             <Alert

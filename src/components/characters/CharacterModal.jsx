@@ -13,7 +13,6 @@ import {
   Collapse,
   Button,
   ButtonGroup,
-  IconButton,
   CircularProgress,
   Tabs, Tab,
   Chip,
@@ -44,14 +43,13 @@ import CustomButton from '../common/CustomButton';
 import ImageCropModal from '../common/ImageCropModal';
 import { uploadCharacterAvatar } from '../../services/storageService';
 import { extractDominantColor } from '../../utils/imageOptimizer';
-import {
-  CHARACTER_ARCHETYPES,
+import { CHARACTER_ARCHETYPES,
   CHARACTER_COLOR_PALETTE,
   CHARACTER_GENDERS,
   CHARACTER_ALIGNMENTS,
   CHARACTER_LIFE_STAGES,
-  CHARACTER_VITAL_STATUSES,
-} from '../../constants/constants';
+  CHARACTER_VITAL_STATUSES, DEFAULT_ENTITY_COLOR } from '../../constants/constants';
+import IconAction from '../common/IconAction';
 
 const EMPTY_ARRAY = [];
 
@@ -976,9 +974,9 @@ export default function CharacterModal({
                                 {avatarUrl ? 'Cambiar' : 'Elegir'}
                               </Button>
                               {avatarUrl && (
-                                <IconButton size="small" onClick={handleRemoveAvatar} sx={{ color: 'error.main' }}>
+                                <IconAction label="Quitar avatar" size="small" onClick={handleRemoveAvatar} sx={{ color: 'error.main' }}>
                                   <DeleteOutlineIcon fontSize="small" />
-                                </IconButton>
+                                </IconAction>
                               )}
                             </Box>
                           </Box>
@@ -992,9 +990,9 @@ export default function CharacterModal({
                             size="small"
                             InputProps={{
                               endAdornment: avatarUrl ? (
-                                <IconButton size="small" onClick={handleRemoveAvatar}>
+                                <IconAction label="Quitar avatar" size="small" onClick={handleRemoveAvatar}>
                                   <DeleteOutlineIcon fontSize="small" />
-                                </IconButton>
+                                </IconAction>
                               ) : null,
                             }}
                           />
@@ -1026,7 +1024,7 @@ export default function CharacterModal({
                                 width: 28,
                                 height: 28,
                                 borderRadius: '50%',
-                                bgcolor: colorTag || '#8c6d53',
+                                bgcolor: colorTag || DEFAULT_ENTITY_COLOR,
                                 border: '2px solid rgba(0,0,0,0.15)',
                                 cursor: 'pointer',
                                 display: 'flex',
@@ -1038,7 +1036,7 @@ export default function CharacterModal({
                               <input
                                 ref={colorInputRef}
                                 type="color"
-                                value={colorTag || '#8c6d53'}
+                                value={colorTag || DEFAULT_ENTITY_COLOR}
                                 onChange={(e) => setColorTag(e.target.value)}
                                 style={{ display: 'none' }}
                               />

@@ -23,6 +23,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import CustomModal from '../common/CustomModal';
 import CustomButton from '../common/CustomButton';
 import { CHARACTER_ARCHETYPES } from '../../constants/constants';
+import IconAction from '../common/IconAction';
 
 const ARCHETYPE_PALETTE = [
   '#0284c7', '#eab308', '#be123c', '#16a34a',
@@ -233,12 +234,12 @@ export default function CharacterArchetypeManagerModal({
                               sx: { borderRadius: 1.5, fontSize: '0.82rem', height: 32 },
                             }}
                           />
-                          <IconButton size="small" onClick={handleSaveEdit} color="primary" sx={{ p: 0.4 }}>
+                          <IconAction label="Guardar cambios" size="small" onClick={handleSaveEdit} color="primary" sx={{ p: 0.4 }}>
                             <CheckIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton size="small" onClick={() => setEditingArchId(null)} sx={{ p: 0.4 }}>
+                          </IconAction>
+                          <IconAction label="Cancelar edición" size="small" onClick={() => setEditingArchId(null)} sx={{ p: 0.4 }}>
                             <CloseIcon fontSize="small" />
-                          </IconButton>
+                          </IconAction>
                         </Box>
                         <TextField
                           placeholder="Descripción..."

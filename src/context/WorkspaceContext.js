@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { ApiService } from '../utils/ApiService';
 import { useStory } from './StoryContext';
+import { DEFAULT_ENTITY_COLOR } from '../constants/constants';
 
 const WorkspaceDataContext = createContext(null);
 const WorkspaceActionsContext = createContext(null);
@@ -22,7 +23,7 @@ const PRIMARY_BOARD_DEFAULTS = {
   name: 'Línea principal',
   parent_board_id: null,
   position: 0,
-  color: '#8c6d53',
+  color: DEFAULT_ENTITY_COLOR,
 };
 
 const createPrimaryBoard = (storyId, setLoading) => (
@@ -220,7 +221,7 @@ export const WorkspaceProvider = ({ children }) => {
     return { data: eventsData || [], error: null };
   }, []);
 
-  const createBoard = useCallback(async ({ storyId, name, parentBoardId = null, position, color = '#8c6d53', setLoading }) => {
+  const createBoard = useCallback(async ({ storyId, name, parentBoardId = null, position, color = DEFAULT_ENTITY_COLOR, setLoading }) => {
     if (!storyId || !name) return { data: null, error: new Error('Story ID and name are required') };
 
     const { data, error } = await ApiService.boards.create({

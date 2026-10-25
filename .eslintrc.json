@@ -1,0 +1,11 @@
+{
+  "extends": "next/core-web-vitals",
+  "rules": {
+    "react/no-unescaped-entities": "off",
+    "no-restricted-globals": ["error", { "name": "confirm", "message": "Usa useConfirm() de FeedbackContext." }, { "name": "alert", "message": "Usa useNotify() de FeedbackContext." }],
+    "no-restricted-properties": ["error",
+      { "object": "window", "property": "confirm", "message": "Usa useConfirm() de FeedbackContext." },
+      { "object": "window", "property": "alert", "message": "Usa useNotify() de FeedbackContext." }
+    ]
+  }
+}

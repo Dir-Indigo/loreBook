@@ -8,7 +8,6 @@ import {
   Typography,
   Slider,
   Button,
-  IconButton,
   CircularProgress,
   Chip,
 } from '@mui/material';
@@ -18,6 +17,7 @@ import CropIcon from '@mui/icons-material/Crop';
 import CloseIcon from '@mui/icons-material/Close';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { loadImage, cropAndOptimizeImage } from '../../utils/imageOptimizer';
+import IconAction from './IconAction';
 
 const CROP_BOX_SIZE = 260; // Dimensions of the visual crop frame in px
 
@@ -202,9 +202,9 @@ export default function ImageCropModal({
             {modalTitle}
           </Typography>
         </Box>
-        <IconButton size="small" onClick={onClose} disabled={processing}>
+        <IconAction label="Cerrar" size="small" onClick={onClose} disabled={processing}>
           <CloseIcon fontSize="small" />
-        </IconButton>
+        </IconAction>
       </DialogTitle>
 
       <DialogContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
@@ -262,13 +262,13 @@ export default function ImageCropModal({
 
         {/* Zoom Controls */}
         <Box sx={{ width: '100%', px: 1.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <IconButton
+          <IconAction label="Alejar"
             size="small"
             onClick={() => setZoom((z) => Math.max(1, z - 0.2))}
             disabled={zoom <= 1}
           >
             <ZoomOutIcon fontSize="small" />
-          </IconButton>
+          </IconAction>
           <Slider
             value={zoom}
             min={1}
@@ -277,13 +277,13 @@ export default function ImageCropModal({
             onChange={(e, val) => setZoom(val)}
             sx={{ flex: 1 }}
           />
-          <IconButton
+          <IconAction label="Acercar"
             size="small"
             onClick={() => setZoom((z) => Math.min(3.5, z + 0.2))}
             disabled={zoom >= 3.5}
           >
             <ZoomInIcon fontSize="small" />
-          </IconButton>
+          </IconAction>
         </Box>
 
         {/* Optimization Info Badge */}

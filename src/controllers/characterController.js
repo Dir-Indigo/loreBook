@@ -1,17 +1,7 @@
 import { characterService } from '../services/characterService';
+import { createController } from './_base';
 
-const handleLoading = async (promise, setLoading) => {
-  if (setLoading) setLoading(true);
-  try {
-    const data = await promise;
-    return { data, error: null };
-  } catch (error) {
-    console.error('[CharacterController Error]:', error);
-    return { data: null, error };
-  } finally {
-    if (setLoading) setLoading(false);
-  }
-};
+const handleLoading = createController('Character').run;
 
 export const characterController = {
   getAll: async (storyId, setLoading) => handleLoading(characterService.getAll(storyId), setLoading),

@@ -3,7 +3,6 @@ import {
   Drawer,
   Box,
   Typography,
-  IconButton,
   Divider,
   List,
   ListItem,
@@ -21,7 +20,8 @@ import HistoryIcon from '@mui/icons-material/History';
 import RestoreIcon from '@mui/icons-material/Restore';
 import DifferenceIcon from '@mui/icons-material/Difference';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import { useManuscript } from '../../context/ManuscriptContext';
+import { useManuscriptCore } from '../../context/ManuscriptContext';
+import IconAction from '../common/IconAction';
 
 export default function VersionHistoryDrawer({ open, onClose }) {
   const {
@@ -30,7 +30,7 @@ export default function VersionHistoryDrawer({ open, onClose }) {
     versionsLoading,
     restoreVersion,
     setIsDiffModalOpen,
-  } = useManuscript();
+  } = useManuscriptCore();
 
   const [confirmVersionToRestore, setConfirmVersionToRestore] = useState(null);
   const [restoring, setRestoring] = useState(false);
@@ -83,9 +83,9 @@ export default function VersionHistoryDrawer({ open, onClose }) {
               </Typography>
             </Box>
           </Box>
-          <IconButton size="small" onClick={onClose}>
+          <IconAction label="Cerrar historial" size="small" onClick={onClose}>
             <CloseIcon fontSize="small" />
-          </IconButton>
+          </IconAction>
         </Box>
 
         {/* Content list */}

@@ -27,7 +27,7 @@ import {
   Tab,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import { CHARACTER_ARCHETYPES } from '../../constants/constants';
+import { CHARACTER_ARCHETYPES, DEFAULT_ENTITY_COLOR } from '../../constants/constants';
 import { ApiService } from '../../utils/ApiService';
 
 export default function CharacterCard({
@@ -586,7 +586,7 @@ export default function CharacterCard({
                 : 'divider',
               bgcolor: character.color_tag ? alpha(character.color_tag, 0.08) : 'background.paper',
               boxShadow: selected
-                ? `0 0 0 3px ${alpha(character.color_tag || '#8c6d53', 0.35)}`
+                ? `0 0 0 3px ${alpha(character.color_tag || DEFAULT_ENTITY_COLOR, 0.35)}`
                 : '0 2px 6px rgba(0,0,0,0.04)',
               transition: 'all 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
               display: 'flex',
@@ -769,7 +769,7 @@ export default function CharacterCard({
         background: 'none',
         bgcolor: character.color_tag ? alpha(character.color_tag, 0.15) : 'background.paper',
         boxShadow: selected
-          ? `0 0 0 3px ${alpha(character.color_tag || '#8c6d53', 0.3)}`
+          ? `0 0 0 3px ${alpha(character.color_tag || DEFAULT_ENTITY_COLOR, 0.3)}`
           : character.color_tag
           ? `0 2px 4px ${alpha(character.color_tag, 0.12)}`
           : '0 1px 3px rgba(0,0,0,0.04)',
@@ -914,7 +914,7 @@ export default function CharacterCard({
                 fontSize: '0.6rem',
                 fontWeight: 700,
                 color: '#fff',
-                bgcolor: tag.color || '#8c6d53',
+                bgcolor: tag.color || DEFAULT_ENTITY_COLOR,
                 borderRadius: 1,
                 px: 0.2,
                 '& .MuiChip-label': { px: 0.6 },

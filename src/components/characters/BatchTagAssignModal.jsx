@@ -11,6 +11,7 @@ import {
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
 import CustomModal from '../common/CustomModal';
 import CustomButton from '../common/CustomButton';
+import { DEFAULT_ENTITY_COLOR } from '../../constants/constants';
 
 export default function BatchTagAssignModal({
   open,
@@ -121,7 +122,7 @@ export default function BatchTagAssignModal({
                         width: 14,
                         height: 14,
                         borderRadius: '50%',
-                        bgcolor: tag.color || '#8c6d53',
+                        bgcolor: tag.color || DEFAULT_ENTITY_COLOR,
                       }}
                     />
                     <Typography variant="body2" sx={{ fontWeight: 700 }}>

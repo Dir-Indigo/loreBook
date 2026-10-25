@@ -48,6 +48,7 @@ import { useWorkspace } from '../../../context/WorkspaceContext';
 import { useWorkspaceView } from '../../../context/WorkspaceViewContext';
 import CustomLoading from '../../common/CustomLoading';
 import CustomButton from '../../common/CustomButton';
+import IconAction from '../../common/IconAction';
 
 
 // ─── Idea Management Card with Story Tagging ──────────────────────────────────
@@ -390,7 +391,7 @@ function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onToggleP
                 color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)',
                 '&:hover': {
                   bgcolor: 'rgba(229, 57, 53, 0.12)',
-                  color: '#e53935',
+                  color: 'error.main',
                 },
               }}
             >
@@ -748,7 +749,7 @@ export default function CentralizedIdeasPage() {
                 ))}
               </Box>
 
-              <IconButton
+              <IconAction label="Agregar idea"
                 type="submit"
                 disabled={!quickInput.trim()}
                 sx={{
@@ -766,7 +767,7 @@ export default function CentralizedIdeasPage() {
                 }}
               >
                 <SendIcon fontSize="small" />
-              </IconButton>
+              </IconAction>
             </Box>
           </Paper>
 

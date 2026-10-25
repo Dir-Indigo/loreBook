@@ -24,6 +24,8 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import FlareIcon from '@mui/icons-material/Flare';
 import PostAddOutlinedIcon from '@mui/icons-material/PostAddOutlined';
+import IconAction from '../common/IconAction';
+import { DEFAULT_ENTITY_COLOR } from '../../constants/constants';
 
 const BOARD_COLORS = [
   '#8c6d53', '#6d7a8c', '#5a8c6d', '#8c5a6d',
@@ -183,7 +185,7 @@ export default function BoardTreeItem({
           cursor: 'pointer',
           bgcolor: isActive ? 'action.selected' : 'transparent',
           borderLeft: isActive
-            ? `3px solid ${board.color || '#8c6d53'}`
+            ? `3px solid ${board.color || DEFAULT_ENTITY_COLOR}`
             : '3px solid transparent',
           transition: 'all 0.15s ease',
           '&:hover': {
@@ -194,7 +196,7 @@ export default function BoardTreeItem({
       >
         {/* Expand / Collapse arrow */}
         {hasExpandableContent ? (
-          <IconButton
+          <IconAction label={open ? 'Contraer tablero' : 'Expandir tablero'}
             size="small"
             onClick={(e) => {
               e.stopPropagation();
@@ -207,7 +209,7 @@ export default function BoardTreeItem({
             ) : (
               <ExpandMoreIcon sx={{ fontSize: 14 }} />
             )}
-          </IconButton>
+          </IconAction>
         ) : (
           <Box sx={{ width: 22, flexShrink: 0 }} />
         )}
@@ -297,7 +299,7 @@ export default function BoardTreeItem({
               <AddIcon sx={{ fontSize: 14 }} />
             </IconButton>
           </Tooltip>
-          <IconButton
+          <IconAction label="Opciones del tablero"
             size="small"
             onClick={(e) => {
               e.stopPropagation();
@@ -306,7 +308,7 @@ export default function BoardTreeItem({
             sx={{ p: 0.3, color: 'text.secondary' }}
           >
             <MoreVertIcon sx={{ fontSize: 14 }} />
-          </IconButton>
+          </IconAction>
         </Box>
       </Box>
 

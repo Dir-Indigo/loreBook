@@ -253,7 +253,7 @@ export default function SidebarIdeasSection({ story, storyNotes = [] }) {
                     transition: 'transform 0.12s ease',
                   }}
                 >
-                  <PushPinIcon sx={{ fontSize: 13, color: '#d32f2f' }} />
+                  <PushPinIcon sx={{ fontSize: 13, color: 'error.main' }} />
                   <Typography variant="caption" sx={{ fontWeight: 600, fontSize: '0.74rem', color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {n.content}
                   </Typography>

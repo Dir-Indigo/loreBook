@@ -1,5 +1,4 @@
 import { eventRepository } from '../repositories/eventRepository';
-import { supabase } from '../utils/supabaseClient';
 
 export const eventService = {
   getTree: async (storyId) => {

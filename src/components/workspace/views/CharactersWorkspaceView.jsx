@@ -65,15 +65,16 @@ import FolderSpecialIcon from '@mui/icons-material/FolderSpecial';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CreateNewFolderOutlinedIcon from '@mui/icons-material/CreateNewFolderOutlined';
-import {
-  CHARACTER_ALIGNMENTS,
+import { CHARACTER_ALIGNMENTS,
   CHARACTER_LIFE_STAGES,
   CHARACTER_VITAL_STATUSES,
   CHARACTER_GENDERS,
-  CHARACTER_ARCHETYPES,
-} from '../../../constants/constants';
+  CHARACTER_ARCHETYPES, DEFAULT_ENTITY_COLOR } from '../../../constants/constants';
+import { useNotify } from '../../../context/FeedbackContext';
+import IconAction from '../../common/IconAction';
 
 export default function CharactersWorkspaceView({ storyId = null }) {
+  const notify = useNotify();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const { activeStory, activeStoryId } = useStory();
@@ -235,7 +236,7 @@ export default function CharactersWorkspaceView({ storyId = null }) {
 
     if (results.some((result) => result.error)) {
       setCharacters(previousCharacters);
-      window.alert('No se pudo actualizar uno o más personajes.');
+      notify.error('No se pudo actualizar uno o más personajes.');
       return;
     }
 
@@ -335,7 +336,7 @@ export default function CharactersWorkspaceView({ storyId = null }) {
     const result = await ApiService.characters.update(charId, { role_archetype: newRole }, setLoading);
     if (result.error) {
       setCharacters(previousCharacters);
-      window.alert('No se pudo actualizar el tipo del personaje.');
+      notify.error('No se pudo actualizar el tipo del personaje.');
     }
   };
 
@@ -347,7 +348,7 @@ export default function CharactersWorkspaceView({ storyId = null }) {
         story_id,
         name: name.trim(),
         parent_folder_id: parentFolderId,
-        color: '#8c6d53',
+        color: DEFAULT_ENTITY_COLOR,
         position: folders.length,
       },
       setLoading
@@ -377,7 +378,7 @@ export default function CharactersWorkspaceView({ storyId = null }) {
 
   const handleDeleteFolder = (folder) => {
     if (folder.is_default || folder.name?.toLowerCase() === 'principal') {
-      window.alert('La carpeta Principal no se puede eliminar porque es la base del árbol.');
+      notify.warning('La carpeta Principal no se puede eliminar porque es la base del árbol.');
       return;
     }
     setDeleteFolderConfirm(folder);
@@ -418,7 +419,7 @@ export default function CharactersWorkspaceView({ storyId = null }) {
     const result = await ApiService.characters.moveToFolder(characterIds, targetFolderId, setLoading);
     if (result.error) {
       setCharacters(previousCharacters);
-      window.alert('No se pudo mover uno o más personajes.');
+      notify.error('No se pudo mover uno o más personajes.');
       return;
     }
     setSelectedCharacterIds([]);
@@ -544,7 +545,7 @@ export default function CharactersWorkspaceView({ storyId = null }) {
 
     if (result.error) {
       setCharacters(previousCharacters);
-      window.alert('No se pudieron actualizar las etiquetas de los personajes.');
+      notify.error('No se pudieron actualizar las etiquetas de los personajes.');
       return;
     }
     setSelectedCharacterIds([]);
@@ -1010,7 +1011,7 @@ export default function CharactersWorkspaceView({ storyId = null }) {
                     {tags.map((tag) => (
                       <MenuItem key={tag.id} value={tag.id}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
-                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: tag.color || '#8c6d53' }} />
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: tag.color || DEFAULT_ENTITY_COLOR }} />
                           {tag.name}
                         </Box>
                       </MenuItem>
@@ -1071,9 +1072,9 @@ export default function CharactersWorkspaceView({ storyId = null }) {
                     ),
                     endAdornment: searchQuery ? (
                       <InputAdornment position="end">
-                        <IconButton size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.2 }}>
+                        <IconAction label="Limpiar búsqueda" size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.2 }}>
                           <ClearIcon fontSize="small" />
-                        </IconButton>
+                        </IconAction>
                       </InputAdornment>
                     ) : null,
                     sx: { borderRadius: 2, bgcolor: 'background.subtle', height: 34, fontSize: '0.82rem' },

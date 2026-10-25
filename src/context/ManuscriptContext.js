@@ -5,7 +5,15 @@ import { useLoading } from './LoadingContext';
 import { ApiService } from '../utils/ApiService';
 import { countWords, computeLineDiff, computeWordDiff } from '../utils/diffUtils';
 
+// Dos contextos: el texto del borrador cambia en cada pulsación y vive solo en el contexto "editor";
+// todo lo demás (capítulos, estado de guardado, métricas y diffs con retardo, acciones estables) va en el "core",
+// que no cambia mientras se escribe, así que sus consumidores no se re-renderizan por pulsación.
 const ManuscriptContext = createContext(null);
+const ManuscriptEditorContext = createContext(null);
+
+// Las métricas y diffs se calculan al pausar la escritura, no en cada tecla
+const METRICS_DEBOUNCE_MS = 400;
+const EMPTY_WORD_DIFF = [];
 
 export function ManuscriptProvider({ children }) {
   const { activeStoryId } = useStory();
@@ -35,8 +43,14 @@ export function ManuscriptProvider({ children }) {
   const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
 
-  // Auto-save debounce timer ref
-  const autoSaveTimerRef = useRef(null);
+  // Estado del autoguardado: 'idle' | 'saving' | 'saved' | 'error'
+  const [saveStatus, setSaveStatus] = useState('idle');
+
+  // Último estado renderizado, para vaciar el borrador pendiente (flush) sin cierres obsoletos
+  const latestDraftRef = useRef({ chapterId: null, patch: null, unsaved: false });
+  // Capítulo cuyo contenido ya está volcado en el buffer local (evita guardar con el buffer del capítulo anterior)
+  const hydratedChapterIdRef = useRef(null);
+  const activeChapterRef = useRef(null);
 
   // 1. Cargar capítulos cuando cambia la historia activa
   const loadChapters = useCallback(async (storyIdToLoad) => {
@@ -102,8 +116,15 @@ export function ManuscriptProvider({ children }) {
     }
   }, []);
 
-  // Al cambiar el capítulo activo, hidratar el borrador local
+  activeChapterRef.current = activeChapter;
+  const activeChapterKey = activeChapter?.id || null;
+
+  // Al cambiar de capítulo (no en cada guardado), hidratar el borrador local.
+  // Depender del objeto completo sobrescribiría lo escrito mientras una petición de guardado estaba en vuelo.
   useEffect(() => {
+    const activeChapter = activeChapterRef.current;
+    hydratedChapterIdRef.current = activeChapter?.id || null;
+    setSaveStatus('idle');
     if (activeChapter) {
       setWorkingTitle(activeChapter.title || '');
       setWorkingDraft(activeChapter.content || '');
@@ -118,14 +139,34 @@ export function ManuscriptProvider({ children }) {
       setLastCommittedContent('');
       setVersions([]);
     }
-  }, [activeChapter, loadVersions]);
+  }, [activeChapterKey, loadVersions]);
 
   const setActiveChapterId = useCallback((id) => {
     setActiveChapterIdState(id);
   }, []);
 
-  // 3. Métricas y Diffs Git-like
-  const wordCount = useMemo(() => countWords(workingDraft), [workingDraft]);
+  // 3. Métricas y Diffs Git-like, calculados sobre una copia del borrador con retardo.
+  // El LCS del diff es O(líneas²) y O(tokens²): hacerlo en cada pulsación bloqueaba la escritura.
+  const [diffSource, setDiffSource] = useState({ chapterId: null, text: '' });
+
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setDiffSource({ chapterId: activeChapterId, text: workingDraft }),
+      METRICS_DEBOUNCE_MS
+    );
+    return () => clearTimeout(timer);
+  }, [workingDraft, activeChapterId]);
+
+  // Si cambia la referencia del último commit, recalcular ya (sin esperar al retardo)
+  useEffect(() => {
+    const { chapterId, patch } = latestDraftRef.current;
+    if (patch) setDiffSource({ chapterId, text: patch.content });
+  }, [lastCommittedContent]);
+
+  // Mientras la copia retardada pertenece a otro capítulo, se usa el borrador en vivo
+  const metricsDraft = diffSource.chapterId === activeChapterId ? diffSource.text : workingDraft;
+
+  const wordCount = useMemo(() => countWords(metricsDraft), [metricsDraft]);
 
   const totalManuscriptWords = useMemo(() => {
     return chapters.reduce((acc, c) => {
@@ -136,13 +177,14 @@ export function ManuscriptProvider({ children }) {
 
   // Comparación Diff con el último commit
   const diffSummary = useMemo(() => {
-    return computeLineDiff(lastCommittedContent, workingDraft);
-  }, [lastCommittedContent, workingDraft]);
+    return computeLineDiff(lastCommittedContent, metricsDraft);
+  }, [lastCommittedContent, metricsDraft]);
 
-  // Diff a nivel de palabras en tiempo real para el Modo Revisión
+  // Diff a nivel de palabras: solo cuando el Modo Revisión está activo
   const wordDiff = useMemo(() => {
-    return computeWordDiff(lastCommittedContent, workingDraft);
-  }, [lastCommittedContent, workingDraft]);
+    if (!reviewMode) return EMPTY_WORD_DIFF;
+    return computeWordDiff(lastCommittedContent, metricsDraft);
+  }, [reviewMode, lastCommittedContent, metricsDraft]);
 
   const isDirty = useMemo(() => {
     if (!activeChapter) return false;
@@ -154,50 +196,106 @@ export function ManuscriptProvider({ children }) {
   }, [activeChapter, workingDraft, lastCommittedContent, workingTitle, workingSummary, workingStatus]);
 
   // 4. Guardar borrador (Draft auto-save silencioso)
-  const saveDraft = useCallback(async (silent = true) => {
-    if (!activeChapterId) return;
-    try {
-      const res = await ApiService.chapters.updateDraft(activeChapterId, {
-        title: workingTitle,
-        content: workingDraft,
-        summary: workingSummary,
-        status: workingStatus,
-      }, silent ? undefined : setLoading);
+  // El borrador está "sin guardar" cuando el buffer difiere de lo ya persistido en el capítulo
+  // (distinto de isDirty, que compara contra el último commit).
+  const hasUnsavedDraft = Boolean(
+    activeChapter &&
+    hydratedChapterIdRef.current === activeChapter.id &&
+    (
+      workingDraft !== (activeChapter.content || '') ||
+      workingTitle !== (activeChapter.title || '') ||
+      workingSummary !== (activeChapter.summary || '') ||
+      workingStatus !== (activeChapter.status || 'draft')
+    )
+  );
 
-      if (res.data) {
-        setChapters((prev) =>
-          prev.map((c) => (c.id === activeChapterId ? { ...c, ...res.data } : c))
-        );
+  // Los guardados se encadenan: así una petición lenta nunca pisa a una más reciente
+  const saveQueueRef = useRef(Promise.resolve());
+
+  const persistDraft = useCallback((chapterId, patch, silent = true) => {
+    if (!chapterId || !patch) return Promise.resolve();
+    const run = async () => {
+      setSaveStatus('saving');
+      try {
+        const res = await ApiService.chapters.updateDraft(chapterId, patch, silent ? undefined : setLoading);
+        if (res.error || !res.data) {
+          setSaveStatus('error');
+          return;
+        }
+        setChapters((prev) => prev.map((c) => (c.id === chapterId ? { ...c, ...res.data } : c)));
+        setSaveStatus('saved');
+      } catch (err) {
+        console.error('[ManuscriptContext] Error saving draft:', err);
+        setSaveStatus('error');
       }
-    } catch (err) {
-      console.error('[ManuscriptContext] Error saving draft:', err);
-    }
-  }, [activeChapterId, workingTitle, workingDraft, workingSummary, workingStatus, setLoading]);
-
-  // Auto-guardado diferido de borrador
-  useEffect(() => {
-    if (!activeChapterId) return;
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(() => {
-      saveDraft(true);
-    }, 2500);
-
-    return () => {
-      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [workingDraft, workingTitle, workingSummary, workingStatus, activeChapterId, saveDraft]);
+    saveQueueRef.current = saveQueueRef.current.then(run);
+    return saveQueueRef.current;
+  }, [setLoading]);
+
+  const saveDraft = useCallback((silent = true) => {
+    const { chapterId, patch } = latestDraftRef.current;
+    return persistDraft(chapterId, patch, silent);
+  }, [persistDraft]);
+
+  // Guarda de inmediato lo pendiente (cambio de capítulo, pestaña oculta, cierre)
+  const flushDraft = useCallback(() => {
+    const { chapterId, patch, unsaved } = latestDraftRef.current;
+    if (unsaved) persistDraft(chapterId, patch, true);
+  }, [persistDraft]);
+
+  // Se actualiza en un efecto (no en el render): los cleanups del siguiente commit
+  // todavía ven el estado del capítulo anterior y pueden vaciarlo.
+  useEffect(() => {
+    latestDraftRef.current = {
+      chapterId: activeChapterId,
+      patch: { title: workingTitle, content: workingDraft, summary: workingSummary, status: workingStatus },
+      unsaved: hasUnsavedDraft,
+    };
+  });
+
+  // Auto-guardado diferido: solo si hay cambios sin guardar
+  useEffect(() => {
+    if (!hasUnsavedDraft) return undefined;
+    const timer = setTimeout(flushDraft, 2500);
+    return () => clearTimeout(timer);
+  }, [hasUnsavedDraft, workingDraft, workingTitle, workingSummary, workingStatus, activeChapterId, flushDraft]);
+
+  // Al cambiar de capítulo o desmontar, no perder lo pendiente del capítulo que se abandona
+  useEffect(() => flushDraft, [activeChapterId, flushDraft]);
+
+  // Pestaña oculta o cierre: guardar y, si no se pudo, avisar al navegador
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flushDraft();
+    };
+    const onBeforeUnload = (event) => {
+      if (!latestDraftRef.current.unsaved) return;
+      flushDraft();
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [flushDraft]);
 
   // 5. Commit de versión (Git-like snapshot)
   const commitVersion = useCallback(async (commitMessage) => {
     if (!activeChapterId) return { success: false, error: 'No hay capítulo activo' };
+    const { chapterId: draftChapterId, patch: draft } = latestDraftRef.current;
+    if (!draft || draftChapterId !== activeChapterId) return { success: false, error: 'El borrador aún no está listo' };
     const msg = (commitMessage || '').trim() || 'Punto de control sin mensaje';
 
     try {
       const res = await ApiService.chapters.createCommit(
         activeChapterId,
         msg,
-        workingTitle,
-        workingDraft,
+        draft.title,
+        draft.content,
         user?.id || null,
         setLoading
       );
@@ -219,7 +317,7 @@ export function ManuscriptProvider({ children }) {
       console.error('[ManuscriptContext] Error committing version:', err);
       return { success: false, error: err.message };
     }
-  }, [activeChapterId, workingTitle, workingDraft, user?.id, setLoading]);
+  }, [activeChapterId, user?.id, setLoading]);
 
   // 6. Restaurar a versión anterior
   const restoreVersion = useCallback(async (version) => {
@@ -287,17 +385,17 @@ export function ManuscriptProvider({ children }) {
     }
   }, [activeChapterId, setLoading]);
 
-  const value = useMemo(() => ({
+  const editorValue = useMemo(() => ({ workingDraft, setWorkingDraft }), [workingDraft]);
+
+  const coreValue = useMemo(() => ({
     chapters,
     loading,
     activeChapterId,
     activeChapter,
     setActiveChapterId,
-    // Working draft states
+    // Working buffer (el texto del borrador va en el contexto editor)
     workingTitle,
     setWorkingTitle,
-    workingDraft,
-    setWorkingDraft,
     workingSummary,
     setWorkingSummary,
     workingStatus,
@@ -314,6 +412,8 @@ export function ManuscriptProvider({ children }) {
     versionsLoading,
     loadVersions,
     saveDraft,
+    saveStatus,
+    hasUnsavedDraft,
     commitVersion,
     restoreVersion,
     createChapter,
@@ -335,7 +435,6 @@ export function ManuscriptProvider({ children }) {
     activeChapter,
     setActiveChapterId,
     workingTitle,
-    workingDraft,
     workingSummary,
     workingStatus,
     lastCommittedContent,
@@ -348,6 +447,8 @@ export function ManuscriptProvider({ children }) {
     versionsLoading,
     loadVersions,
     saveDraft,
+    saveStatus,
+    hasUnsavedDraft,
     commitVersion,
     restoreVersion,
     createChapter,
@@ -360,53 +461,68 @@ export function ManuscriptProvider({ children }) {
   ]);
 
   return (
-    <ManuscriptContext.Provider value={value}>
-      {children}
+    <ManuscriptContext.Provider value={coreValue}>
+      <ManuscriptEditorContext.Provider value={editorValue}>
+        {children}
+      </ManuscriptEditorContext.Provider>
     </ManuscriptContext.Provider>
   );
 }
 
+const noop = () => {};
+
+const DEFAULT_CORE = {
+  chapters: [],
+  loading: false,
+  activeChapterId: null,
+  activeChapter: null,
+  setActiveChapterId: noop,
+  workingTitle: '',
+  setWorkingTitle: noop,
+  workingSummary: '',
+  setWorkingSummary: noop,
+  workingStatus: 'draft',
+  setWorkingStatus: noop,
+  lastCommittedContent: '',
+  diffSummary: { isClean: true, addedLines: 0, removedLines: 0, diffChunks: [] },
+  wordDiff: [],
+  isDirty: false,
+  wordCount: 0,
+  totalManuscriptWords: 0,
+  versions: [],
+  versionsLoading: false,
+  loadVersions: noop,
+  saveDraft: noop,
+  saveStatus: 'idle',
+  hasUnsavedDraft: false,
+  commitVersion: async () => {},
+  restoreVersion: noop,
+  createChapter: async () => {},
+  deleteChapter: noop,
+  loadChapters: noop,
+  isCommitModalOpen: false,
+  setIsCommitModalOpen: noop,
+  isHistoryDrawerOpen: false,
+  setIsHistoryDrawerOpen: noop,
+  isDiffModalOpen: false,
+  setIsDiffModalOpen: noop,
+  reviewMode: false,
+  setReviewMode: noop,
+};
+
+const DEFAULT_EDITOR = { workingDraft: '', setWorkingDraft: noop };
+
+/**
+ * Todo el estado del manuscrito excepto el texto del borrador. No se re-renderiza al escribir:
+ * usarlo en cualquier componente que no necesite `workingDraft`.
+ */
+export function useManuscriptCore() {
+  return useContext(ManuscriptContext) || DEFAULT_CORE;
+}
+
+/** Estado completo, incluido el texto del borrador (se re-renderiza en cada pulsación). */
 export function useManuscript() {
-  const context = useContext(ManuscriptContext);
-  if (!context) {
-    return {
-      chapters: [],
-      loading: false,
-      activeChapterId: null,
-      activeChapter: null,
-      setActiveChapterId: () => {},
-      workingTitle: '',
-      setWorkingTitle: () => {},
-      workingDraft: '',
-      setWorkingDraft: () => {},
-      workingSummary: '',
-      setWorkingSummary: () => {},
-      workingStatus: 'draft',
-      setWorkingStatus: () => {},
-      lastCommittedContent: '',
-      diffSummary: { isClean: true, addedLines: 0, removedLines: 0, diffChunks: [] },
-      wordDiff: [],
-      isDirty: false,
-      wordCount: 0,
-      totalManuscriptWords: 0,
-      versions: [],
-      versionsLoading: false,
-      loadVersions: () => {},
-      saveDraft: () => {},
-      commitVersion: async () => {},
-      restoreVersion: () => {},
-      createChapter: async () => {},
-      deleteChapter: () => {},
-      loadChapters: () => {},
-      isCommitModalOpen: false,
-      setIsCommitModalOpen: () => {},
-      isHistoryDrawerOpen: false,
-      setIsHistoryDrawerOpen: () => {},
-      isDiffModalOpen: false,
-      setIsDiffModalOpen: () => {},
-      reviewMode: false,
-      setReviewMode: () => {},
-    };
-  }
-  return context;
+  const core = useManuscriptCore();
+  const editor = useContext(ManuscriptEditorContext) || DEFAULT_EDITOR;
+  return useMemo(() => ({ ...core, ...editor }), [core, editor]);
 }

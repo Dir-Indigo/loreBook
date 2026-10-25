@@ -22,6 +22,8 @@ import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import CustomModal from '../common/CustomModal';
 import CustomButton from '../common/CustomButton';
+import IconAction from '../common/IconAction';
+import { DEFAULT_ENTITY_COLOR } from '../../constants/constants';
 
 const TAG_PALETTE = [
   '#8c6d53', '#0284c7', '#16a34a', '#ea580c',
@@ -222,12 +224,12 @@ export default function CharacterTagManagerModal({
                                 sx: { borderRadius: 1.5, fontSize: '0.82rem', height: 32 },
                               }}
                             />
-                            <IconButton size="small" onClick={handleSaveEdit} color="primary" sx={{ p: 0.4 }}>
+                            <IconAction label="Guardar cambios" size="small" onClick={handleSaveEdit} color="primary" sx={{ p: 0.4 }}>
                               <CheckIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton size="small" onClick={() => setEditingTagId(null)} sx={{ p: 0.4 }}>
+                            </IconAction>
+                            <IconAction label="Cancelar edición" size="small" onClick={() => setEditingTagId(null)} sx={{ p: 0.4 }}>
                               <CloseIcon fontSize="small" />
-                            </IconButton>
+                            </IconAction>
                           </Box>
                           <Box sx={{ display: 'flex', gap: 0.6, flexWrap: 'wrap' }}>
                             {TAG_PALETTE.map((c) => (
@@ -255,7 +257,7 @@ export default function CharacterTagManagerModal({
                                 width: 12,
                                 height: 12,
                                 borderRadius: '50%',
-                                bgcolor: tag.color || '#8c6d53',
+                                bgcolor: tag.color || DEFAULT_ENTITY_COLOR,
                                 flexShrink: 0,
                               }}
                             />

@@ -34,6 +34,7 @@ import CustomModal from '../common/CustomModal';
 import CustomButton from '../common/CustomButton';
 import ImageCropModal from '../common/ImageCropModal';
 import { uploadStoryCover } from '../../services/storageService';
+import { useConfirm } from '../../context/FeedbackContext';
 
 export default function StoryModal({
   open,
@@ -46,6 +47,7 @@ export default function StoryModal({
   onDeleteStory,
   loading = false,
 }) {
+  const confirm = useConfirm();
   const [isCreating, setIsCreating] = useState(false);
   const [editingStoryId, setEditingStoryId] = useState(null);
 
@@ -462,8 +464,16 @@ export default function StoryModal({
                   color="error"
                   size="small"
                   startIcon={<DeleteOutlineIcon fontSize="small" />}
-                  onClick={() => {
-                    if (window.confirm('¿Seguro que deseas eliminar esta historia y todos sus eventos?')) {
+                  onClick={async () => {
+                    const storyName = (stories.find((item) => item.id === editingStoryId)?.title || '').trim();
+                    const accepted = await confirm({
+                      title: 'Eliminar historia',
+                      description: 'Se eliminarán la historia y el contenido vinculado a ella, como sus eventos. Esta acción no se puede deshacer.',
+                      confirmText: 'Eliminar historia',
+                      tone: 'danger',
+                      requireText: storyName,
+                    });
+                    if (accepted) {
                       onDeleteStory(editingStoryId);
                       resetForm();
                     }

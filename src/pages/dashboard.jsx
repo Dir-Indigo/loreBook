@@ -7,7 +7,7 @@ import { useStory } from '../context/StoryContext';
 import { useStorySelector } from '../context/StorySelectorContext';
 import { useWorkspaceData } from '../context/WorkspaceContext';
 import WorkspaceContainer from '../components/workspace/WorkspaceContainer';
-import CustomLoading from '../components/common/CustomLoading';
+import WorkspaceSkeleton from '../components/common/WorkspaceSkeleton';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -28,9 +28,9 @@ export default function DashboardPage() {
 
   if (authLoading || storiesLoading || dataLoading || storyPending) {
     return (
-      <Box sx={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
         <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3 }} />
-        <CustomLoading message="Cargando estudio..." subtitle="Preparando tu espacio narrativo..." size={56} />
+        <WorkspaceSkeleton />
       </Box>
     );
   }

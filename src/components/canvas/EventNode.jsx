@@ -36,7 +36,8 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
-import { APP_CONFIG } from '../../constants/constants';
+import { APP_CONFIG, DEFAULT_ENTITY_COLOR } from '../../constants/constants';
+import IconAction from '../common/IconAction';
 
 function EventNodeComponent({ data, selected }) {
   const {
@@ -45,7 +46,7 @@ function EventNodeComponent({ data, selected }) {
     summary = '',
     details = '',
     orderIndex = 1,
-    colorTag = '#8c6d53',
+    colorTag = DEFAULT_ENTITY_COLOR,
     importanceLevel = 'medium',
     characters = [],
     allCharacters = [],
@@ -169,8 +170,8 @@ function EventNodeComponent({ data, selected }) {
         onDrop={handleDropCard}
         sx={{
           bgcolor: 'background.paper',
-          border: isCharDragOver ? '3px dashed #16a34a' : '3px solid',
-          borderColor: isCharDragOver ? '#16a34a' : isVisuallySelected ? 'primary.main' : colorTag || 'divider',
+          border: isCharDragOver ? '3px dashed' : '3px solid',
+          borderColor: isCharDragOver ? 'custom.status.success' : isVisuallySelected ? 'primary.main' : colorTag || 'divider',
           boxSizing: 'border-box',
           borderRadius: 2.5,
           p: 1.2,
@@ -195,7 +196,7 @@ function EventNodeComponent({ data, selected }) {
           type="target"
           position={Position.Left}
           style={{
-            background: colorTag || '#8c6d53',
+            background: colorTag || DEFAULT_ENTITY_COLOR,
             width: 14,
             height: 14,
             border: '2px solid #ffffff',
@@ -208,7 +209,7 @@ function EventNodeComponent({ data, selected }) {
           type="source"
           position={Position.Right}
           style={{
-            background: colorTag || '#8c6d53',
+            background: colorTag || DEFAULT_ENTITY_COLOR,
             width: 14,
             height: 14,
             border: '2px solid #ffffff',
@@ -552,11 +553,11 @@ function EventNodeComponent({ data, selected }) {
       onDrop={handleDropCard}
       sx={{
         bgcolor: 'background.paper',
-        border: isCharDragOver ? '2.5px dashed #16a34a' : '2.5px solid',
-        borderColor: isCharDragOver ? '#16a34a' : isVisuallySelected ? 'primary.main' : 'divider',
+        border: isCharDragOver ? '2.5px dashed' : '2.5px solid',
+        borderColor: isCharDragOver ? 'custom.status.success' : isVisuallySelected ? 'primary.main' : 'divider',
         boxSizing: 'border-box',
         borderTop: '4px solid',
-        borderTopColor: isCharDragOver ? '#16a34a' : colorTag || 'primary.main',
+        borderTopColor: isCharDragOver ? 'custom.status.success' : colorTag || 'primary.main',
         borderRadius: 2.5,
         width: 310,
         boxShadow: isCharDragOver
@@ -576,7 +577,7 @@ function EventNodeComponent({ data, selected }) {
         type="target"
         position={Position.Left}
         style={{
-          background: colorTag || '#8c6d53',
+          background: colorTag || DEFAULT_ENTITY_COLOR,
           width: 14,
           height: 14,
           border: '2px solid #ffffff',
@@ -589,7 +590,7 @@ function EventNodeComponent({ data, selected }) {
         type="source"
         position={Position.Right}
         style={{
-          background: colorTag || '#8c6d53',
+          background: colorTag || DEFAULT_ENTITY_COLOR,
           width: 14,
           height: 14,
           border: '2px solid #ffffff',
@@ -963,7 +964,7 @@ function EventNodeComponent({ data, selected }) {
         </Box>
 
         {/* More Menu */}
-        <IconButton
+        <IconAction label="Más acciones del evento"
           size="small"
           onClick={(e) => {
             e.stopPropagation();
@@ -972,7 +973,7 @@ function EventNodeComponent({ data, selected }) {
           sx={{ p: 0.5, color: 'text.secondary' }}
         >
           <MoreVertIcon fontSize="small" />
-        </IconButton>
+        </IconAction>
         <Menu
           anchorEl={anchorEl}
           open={isMenuOpen}

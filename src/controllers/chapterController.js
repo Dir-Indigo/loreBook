@@ -1,17 +1,7 @@
 import { chapterService } from '../services/chapterService';
+import { createController } from './_base';
 
-const handleLoading = async (promise, setLoading) => {
-  if (setLoading) setLoading(true);
-  try {
-    const data = await promise;
-    return { data, error: null };
-  } catch (error) {
-    console.error('[ChapterController Error]:', error);
-    return { data: null, error };
-  } finally {
-    if (setLoading) setLoading(false);
-  }
-};
+const handleLoading = createController('Chapter').run;
 
 export const chapterController = {
   getAll: async (storyId, setLoading) => handleLoading(chapterService.getAll(storyId), setLoading),

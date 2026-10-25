@@ -66,8 +66,9 @@ import { useSidebarDetail, DETAIL_VIEWS } from "../../context/SidebarDetailConte
 import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from "../../context/WorkspaceViewContext";
 import { uploadStoryCover } from "../../services/storageService";
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
-import { APP_CONFIG } from '../../constants/constants';
+import { APP_CONFIG, DEFAULT_ENTITY_COLOR } from '../../constants/constants';
 import { ApiService } from '../../utils/ApiService';
+import { useNotify } from '../../context/FeedbackContext';
 
 function SidebarLore({
   view = 'dashboard',
@@ -101,6 +102,7 @@ function SidebarLore({
   onDeleteEvent,
   onDeleteCharacter,
 }) {
+  const notify = useNotify();
   const router = useRouter();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -390,7 +392,7 @@ function SidebarLore({
         story_id: story.id,
         name: name.trim(),
         parent_folder_id: parentFolderId,
-        color: '#8c6d53',
+        color: DEFAULT_ENTITY_COLOR,
         position: effectiveFolders.length,
       });
       if (result.data) {
@@ -421,7 +423,7 @@ function SidebarLore({
 
   const handleDeleteCharFolder = async (folder) => {
     if (folder.is_default || folder.name?.toLowerCase() === 'principal') {
-      window.alert('La carpeta Principal no se puede eliminar.');
+      notify.warning('La carpeta Principal no se puede eliminar.');
       return;
     }
     if (onDeleteCharacterFolder) {

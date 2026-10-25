@@ -31,6 +31,7 @@ import { useLoreTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from '../../context/WorkspaceViewContext';
 import CustomButton from '../common/CustomButton';
+import IconAction from '../common/IconAction';
 
 function Navbar({ activeStory, onOpenStorySelector }) {
   const router = useRouter();
@@ -229,7 +230,7 @@ function Navbar({ activeStory, onOpenStorySelector }) {
         {/* Mobile Action Controls (xs only) */}
         <Box sx={{ display: { xs: 'flex', sm: 'none' }, alignItems: 'center', gap: 0.6, flexShrink: 0 }}>
           {/* Quick Palette button */}
-          <IconButton
+          <IconAction label="Cambiar tema"
             onClick={handleOpenThemeMenu}
             size="small"
             sx={{
@@ -240,10 +241,10 @@ function Navbar({ activeStory, onOpenStorySelector }) {
             }}
           >
             <PaletteIcon fontSize="small" color="action" />
-          </IconButton>
+          </IconAction>
 
           {/* Mobile Menu Dropdown */}
-          <IconButton
+          <IconAction label="Abrir menú de navegación"
             onClick={handleOpenMobileMenu}
             size="small"
             sx={{
@@ -255,7 +256,7 @@ function Navbar({ activeStory, onOpenStorySelector }) {
             }}
           >
             <MoreVertIcon fontSize="small" />
-          </IconButton>
+          </IconAction>
         </Box>
 
         {/* Mobile Dropdown Menu */}

@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import DifferenceIcon from '@mui/icons-material/Difference';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
-import { useManuscript } from '../../context/ManuscriptContext';
+import { useManuscriptCore } from '../../context/ManuscriptContext';
 
 export default function DiffViewerModal({ open, onClose }) {
   const {
@@ -21,7 +21,7 @@ export default function DiffViewerModal({ open, onClose }) {
     diffSummary,
     versions,
     setIsCommitModalOpen,
-  } = useManuscript();
+  } = useManuscriptCore();
 
   const lastVersion = versions?.[0] || null;
 
@@ -52,12 +52,12 @@ export default function DiffViewerModal({ open, onClose }) {
           <Chip
             size="small"
             label={`+${diffSummary.addedLines} agregadas`}
-            sx={{ bgcolor: 'rgba(46, 160, 67, 0.15)', color: '#2ea043', fontWeight: 700 }}
+            sx={{ bgcolor: 'custom.diff.addedBg', color: 'custom.diff.added', fontWeight: 700 }}
           />
           <Chip
             size="small"
             label={`-${diffSummary.removedLines} eliminadas`}
-            sx={{ bgcolor: 'rgba(248, 81, 73, 0.15)', color: '#f85149', fontWeight: 700 }}
+            sx={{ bgcolor: 'custom.diff.removedBg', color: 'custom.diff.removed', fontWeight: 700 }}
           />
         </Box>
       </DialogTitle>
@@ -107,15 +107,15 @@ export default function DiffViewerModal({ open, onClose }) {
               const prefix = isAdded ? '+ ' : isRemoved ? '- ' : '  ';
 
               const bg = isAdded
-                ? 'rgba(46, 160, 67, 0.12)'
+                ? 'custom.diff.addedBg'
                 : isRemoved
-                ? 'rgba(248, 81, 73, 0.12)'
+                ? 'custom.diff.removedBg'
                 : 'transparent';
 
               const color = isAdded
-                ? '#2ea043'
+                ? 'custom.diff.added'
                 : isRemoved
-                ? '#f85149'
+                ? 'custom.diff.removed'
                 : 'text.primary';
 
               return (

@@ -104,6 +104,40 @@ export const CHARACTER_COLOR_PALETTE = [
   '#1e293b', // Azul Oscuro / Grafito Mate
 ];
 
+/** Color por defecto de entidades con color de usuario (tableros, carpetas, eventos, personajes). */
+export const DEFAULT_ENTITY_COLOR = '#8c6d53';
+
+/**
+ * Colores semánticos de estado por modo. Se exponen en el tema como `palette.custom.status` y
+ * `palette.custom.diff`; los pares texto/fondo cumplen contraste >= 4.5:1 sobre el fondo de cada modo.
+ */
+export const STATUS_COLORS = {
+  light: {
+    success: '#1a7f37',
+    warning: '#9a6700',
+    danger: '#cf222e',
+    info: '#0969da',
+    diff: {
+      added: '#1a7f37',
+      addedBg: 'rgba(26, 127, 55, 0.12)',
+      removed: '#cf222e',
+      removedBg: 'rgba(207, 34, 46, 0.10)',
+    },
+  },
+  dark: {
+    success: '#3fb950',
+    warning: '#d29922',
+    danger: '#f85149',
+    info: '#58a6ff',
+    diff: {
+      added: '#3fb950',
+      addedBg: 'rgba(63, 185, 80, 0.15)',
+      removed: '#f85149',
+      removedBg: 'rgba(248, 81, 73, 0.15)',
+    },
+  },
+};
+
 /**
  * 4 Curated Anti-Fatigue Matte Color Themes (RNF-3, RF-5.3, RF-5.4, RF-5.5)
  * Non-glossy, soft on the eyes, balanced contrast for long writing sessions with harmonious secondary accents.

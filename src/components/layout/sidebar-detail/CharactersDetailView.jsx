@@ -28,6 +28,7 @@ import { RELATIONSHIP_TYPES } from '../../../constants/constants';
 import CharacterCard from '../../characters/CharacterCard';
 import CopyGlobalConfirmModal from '../../characters/CopyGlobalConfirmModal';
 import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from '../../../context/WorkspaceViewContext';
+import { useConfirm } from '../../../context/FeedbackContext';
 
 export default function CharactersDetailView({
   storyId,
@@ -45,6 +46,7 @@ export default function CharactersDetailView({
   onCreateRelationship,
   onDeleteRelationship,
 }) {
+  const confirm = useConfirm();
   const { setActiveView } = useWorkspaceView();
   const [tabIndex, setTabIndex] = useState(0);
   const containerRef = useRef(null);
@@ -436,8 +438,15 @@ export default function CharactersDetailView({
           onMakeGlobal={() => handleSetSelectedGlobal(true)}
           onMakeLocal={() => handleSetSelectedGlobal(false)}
           onCopyAsLocal={() => handleRequestCopyAsLocal(selectedCharacterIds)}
-          onDeleteSelected={() => {
-            if (window.confirm(`¿Eliminar ${selectedCharacterIds.length} personaje(s)?`)) {
+          onDeleteSelected={async () => {
+            const total = selectedCharacterIds.length;
+            const accepted = await confirm({
+              title: total === 1 ? 'Eliminar personaje' : `Eliminar ${total} personajes`,
+              description: 'Se eliminarán de forma permanente junto con sus relaciones. Esta acción no se puede deshacer.',
+              confirmText: 'Eliminar',
+              tone: 'danger',
+            });
+            if (accepted) {
               selectedCharacterIds.forEach((id) => onDeleteCharacter && onDeleteCharacter(id));
               setSelectedCharacterIds([]);
             }
