@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 
 const CharacterDrawerContext = createContext(null);
 
@@ -87,21 +87,32 @@ export function CharacterDrawerProvider({ children }) {
     setIsCloneMode(false);
   }, []);
 
+  const value = useMemo(() => ({
+    open,
+    focusedCharacterId,
+    selectedCharacter,
+    isCloneMode,
+    openDrawer,
+    closeDrawer,
+    prepareCreateChar,
+    prepareEditChar,
+    prepareCloneChar,
+    clearCharSelection,
+  }), [
+    open,
+    focusedCharacterId,
+    selectedCharacter,
+    isCloneMode,
+    openDrawer,
+    closeDrawer,
+    prepareCreateChar,
+    prepareEditChar,
+    prepareCloneChar,
+    clearCharSelection,
+  ]);
+
   return (
-    <CharacterDrawerContext.Provider
-      value={{
-        open,
-        focusedCharacterId,
-        selectedCharacter,
-        isCloneMode,
-        openDrawer,
-        closeDrawer,
-        prepareCreateChar,
-        prepareEditChar,
-        prepareCloneChar,
-        clearCharSelection,
-      }}
-    >
+    <CharacterDrawerContext.Provider value={value}>
       {children}
     </CharacterDrawerContext.Provider>
   );

@@ -1,12 +1,18 @@
-import React from 'react';
+import React, { useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { Box, Typography } from '@mui/material';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from '../../context/WorkspaceViewContext';
 import WorkspaceNavbar from './WorkspaceNavbar';
-import EventsWorkspaceView from './views/EventsWorkspaceView';
-import CharactersWorkspaceView from './views/CharactersWorkspaceView';
-import IdeasWorkspaceView from './views/IdeasWorkspaceView';
-import ManuscriptWorkspaceView from './views/ManuscriptWorkspaceView';
+import CustomLoading from '../common/CustomLoading';
+
+const ViewLoading = () => <CustomLoading message="Cargando vista..." size={40} />;
+
+// Cada vista se descarga en su propio chunk y solo se monta la primera vez que se visita
+const EventsWorkspaceView = dynamic(() => import('./views/EventsWorkspaceView'), { ssr: false, loading: ViewLoading });
+const CharactersWorkspaceView = dynamic(() => import('./views/CharactersWorkspaceView'), { ssr: false, loading: ViewLoading });
+const IdeasWorkspaceView = dynamic(() => import('./views/IdeasWorkspaceView'), { ssr: false, loading: ViewLoading });
+const ManuscriptWorkspaceView = dynamic(() => import('./views/ManuscriptWorkspaceView'), { ssr: false, loading: ViewLoading });
 
 /**
  * WorkspaceContainer — Contenedor central multi-vista sin recarga de página.
@@ -14,6 +20,11 @@ import ManuscriptWorkspaceView from './views/ManuscriptWorkspaceView';
  */
 export default function WorkspaceContainer({ onOpenStorySelector }) {
   const { activeView } = useWorkspaceView();
+
+  // Vistas ya visitadas: se mantienen montadas (keep-alive) para conservar zoom/pan y evitar re-fetches
+  const visitedRef = useRef(new Set());
+  visitedRef.current.add(activeView);
+  const visited = visitedRef.current;
 
   return (
     <Box
@@ -54,7 +65,7 @@ export default function WorkspaceContainer({ onOpenStorySelector }) {
           position: 'relative',
         }}
       >
-        <EventsWorkspaceView onOpenStorySelector={onOpenStorySelector} />
+        {visited.has(WORKSPACE_VIEW_KEYS.EVENTS) && <EventsWorkspaceView onOpenStorySelector={onOpenStorySelector} />}
       </Box>
 
       {/* ─── 2. VISTA PERSONAJES (Keep-Alive para evitar re-fetches y re-mounts) ── */}
@@ -69,7 +80,7 @@ export default function WorkspaceContainer({ onOpenStorySelector }) {
           flexDirection: 'column',
         }}
       >
-        <CharactersWorkspaceView />
+        {visited.has(WORKSPACE_VIEW_KEYS.CHARACTERS) && <CharactersWorkspaceView />}
       </Box>
 
       {/* ─── 3. VISTA PIZARRA DE IDEAS (Keep-Alive para evitar re-fetches) ────── */}
@@ -84,7 +95,7 @@ export default function WorkspaceContainer({ onOpenStorySelector }) {
           flexDirection: 'column',
         }}
       >
-        <IdeasWorkspaceView />
+        {visited.has(WORKSPACE_VIEW_KEYS.IDEAS) && <IdeasWorkspaceView />}
       </Box>
 
       {/* ─── 4. VISTA MANUSCRITO & CAPÍTULOS (Keep-Alive) ────────────────── */}
@@ -98,7 +109,7 @@ export default function WorkspaceContainer({ onOpenStorySelector }) {
           position: 'relative',
         }}
       >
-        <ManuscriptWorkspaceView />
+        {visited.has(WORKSPACE_VIEW_KEYS.MANUSCRIPT) && <ManuscriptWorkspaceView />}
       </Box>
       </Box>
     </Box>

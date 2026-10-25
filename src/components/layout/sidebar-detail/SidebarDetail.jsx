@@ -24,7 +24,7 @@ import { useSidebarDetail, DETAIL_VIEWS } from '../../../context/SidebarDetailCo
 import CharactersDetailView from './CharactersDetailView';
 import NotesDetailView from './NotesDetailView';
 
-export default function SidebarDetail({
+function SidebarDetail({
   storyId,
   characters = [],
   relationships = [],
@@ -287,3 +287,5 @@ export default function SidebarDetail({
     </Slide>
   );
 }
+
+export default React.memo(SidebarDetail);

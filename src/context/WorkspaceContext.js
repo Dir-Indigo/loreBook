@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { ApiService } from '../utils/ApiService';
 import { useStory } from './StoryContext';
 
-const WorkspaceContext = createContext(null);
+const WorkspaceDataContext = createContext(null);
+const WorkspaceActionsContext = createContext(null);
 
 const EMPTY_WORKSPACE = {
   characters: [],
@@ -17,11 +18,51 @@ const EMPTY_WORKSPACE = {
   activeBoardId: null,
 };
 
+const PRIMARY_BOARD_DEFAULTS = {
+  name: 'Línea principal',
+  parent_board_id: null,
+  position: 0,
+  color: '#8c6d53',
+};
+
+const createPrimaryBoard = (storyId, setLoading) => (
+  ApiService.boards.create({ story_id: storyId, ...PRIMARY_BOARD_DEFAULTS }, setLoading)
+);
+
+const getNextOrderIndex = (events) => (
+  events.length > 0 ? Math.max(...events.map((event) => Number(event.order_index) || 0)) + 1 : 1
+);
+
+const getEventCharacterIds = (event) => (
+  (event.event_characters || [])
+    .map((eventCharacter) => eventCharacter.character?.id || eventCharacter.character_id)
+    .filter(Boolean)
+);
+
+const buildDuplicateEventData = (original, storyId, orderIndex, offsetX, offsetY) => ({
+  story_id: storyId,
+  title: `${original.title} (Copia)`,
+  summary: original.summary || '',
+  details: original.details || '',
+  color_tag: original.color_tag || '#8d7b68',
+  importance_level: original.importance_level || 'medium',
+  order_index: orderIndex,
+  pos_x: (Number(original.pos_x) || 120) + offsetX,
+  pos_y: (Number(original.pos_y) || 100) + offsetY,
+});
+
+// Agrega a la lista global los eventos del tablero que todavía no están en ella
+const appendMissingEvents = (current, boardEvents) => current.concat(
+  (boardEvents || []).filter((event) => !current.some((item) => item.id === event.id))
+);
+
 export const WorkspaceProvider = ({ children }) => {
   const { activeStoryId } = useStory();
   const loadedStoryIdRef = useRef(null);
   const isFetchingStoryIdRef = useRef(null);
   const [dataLoading, setDataLoading] = useState(false);
+  // Última historia cuya carga terminó (con o sin error); permite saber si los datos ya corresponden a activeStoryId
+  const [settledStoryId, setSettledStoryId] = useState(null);
 
   const [characters, setCharacters] = useState(EMPTY_WORKSPACE.characters);
   const [relationships, setRelationships] = useState(EMPTY_WORKSPACE.relationships);
@@ -34,17 +75,21 @@ export const WorkspaceProvider = ({ children }) => {
   const [boards, setBoards] = useState(EMPTY_WORKSPACE.boards);
   const [activeBoardId, setActiveBoardId] = useState(EMPTY_WORKSPACE.activeBoardId);
 
+  // Último estado visible para las acciones: así mantienen identidad estable sin quedar con datos viejos
+  const latestRef = useRef({});
+  latestRef.current = { activeStoryId, boards, events, activeBoardId, eventConnections, characters };
+
   const resetWorkspace = useCallback(() => {
-    setCharacters([]);
-    setRelationships([]);
-    setCharacterFolders([]);
-    setCharacterTags([]);
-    setCustomArchetypes([]);
-    setEvents([]);
-    setAllEvents([]);
-    setEventConnections([]);
-    setBoards([]);
-    setActiveBoardId(null);
+    setCharacters(EMPTY_WORKSPACE.characters);
+    setRelationships(EMPTY_WORKSPACE.relationships);
+    setCharacterFolders(EMPTY_WORKSPACE.characterFolders);
+    setCharacterTags(EMPTY_WORKSPACE.characterTags);
+    setCustomArchetypes(EMPTY_WORKSPACE.customArchetypes);
+    setEvents(EMPTY_WORKSPACE.events);
+    setAllEvents(EMPTY_WORKSPACE.allEvents);
+    setEventConnections(EMPTY_WORKSPACE.eventConnections);
+    setBoards(EMPTY_WORKSPACE.boards);
+    setActiveBoardId(EMPTY_WORKSPACE.activeBoardId);
   }, []);
 
   const loadStoryData = useCallback(async ({ storyId, boardId = null, setLoading, setDataLoading }) => {
@@ -73,13 +118,7 @@ export const WorkspaceProvider = ({ children }) => {
       let targetBoardId = boardId || existingBoards.find((b) => !b.parent_board_id)?.id || null;
 
       if (!targetBoardId) {
-        const { data: createdBoard, error } = await ApiService.boards.create({
-          story_id: storyId,
-          name: 'Línea principal',
-          parent_board_id: null,
-          position: 0,
-          color: '#8c6d53',
-        }, setLoading);
+        const { data: createdBoard, error } = await createPrimaryBoard(storyId, setLoading);
 
         if (!error && createdBoard) {
           existingBoards.push(createdBoard);
@@ -106,6 +145,7 @@ export const WorkspaceProvider = ({ children }) => {
       console.error('Failed to load story data:', error);
       return { data: null, error };
     } finally {
+      setSettledStoryId(storyId);
       if (setDataLoading) setDataLoading(false);
     }
   }, [resetWorkspace]);
@@ -136,37 +176,31 @@ export const WorkspaceProvider = ({ children }) => {
   }, [activeStoryId, loadStoryData, resetWorkspace]);
 
   const reloadStoryData = useCallback(async ({ force = true, setLoading } = {}) => {
+    const { activeStoryId } = latestRef.current;
     if (!activeStoryId) return { data: null, error: null };
     if (force) {
       loadedStoryIdRef.current = null;
     }
     return loadStoryData({ storyId: activeStoryId, setLoading, setDataLoading });
-  }, [activeStoryId, loadStoryData]);
+  }, [loadStoryData]);
 
   const ensurePrimaryBoard = useCallback(async ({ storyId, setLoading }) => {
     if (!storyId) return null;
 
-    const currentBoards = boards.length ? boards : [];
-    const primaryBoard = currentBoards.find((board) => !board.parent_board_id) || null;
+    const primaryBoard = latestRef.current.boards.find((board) => !board.parent_board_id) || null;
     if (primaryBoard) {
       setActiveBoardId(primaryBoard.id);
       return primaryBoard.id;
     }
 
-    const { data, error } = await ApiService.boards.create({
-      story_id: storyId,
-      name: 'Línea principal',
-      parent_board_id: null,
-      position: 0,
-      color: '#8c6d53',
-    }, setLoading);
+    const { data, error } = await createPrimaryBoard(storyId, setLoading);
 
     if (error || !data) return null;
 
     setBoards((prev) => [...prev, data]);
     setActiveBoardId(data.id);
     return data.id;
-  }, [boards]);
+  }, []);
 
   const selectBoard = useCallback(async ({ storyId, boardId, setLoading, reloadConnections = true }) => {
     if (!storyId || !boardId) return { data: [], error: null };
@@ -175,7 +209,7 @@ export const WorkspaceProvider = ({ children }) => {
 
     const [{ data: eventsData }, { data: connsData }] = await Promise.all([
       ApiService.events.getAll(storyId, boardId, setLoading),
-      reloadConnections ? ApiService.events.getConnections(storyId, setLoading) : Promise.resolve({ data: eventConnections }),
+      reloadConnections ? ApiService.events.getConnections(storyId, setLoading) : Promise.resolve({ data: latestRef.current.eventConnections }),
     ]);
 
     setEvents(eventsData || []);
@@ -184,7 +218,7 @@ export const WorkspaceProvider = ({ children }) => {
     }
 
     return { data: eventsData || [], error: null };
-  }, [eventConnections]);
+  }, []);
 
   const createBoard = useCallback(async ({ storyId, name, parentBoardId = null, position, color = '#8c6d53', setLoading }) => {
     if (!storyId || !name) return { data: null, error: new Error('Story ID and name are required') };
@@ -239,6 +273,7 @@ export const WorkspaceProvider = ({ children }) => {
     const { data, error } = await ApiService.boards.delete(boardId, setLoading);
     if (error) return { data: null, error };
 
+    const { boards, activeBoardId } = latestRef.current;
     const remainingBoards = boards.filter((board) => board.id !== boardId);
     setBoards(remainingBoards);
     setAllEvents((current) => current.filter((event) => event.board_id !== boardId));
@@ -257,7 +292,7 @@ export const WorkspaceProvider = ({ children }) => {
     }
 
     return { data, error: null };
-  }, [activeBoardId, boards, ensurePrimaryBoard, refreshBoardEvents]);
+  }, [ensurePrimaryBoard, refreshBoardEvents]);
 
   const createConnection = useCallback(async ({ storyId, sourceEventId, targetEventId, setLoading }) => {
     if (!storyId) return { data: null, error: new Error('Story ID is required') };
@@ -295,7 +330,7 @@ export const WorkspaceProvider = ({ children }) => {
   const saveEvent = useCallback(async ({ storyId, eventData, characterIds, createBackup, backupNote, selectedEventId, setLoading }) => {
     if (!storyId) return { data: null, error: new Error('Story ID is required') };
 
-    let resolvedBoardId = activeBoardId;
+    let resolvedBoardId = latestRef.current.activeBoardId;
     if (!resolvedBoardId) {
       resolvedBoardId = await ensurePrimaryBoard({ storyId, setLoading });
     }
@@ -311,10 +346,10 @@ export const WorkspaceProvider = ({ children }) => {
     const { data: boardEvents } = await refreshBoardEvents({ storyId, boardId: resolvedBoardId, setLoading });
     setAllEvents((current) => selectedEventId
       ? current.map((event) => event.id === selectedEventId ? { ...event, ...eventData } : event)
-      : [...current, ...(boardEvents || []).filter((event) => !current.some((item) => item.id === event.id))]);
+      : appendMissingEvents(current, boardEvents));
 
     return result;
-  }, [activeBoardId, ensurePrimaryBoard, refreshBoardEvents]);
+  }, [ensurePrimaryBoard, refreshBoardEvents]);
 
   const deleteEvent = useCallback(async ({ storyId, boardId, eventId, setLoading = null }) => {
     if (!storyId || !eventId) return { data: null, error: new Error('Story ID and event ID are required') };
@@ -340,56 +375,35 @@ export const WorkspaceProvider = ({ children }) => {
   const duplicateEvent = useCallback(async ({ storyId, boardId, originalEvent, offset = { x: 50, y: 40 }, setLoading }) => {
     if (!storyId || !boardId || !originalEvent) return { data: null, error: null, ids: [] };
 
-    const characterIds = (originalEvent.event_characters || [])
-      .map((eventCharacter) => eventCharacter.character?.id || eventCharacter.character_id)
-      .filter(Boolean);
-    const nextOrderIndex = events.length > 0
-      ? Math.max(...events.map((event) => Number(event.order_index) || 0)) + 1
-      : 1;
-    const eventData = {
-      story_id: storyId,
-      title: `${originalEvent.title} (Copia)`,
-      summary: originalEvent.summary || '',
-      details: originalEvent.details || '',
-      color_tag: originalEvent.color_tag || '#8d7b68',
-      importance_level: originalEvent.importance_level || 'medium',
-      order_index: nextOrderIndex,
-      pos_x: (Number(originalEvent.pos_x) || 120) + offset.x,
-      pos_y: (Number(originalEvent.pos_y) || 100) + offset.y,
-    };
+    const eventData = buildDuplicateEventData(
+      originalEvent,
+      storyId,
+      getNextOrderIndex(latestRef.current.events),
+      offset.x,
+      offset.y,
+    );
+    const characterIds = getEventCharacterIds(originalEvent);
     const result = await ApiService.events.create(eventData, characterIds, boardId, setLoading);
     if (result.error || !result.data) return { ...result, ids: [] };
 
     const { data: boardEvents } = await refreshBoardEvents({ storyId, boardId, setLoading });
-    setAllEvents((current) => current.concat(
-      (boardEvents || []).filter((event) => !current.some((item) => item.id === event.id))
-    ));
+    setAllEvents((current) => appendMissingEvents(current, boardEvents));
     return { ...result, ids: [result.data.id] };
-  }, [events, refreshBoardEvents]);
+  }, [refreshBoardEvents]);
 
   const duplicateEvents = useCallback(async ({ storyId, boardId, originalEvents, setLoading }) => {
     if (!storyId || !boardId || !originalEvents?.length) return [];
 
-    let nextOrderIndex = events.length > 0
-      ? Math.max(...events.map((event) => Number(event.order_index) || 0)) + 1
-      : 1;
+    let nextOrderIndex = getNextOrderIndex(latestRef.current.events);
     const createdIds = [];
 
     for (const [index, originalEvent] of originalEvents.entries()) {
-      const characterIds = (originalEvent.event_characters || [])
-        .map((eventCharacter) => eventCharacter.character?.id || eventCharacter.character_id)
-        .filter(Boolean);
-      const { data, error } = await ApiService.events.create({
-        story_id: storyId,
-        title: `${originalEvent.title} (Copia)`,
-        summary: originalEvent.summary || '',
-        details: originalEvent.details || '',
-        color_tag: originalEvent.color_tag || '#8d7b68',
-        importance_level: originalEvent.importance_level || 'medium',
-        order_index: nextOrderIndex,
-        pos_x: (Number(originalEvent.pos_x) || 120) + 50 + (index * 20),
-        pos_y: (Number(originalEvent.pos_y) || 100) + 40 + (index * 20),
-      }, characterIds, boardId, setLoading);
+      const { data, error } = await ApiService.events.create(
+        buildDuplicateEventData(originalEvent, storyId, nextOrderIndex, 50 + (index * 20), 40 + (index * 20)),
+        getEventCharacterIds(originalEvent),
+        boardId,
+        setLoading,
+      );
 
       if (!error && data?.id) {
         createdIds.push(data.id);
@@ -404,7 +418,7 @@ export const WorkspaceProvider = ({ children }) => {
         : [...updatedEvents, event]
     ), current));
     return createdIds;
-  }, [events, refreshBoardEvents]);
+  }, [refreshBoardEvents]);
 
   const getEventDetails = useCallback(async ({ eventId, setLoading }) => (
     ApiService.events.getById(eventId, setLoading)
@@ -426,11 +440,12 @@ export const WorkspaceProvider = ({ children }) => {
   const restoreEventVersion = useCallback(async ({ storyId, versionId, setLoading }) => {
     const result = await ApiService.events.restoreVersion(versionId, setLoading);
     // Only refresh the events of the active board — not the entire workspace
+    const { activeBoardId } = latestRef.current;
     if (!result.error && storyId && activeBoardId) {
       await refreshBoardEvents({ storyId, boardId: activeBoardId, setLoading });
     }
     return result;
-  }, [activeBoardId, refreshBoardEvents]);
+  }, [refreshBoardEvents]);
 
   const saveCharacter = useCallback(async ({ storyId, charData, selectedCharacterId = null, isCloneMode = false, cloneOptions = null, setLoading }) => {
     if (!storyId) return { data: null, error: new Error('Story ID is required') };
@@ -477,7 +492,7 @@ export const WorkspaceProvider = ({ children }) => {
   const updateCharactersGlobal = useCallback(async ({ storyId, characterIds, isGlobal, setLoading }) => {
     if (!storyId || !characterIds?.length) return { error: null, changed: false };
 
-    const previousCharacters = characters;
+    const previousCharacters = latestRef.current.characters;
     const selectedIds = [...characterIds];
     setCharacters((current) => current.map((character) => (
       selectedIds.includes(character.id) ? { ...character, is_global: isGlobal } : character
@@ -493,7 +508,7 @@ export const WorkspaceProvider = ({ children }) => {
     }
 
     return { error: null, changed: true };
-  }, [characters]);
+  }, []);
 
   const createRelationship = useCallback(async ({ storyId, relData, setLoading }) => {
     if (!storyId) return { data: null, error: new Error('Story ID is required') };
@@ -531,66 +546,143 @@ export const WorkspaceProvider = ({ children }) => {
     return result;
   }, []);
 
+  // Datos (cambian con el estado) y acciones (identidad estable) en contextos separados
+  const dataValue = useMemo(() => ({
+    characters,
+    relationships,
+    characterFolders,
+    characterTags,
+    customArchetypes,
+    events,
+    allEvents,
+    eventConnections,
+    boards,
+    activeBoardId,
+    dataLoading,
+    settledStoryId,
+  }), [
+    characters,
+    relationships,
+    characterFolders,
+    characterTags,
+    customArchetypes,
+    events,
+    allEvents,
+    eventConnections,
+    boards,
+    activeBoardId,
+    dataLoading,
+    settledStoryId,
+  ]);
+
+  const actionsValue = useMemo(() => ({
+    setCharacters,
+    setRelationships,
+    setCharacterFolders,
+    setCharacterTags,
+    setCustomArchetypes,
+    setEvents,
+    setAllEvents,
+    setEventConnections,
+    setBoards,
+    setActiveBoardId,
+    setDataLoading,
+    resetWorkspace,
+    loadStoryData,
+    reloadStoryData,
+    ensurePrimaryBoard,
+    selectBoard,
+    createBoard,
+    updateBoard,
+    deleteBoard,
+    refreshBoardEvents,
+    createConnection,
+    deleteConnection,
+    saveEvent,
+    deleteEvent,
+    duplicateEvent,
+    duplicateEvents,
+    getEventDetails,
+    saveEventPosition,
+    createEventBackup,
+    getEventVersions,
+    restoreEventVersion,
+    saveCharacter,
+    deleteCharacter,
+    updateCharactersGlobal,
+    copyCharactersAsLocal,
+    createRelationship,
+    deleteRelationship,
+  }), [
+    setCharacters,
+    setRelationships,
+    setCharacterFolders,
+    setCharacterTags,
+    setCustomArchetypes,
+    setEvents,
+    setAllEvents,
+    setEventConnections,
+    setBoards,
+    setActiveBoardId,
+    setDataLoading,
+    resetWorkspace,
+    loadStoryData,
+    reloadStoryData,
+    ensurePrimaryBoard,
+    selectBoard,
+    createBoard,
+    updateBoard,
+    deleteBoard,
+    refreshBoardEvents,
+    createConnection,
+    deleteConnection,
+    saveEvent,
+    deleteEvent,
+    duplicateEvent,
+    duplicateEvents,
+    getEventDetails,
+    saveEventPosition,
+    createEventBackup,
+    getEventVersions,
+    restoreEventVersion,
+    saveCharacter,
+    deleteCharacter,
+    updateCharactersGlobal,
+    copyCharactersAsLocal,
+    createRelationship,
+    deleteRelationship,
+  ]);
+
   return (
-    <WorkspaceContext.Provider value={{
-      characters,
-      setCharacters,
-      relationships,
-      setRelationships,
-      characterFolders,
-      setCharacterFolders,
-      characterTags,
-      setCharacterTags,
-      customArchetypes,
-      setCustomArchetypes,
-      events,
-      setEvents,
-      allEvents,
-      setAllEvents,
-      eventConnections,
-      setEventConnections,
-      boards,
-      setBoards,
-      activeBoardId,
-      setActiveBoardId,
-      resetWorkspace,
-      loadStoryData,
-      reloadStoryData,
-      dataLoading,
-      setDataLoading,
-      ensurePrimaryBoard,
-      selectBoard,
-      createBoard,
-      updateBoard,
-      deleteBoard,
-      refreshBoardEvents,
-      createConnection,
-      deleteConnection,
-      saveEvent,
-      deleteEvent,
-      duplicateEvent,
-      duplicateEvents,
-      getEventDetails,
-      saveEventPosition,
-      createEventBackup,
-      getEventVersions,
-      restoreEventVersion,
-      saveCharacter,
-      deleteCharacter,
-      updateCharactersGlobal,
-      copyCharactersAsLocal,
-      createRelationship,
-      deleteRelationship,
-    }}>
-      {children}
-    </WorkspaceContext.Provider>
+    <WorkspaceActionsContext.Provider value={actionsValue}>
+      <WorkspaceDataContext.Provider value={dataValue}>
+        {children}
+      </WorkspaceDataContext.Provider>
+    </WorkspaceActionsContext.Provider>
   );
 };
 
-export const useWorkspace = () => {
-  const workspace = useContext(WorkspaceContext);
-  if (!workspace) {
-    throw new Error('useWorkspace must be used inside WorkspaceProvider');
+/** Solo las acciones: no provoca re-renders cuando cambian los datos. */
+export const useWorkspaceActions = () => {
+  const actions = useContext(WorkspaceActionsContext);
+  if (!actions) {
+    throw new Error('useWorkspaceActions must be used inside WorkspaceProvider');
   }
-  return workspace;
+  return actions;
+};
+
+/** Solo los datos. */
+export const useWorkspaceData = () => {
+  const data = useContext(WorkspaceDataContext);
+  if (!data) {
+    throw new Error('useWorkspaceData must be used inside WorkspaceProvider');
+  }
+  return data;
+};
+
+/** Datos + acciones (API original). Usa useWorkspaceActions / useWorkspaceData si solo necesitas una parte. */
+export const useWorkspace = () => {
+  const data = useWorkspaceData();
+  const actions = useWorkspaceActions();
+  return useMemo(() => ({ ...data, ...actions }), [data, actions]);
 };

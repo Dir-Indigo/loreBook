@@ -1,38 +1,29 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { Box } from '@mui/material';
 import Navbar from './Navbar';
 import SidebarLore from './SidebarLore';
 import SidebarDetail from './sidebar-detail/SidebarDetail';
-import StoryModal from '../stories/StoryModal';
 import PullToRefresh from '../common/PullToRefresh';
-import CharacterModal from '../characters/CharacterModal';
 import { useStory } from '../../context/StoryContext';
-import { useWorkspace } from '../../context/WorkspaceContext';
-import { useLoading } from '../../context/LoadingContext';
+import { useWorkspaceData } from '../../context/WorkspaceContext';
+import { StorySelectorProvider } from '../../context/StorySelectorContext';
+import { useCharacterActions } from '../../hooks/useCharacterActions';
 import { useGlobalActions } from '../../context/GlobalActionsContext';
 import { useCharacterDrawer } from '../../context/CharacterDrawerContext';
 import { useQuickNotes } from '../../context/QuickNotesContext';
 import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from '../../context/WorkspaceViewContext';
 
+// Modales pesados: se descargan solo la primera vez que se abren
+const StoryModal = dynamic(() => import('../stories/StoryModal'), { ssr: false });
+const CharacterModal = dynamic(() => import('../characters/CharacterModal'), { ssr: false });
+
 export default function MainLayout({ children }) {
   const router = useRouter();
   const { setActiveView } = useWorkspaceView();
   const { stories, activeStory, activeStoryId, changeActiveStory, createStory, updateStory, deleteStory } = useStory();
-  const {
-    characters,
-    relationships,
-    characterFolders,
-    characterTags,
-    customArchetypes,
-    saveCharacter,
-    deleteCharacter,
-    updateCharactersGlobal,
-    copyCharactersAsLocal,
-    createRelationship,
-    deleteRelationship,
-  } = useWorkspace();
-  const { setLoading } = useLoading();
+  const { characters, relationships, characterFolders, characterTags, customArchetypes } = useWorkspaceData();
   const { charModalOpen, openCreateChar, closeCreateChar } = useGlobalActions();
   const { isOpen: isNotesOpen, setIsOpen: setNotesOpen } = useQuickNotes();
   const {
@@ -64,165 +55,136 @@ export default function MainLayout({ children }) {
   }, [charDrawerOpen, isNotesOpen, closeCharacterDrawer, setNotesOpen]);
 
   const [storyModalOpen, setStoryModalOpen] = useState(false);
+  const [storyModalMounted, setStoryModalMounted] = useState(false);
+  const [charModalMounted, setCharModalMounted] = useState(false);
+  useEffect(() => { if (storyModalOpen) setStoryModalMounted(true); }, [storyModalOpen]);
+  useEffect(() => { if (charModalOpen) setCharModalMounted(true); }, [charModalOpen]);
 
-  const handleOpenStorySelector = () => setStoryModalOpen(true);
+  const handleOpenStorySelector = useCallback(() => setStoryModalOpen(true), []);
+  const handleCloseStorySelector = useCallback(() => setStoryModalOpen(false), []);
+
+  // ─── Character CRUD handlers (compartidos por todas las páginas) ─────────────
+  const handleCloseCharacterModal = useCallback(() => {
+    clearCharSelection();
+    closeCreateChar();
+  }, [clearCharSelection, closeCreateChar]);
+
+  const {
+    handleSave: handleSaveCharacter,
+    handleClone: handleCloneCharacter,
+    handleDelete: handleDeleteCharacter,
+    handleSetGlobal: handleSetCharactersGlobal,
+    handleCopyAsLocal: handleCopyCharactersAsLocal,
+    handleCreateRelationship,
+    handleDeleteRelationship,
+    handleRoleChange,
+  } = useCharacterActions({ selectedCharacter, isCloneMode, onSaved: handleCloseCharacterModal });
+
+  const handleOpenCreateCharacter = useCallback(() => {
+    prepareCreateChar();
+    openCreateChar();
+  }, [prepareCreateChar, openCreateChar]);
+
+  const handleOpenEditCharacter = useCallback((char) => {
+    prepareEditChar(char);
+    openCreateChar();
+  }, [prepareEditChar, openCreateChar]);
+
+  const handleOpenCloneCharacter = useCallback((char) => {
+    prepareCloneChar(char);
+    openCreateChar();
+  }, [prepareCloneChar, openCreateChar]);
+
+  const handleUpdateStoryCover = useCallback(
+    (storyId, coverUrl) => updateStory(storyId, { cover_url: coverUrl }),
+    [updateStory]
+  );
+
+  const handleSelectStory = useCallback((id) => {
+    changeActiveStory(id);
+    if (router.pathname.startsWith('/characters/')) {
+      // Stay on dashboard, switch to characters view without full reload
+      setActiveView(WORKSPACE_VIEW_KEYS.CHARACTERS);
+      router.push('/dashboard');
+    }
+  }, [changeActiveStory, router, setActiveView]);
 
   const isAuthPage = router.pathname === '/login';
 
+  // El early return va después de todos los hooks para respetar las reglas de hooks
   if (isAuthPage) {
     return <Box sx={{ height: '100vh', width: '100vw' }}>{children}</Box>;
   }
 
-  // Expose modal handler to children by cloning them
-  const childrenWithProps = React.Children.map(children, (child) =>
-    React.isValidElement(child)
-      ? React.cloneElement(child, { onOpenStorySelector: handleOpenStorySelector })
-      : child
-  );
-
-  // ─── Character CRUD handlers (shared across all pages via context) ───────────
-
-  const handleSaveCharacter = useCallback(async (charData) => {
-    if (!activeStoryId) return;
-    await saveCharacter({
-      storyId: activeStoryId,
-      charData,
-      selectedCharacterId: selectedCharacter?.id || null,
-      isCloneMode,
-      cloneOptions: null,
-      setLoading,
-    });
-    clearCharSelection();
-    closeCreateChar();
-  }, [activeStoryId, selectedCharacter, isCloneMode, saveCharacter, setLoading, clearCharSelection, closeCreateChar]);
-
-  const handleCloneCharacter = useCallback(async (originalCharId, cloneOptions) => {
-    if (!activeStoryId) return;
-    await saveCharacter({
-      storyId: activeStoryId,
-      selectedCharacterId: originalCharId,
-      isCloneMode: true,
-      cloneOptions,
-      setLoading,
-    });
-    clearCharSelection();
-    closeCreateChar();
-  }, [activeStoryId, saveCharacter, setLoading, clearCharSelection, closeCreateChar]);
-
-  const handleDeleteCharacter = useCallback(async (charId) => {
-    await deleteCharacter({ storyId: activeStoryId, charId, setLoading });
-  }, [activeStoryId, deleteCharacter, setLoading]);
-
-  const handleSetCharactersGlobal = useCallback(async (characterIds, isGlobal) => {
-    if (!characterIds?.length) return;
-    await updateCharactersGlobal({ storyId: activeStoryId, characterIds, isGlobal, setLoading });
-  }, [activeStoryId, updateCharactersGlobal, setLoading]);
-
-  const handleCopyCharactersAsLocal = useCallback(async (characterIds) => {
-    if (!characterIds?.length || !activeStoryId) return;
-    return copyCharactersAsLocal({ storyId: activeStoryId, characterIds, setLoading });
-  }, [activeStoryId, copyCharactersAsLocal, setLoading]);
-
-  const handleCreateRelationship = useCallback(async (relData) => {
-    if (!activeStoryId) return;
-    await createRelationship({ storyId: activeStoryId, relData, setLoading });
-  }, [activeStoryId, createRelationship, setLoading]);
-
-  const handleDeleteRelationship = useCallback(async (relId) => {
-    await deleteRelationship({ storyId: activeStoryId, relId, setLoading });
-  }, [activeStoryId, deleteRelationship, setLoading]);
-
-  const handleRoleChange = useCallback((charId, newRole) => {
-    saveCharacter({
-      storyId: activeStoryId,
-      charData: { role_archetype: newRole },
-      selectedCharacterId: charId,
-      setLoading,
-    });
-  }, [activeStoryId, saveCharacter, setLoading]);
-
   return (
-    <PullToRefresh>
-      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-        <Navbar activeStory={activeStory} onOpenStorySelector={handleOpenStorySelector} />
+    <StorySelectorProvider value={handleOpenStorySelector}>
+      <PullToRefresh>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+          <Navbar activeStory={activeStory} onOpenStorySelector={handleOpenStorySelector} />
 
-        <Box sx={{ flexGrow: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
-          {/* ─── Persistent Primary Left Sidebar (El Padre) ──────────────────── */}
-          <SidebarLore
-            story={activeStory}
-            characters={characters}
-            characterFolders={characterFolders}
-            onOpenCharactersDrawer={openCharacterDrawer}
-            onOpenStorySelector={handleOpenStorySelector}
-            onUpdateStoryCover={(storyId, coverUrl) => updateStory(storyId, { cover_url: coverUrl })}
-          />
+          <Box sx={{ flexGrow: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+            {/* ─── Persistent Primary Left Sidebar (El Padre) ──────────────────── */}
+            <SidebarLore
+              story={activeStory}
+              characters={characters}
+              characterFolders={characterFolders}
+              onOpenCharactersDrawer={openCharacterDrawer}
+              onOpenStorySelector={handleOpenStorySelector}
+              onUpdateStoryCover={handleUpdateStoryCover}
+            />
 
-          {/* ─── Unified Secondary Sidebar (El Hijo Único: SidebarDetail) ─────── */}
-          <SidebarDetail
-            storyId={activeStoryId}
-            characters={characters}
-            relationships={relationships}
-            focusedCharacterId={focusedCharacterId}
-            onOpenCreateCharacter={() => {
-              prepareCreateChar();
-              openCreateChar();
-            }}
-            onOpenEditCharacter={(char) => {
-              prepareEditChar(char);
-              openCreateChar();
-            }}
-            onOpenCloneCharacter={(char) => {
-              prepareCloneChar(char);
-              openCreateChar();
-            }}
-            onDeleteCharacter={handleDeleteCharacter}
-            onSetCharactersGlobal={handleSetCharactersGlobal}
-            onCopyCharactersAsLocal={handleCopyCharactersAsLocal}
-            onRoleChange={handleRoleChange}
-            onCreateRelationship={handleCreateRelationship}
-            onDeleteRelationship={handleDeleteRelationship}
-          />
+            {/* ─── Unified Secondary Sidebar (El Hijo Único: SidebarDetail) ─────── */}
+            <SidebarDetail
+              storyId={activeStoryId}
+              characters={characters}
+              relationships={relationships}
+              focusedCharacterId={focusedCharacterId}
+              onOpenCreateCharacter={handleOpenCreateCharacter}
+              onOpenEditCharacter={handleOpenEditCharacter}
+              onOpenCloneCharacter={handleOpenCloneCharacter}
+              onDeleteCharacter={handleDeleteCharacter}
+              onSetCharactersGlobal={handleSetCharactersGlobal}
+              onCopyCharactersAsLocal={handleCopyCharactersAsLocal}
+              onRoleChange={handleRoleChange}
+              onCreateRelationship={handleCreateRelationship}
+              onDeleteRelationship={handleDeleteRelationship}
+            />
 
-          {/* ─── Page Content (Lienzo / Workspace amplio y despejado) ───────── */}
-          <Box sx={{ flexGrow: 1, height: '100%', overflow: 'hidden', display: 'flex', minWidth: 0 }}>
-            {childrenWithProps}
+            {/* ─── Page Content (Lienzo / Workspace amplio y despejado) ───────── */}
+            <Box sx={{ flexGrow: 1, height: '100%', overflow: 'hidden', display: 'flex', minWidth: 0 }}>
+              {children}
+            </Box>
           </Box>
+
+          {/* ─── Persistent CharacterModal ───────────────────────────────────── */}
+          {charModalMounted && (
+            <CharacterModal
+              open={charModalOpen}
+              onClose={handleCloseCharacterModal}
+              character={selectedCharacter}
+              isCloneMode={isCloneMode}
+              availableTags={characterTags}
+              availableFolders={characterFolders}
+              customArchetypes={customArchetypes}
+              onSave={handleSaveCharacter}
+              onClone={handleCloneCharacter}
+            />
+          )}
+
+          {storyModalMounted && (
+            <StoryModal
+              open={storyModalOpen}
+              onClose={handleCloseStorySelector}
+              stories={stories}
+              activeStoryId={activeStoryId}
+              onSelectStory={handleSelectStory}
+              onCreateStory={createStory}
+              onUpdateStory={updateStory}
+              onDeleteStory={deleteStory}
+            />
+          )}
         </Box>
-
-        {/* ─── Persistent CharacterModal ───────────────────────────────────── */}
-        <CharacterModal
-          open={charModalOpen}
-          onClose={() => {
-            clearCharSelection();
-            closeCreateChar();
-          }}
-          character={selectedCharacter}
-          isCloneMode={isCloneMode}
-          availableTags={characterTags}
-          availableFolders={characterFolders}
-          customArchetypes={customArchetypes}
-          onSave={handleSaveCharacter}
-          onClone={handleCloneCharacter}
-        />
-
-        <StoryModal
-          open={storyModalOpen}
-          onClose={() => setStoryModalOpen(false)}
-          stories={stories}
-          activeStoryId={activeStoryId}
-          onSelectStory={(id) => {
-            changeActiveStory(id);
-            if (router.pathname.startsWith('/characters/')) {
-              // Stay on dashboard, switch to characters view without full reload
-              setActiveView(WORKSPACE_VIEW_KEYS.CHARACTERS);
-              router.push('/dashboard');
-            }
-          }}
-          onCreateStory={createStory}
-          onUpdateStory={updateStory}
-          onDeleteStory={deleteStory}
-        />
-      </Box>
-    </PullToRefresh>
+      </PullToRefresh>
+    </StorySelectorProvider>
   );
 }

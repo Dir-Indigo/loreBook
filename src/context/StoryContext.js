@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { ApiService } from '../utils/ApiService';
 import { useAuth } from './AuthContext';
 
@@ -48,14 +48,14 @@ export const StoryProvider = ({ children }) => {
     if (user?.id) loadStories();
   }, [user?.id, loadStories]);
 
-  const changeActiveStory = (id) => {
+  const changeActiveStory = useCallback((id) => {
     setActiveStoryId(id);
     if (typeof window !== 'undefined') {
       localStorage.setItem('lorebook_active_story_id', id);
     }
-  };
+  }, []);
 
-  const createStory = async (storyData) => {
+  const createStory = useCallback(async (storyData) => {
       if (!user?.id) return;
       const { data, error } = await ApiService.stories.create({ ...storyData, user_id: user.id }, null);
       if (!error && data) {
@@ -63,24 +63,29 @@ export const StoryProvider = ({ children }) => {
           changeActiveStory(data.id);
       }
       return { data, error };
-  };
+  }, [user?.id, loadStories, changeActiveStory]);
 
-  const updateStory = async (storyId, updates) => {
+  const updateStory = useCallback(async (storyId, updates) => {
       const { error } = await ApiService.stories.update(storyId, updates, null);
       if (!error) await loadStories();
       return { error };
-  };
+  }, [loadStories]);
 
-  const deleteStory = async (storyId) => {
+  const deleteStory = useCallback(async (storyId) => {
       const { error } = await ApiService.stories.delete(storyId, null);
       if (!error) await loadStories();
       return { error };
-  };
+  }, [loadStories]);
 
-  const activeStory = stories.find((s) => s.id === activeStoryId) || null;
+  const activeStory = useMemo(() => stories.find((s) => s.id === activeStoryId) || null, [stories, activeStoryId]);
+
+  const value = useMemo(
+    () => ({ stories, activeStory, activeStoryId, storiesLoading, changeActiveStory, loadStories, createStory, updateStory, deleteStory }),
+    [stories, activeStory, activeStoryId, storiesLoading, changeActiveStory, loadStories, createStory, updateStory, deleteStory]
+  );
 
   return (
-    <StoryContext.Provider value={{ stories, activeStory, activeStoryId, storiesLoading, changeActiveStory, loadStories, createStory, updateStory, deleteStory }}>
+    <StoryContext.Provider value={value}>
       {children}
     </StoryContext.Provider>
   );

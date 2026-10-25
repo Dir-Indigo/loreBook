@@ -69,7 +69,7 @@ import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { APP_CONFIG } from '../../constants/constants';
 import { ApiService } from '../../utils/ApiService';
 
-export default function SidebarLore({
+function SidebarLore({
   view = 'dashboard',
   story,
   characters = [],
@@ -1324,3 +1324,5 @@ export default function SidebarLore({
     </Box>
   );
 }
+
+export default React.memo(SidebarLore);

@@ -32,7 +32,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from '../../context/WorkspaceViewContext';
 import CustomButton from '../common/CustomButton';
 
-export default function Navbar({ activeStory, onOpenStorySelector }) {
+function Navbar({ activeStory, onOpenStorySelector }) {
   const router = useRouter();
   const { activeView, setActiveView } = useWorkspaceView();
   const { activeThemeKey, setThemeKey, themes } = useLoreTheme();
@@ -418,3 +418,5 @@ export default function Navbar({ activeStory, onOpenStorySelector }) {
     </AppBar>
   );
 }
+
+export default React.memo(Navbar);

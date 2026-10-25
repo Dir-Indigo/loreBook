@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, useRef } from 'react';
 import { CircularProgress, Box } from '@mui/material';
 
 const LoadingContext = createContext({
@@ -29,8 +29,10 @@ export const LoadingProvider = ({ children }) => {
     }
   }, [setLoading]);
 
+  const value = useMemo(() => ({ isLoading, setLoading, runLoading }), [isLoading, setLoading, runLoading]);
+
   return (
-    <LoadingContext.Provider value={{ isLoading, setLoading, runLoading }}>
+    <LoadingContext.Provider value={value}>
       {children}
       {isLoading && (
         <Box

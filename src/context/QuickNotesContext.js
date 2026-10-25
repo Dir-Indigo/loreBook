@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ApiService } from '../utils/ApiService';
 import { useAuth } from './AuthContext';
 
@@ -243,44 +243,74 @@ export const QuickNotesProvider = ({ children }) => {
   }, [notes, updateNote]);
 
   // Sort: pinned first, then by updated_at descending
-  const sortedNotes = [...notes].sort((a, b) => {
+  const sortedNotes = useMemo(() => [...notes].sort((a, b) => {
     if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
     return new Date(b.updated_at) - new Date(a.updated_at);
-  });
+  }), [notes]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const hasMore = page < totalPages;
 
+  const value = useMemo(() => ({
+    notes: sortedNotes,
+    notesLoading,
+    totalCount,
+    page,
+    pageSize,
+    totalPages,
+    hasMore,
+    setPage: handleSetPage,
+    nextPage,
+    prevPage,
+    scopeFilter,
+    setScopeFilter: handleSetScopeFilter,
+    statusFilter,
+    setStatusFilter: handleSetStatusFilter,
+    searchQuery,
+    setSearchQuery: handleSetSearchQuery,
+    isOpen,
+    setIsOpen,
+    toggleOpen,
+    isPinned,
+    setIsPinned,
+    togglePinned,
+    loadNotes,
+    createNote,
+    updateNote,
+    deleteNote,
+    togglePin,
+  }), [
+    sortedNotes,
+    notesLoading,
+    totalCount,
+    page,
+    pageSize,
+    totalPages,
+    hasMore,
+    handleSetPage,
+    nextPage,
+    prevPage,
+    scopeFilter,
+    handleSetScopeFilter,
+    statusFilter,
+    handleSetStatusFilter,
+    searchQuery,
+    handleSetSearchQuery,
+    isOpen,
+    setIsOpen,
+    toggleOpen,
+    isPinned,
+    setIsPinned,
+    togglePinned,
+    loadNotes,
+    createNote,
+    updateNote,
+    deleteNote,
+    togglePin,
+  ]);
+
   return (
-    <QuickNotesContext.Provider value={{
-      notes: sortedNotes,
-      notesLoading,
-      totalCount,
-      page,
-      pageSize,
-      totalPages,
-      hasMore,
-      setPage: handleSetPage,
-      nextPage,
-      prevPage,
-      scopeFilter,
-      setScopeFilter: handleSetScopeFilter,
-      statusFilter,
-      setStatusFilter: handleSetStatusFilter,
-      searchQuery,
-      setSearchQuery: handleSetSearchQuery,
-      isOpen,
-      setIsOpen,
-      toggleOpen,
-      isPinned,
-      setIsPinned,
-      togglePinned,
-      loadNotes,
-      createNote,
-      updateNote,
-      deleteNote,
-      togglePin,
-    }}>
+    <QuickNotesContext.Provider value={value}>
       {children}
     </QuickNotesContext.Provider>
   );
