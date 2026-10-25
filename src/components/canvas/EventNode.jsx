@@ -268,16 +268,16 @@ function EventNodeComponent({ data, selected }) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, width: '100%' }}>
           <Box
             sx={{
-              width: 22,
-              height: 22,
+              width: 28,
+              height: 28,
               borderRadius: '50%',
               bgcolor: colorTag || 'primary.main',
               color: '#fff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '0.68rem',
-              fontWeight: 700,
+              fontSize: '0.76rem',
+              fontWeight: 800,
               flexShrink: 0,
             }}
           >
@@ -298,8 +298,8 @@ function EventNodeComponent({ data, selected }) {
             sx={{
               flexGrow: 1,
               minWidth: 0,
-              fontWeight: 700,
-              fontSize: '0.88rem',
+              fontWeight: 800,
+              fontSize: '1.06rem',
               color: 'text.primary',
               px: 0.5,
               py: 0.1,

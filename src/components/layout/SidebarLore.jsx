@@ -61,6 +61,7 @@ import ImageCropModal from "../common/ImageCropModal";
 import SidebarIdeasSection from "./sidebar-lore/SidebarIdeasSection";
 import SidebarManuscriptSection from "./sidebar-lore/SidebarManuscriptSection";
 import AutoStoriesIcon from "@mui/icons-material/AutoStories";
+import ViewSidebarOutlinedIcon from "@mui/icons-material/ViewSidebarOutlined";
 import { useSidebarDetail, DETAIL_VIEWS } from "../../context/SidebarDetailContext";
 import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from "../../context/WorkspaceViewContext";
 import { uploadStoryCover } from "../../services/storageService";
@@ -545,6 +546,36 @@ export default function SidebarLore({
             </IconButton>
           </Tooltip>
 
+          <Divider sx={{ width: "80%" }} />
+
+          {/* Botón de Detalles en modo colapsado */}
+          <Tooltip title="Abrir / Cerrar panel de detalles" placement="right">
+            <IconButton
+              size="small"
+              onClick={() => {
+                if (isDetailOpen) {
+                  closeDetail();
+                } else {
+                  // Abre la vista correspondiente al tab activo
+                  const tabToDetail = [
+                    DETAIL_VIEWS.PLOTS,
+                    DETAIL_VIEWS.CHARACTERS,
+                    DETAIL_VIEWS.NOTES,
+                    DETAIL_VIEWS.PLOTS,
+                    DETAIL_VIEWS.NOTES,
+                  ];
+                  openDetail(tabToDetail[sidebarTab] ?? DETAIL_VIEWS.NOTES);
+                }
+              }}
+              sx={{
+                color: isDetailOpen ? 'primary.main' : 'action',
+                bgcolor: isDetailOpen ? 'action.selected' : 'transparent',
+              }}
+            >
+              <ViewSidebarOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+
           {effectiveActiveBoardId && (
             <Tooltip title="Crear Evento en Tablero Activo" placement="right">
               <IconButton
@@ -598,11 +629,63 @@ export default function SidebarLore({
             ? 'Capítulos & Manuscrito'
             : 'Ficha de la Historia'}
         </Typography>
-        <Tooltip title="Colapsar panel lateral">
-          <IconButton size="small" onClick={() => setCollapsed(true)}>
-            <ChevronLeftIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+
+        {/* Grupo de acciones del header: botón Detalles + colapsar */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+          {/* Botón universal de Detalles — abre SidebarDetail según el tab activo */}
+          {(() => {
+            // Mapeo: tab del sidebar → vista del SidebarDetail
+            const tabToDetail = [
+              DETAIL_VIEWS.PLOTS,      // tab 0: Tramas
+              DETAIL_VIEWS.CHARACTERS, // tab 1: Personajes
+              DETAIL_VIEWS.NOTES,      // tab 2: Ideas
+              DETAIL_VIEWS.PLOTS,      // tab 3: Capítulos (reusa PLOTS)
+              DETAIL_VIEWS.NOTES,      // tab 4: Ficha → Notas
+            ];
+            const targetView = tabToDetail[sidebarTab] ?? DETAIL_VIEWS.NOTES;
+            const isActive = isDetailOpen && activeView === targetView;
+
+            return (
+              <Tooltip
+                title={isActive ? 'Cerrar panel de detalles' : 'Abrir panel de detalles'}
+                placement="bottom"
+              >
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    if (isActive) {
+                      closeDetail();
+                    } else {
+                      openDetail(targetView);
+                    }
+                  }}
+                  sx={{
+                    border: 1,
+                    borderRadius: 1.5,
+                    p: 0.5,
+                    borderColor: isActive ? 'primary.main' : 'divider',
+                    color: isActive ? 'primary.main' : 'text.secondary',
+                    bgcolor: isActive ? 'action.selected' : 'transparent',
+                    transition: 'all 0.18s cubic-bezier(0.4,0,0.2,1)',
+                    '&:hover': {
+                      borderColor: 'primary.main',
+                      color: 'primary.main',
+                      bgcolor: 'action.hover',
+                    },
+                  }}
+                >
+                  <ViewSidebarOutlinedIcon sx={{ fontSize: 17 }} />
+                </IconButton>
+              </Tooltip>
+            );
+          })()}
+
+          <Tooltip title="Colapsar panel lateral">
+            <IconButton size="small" onClick={() => setCollapsed(true)}>
+              <ChevronLeftIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
 
       {/* Story Summary Banner */}

@@ -64,7 +64,8 @@ export default function TimelineCanvas({
   const reactFlowInstanceRef = useRef(null);
 
   // Compact mode: toolbar switch OR manual Switch OR auto-trigger at extreme zoom
-  const AUTO_COMPACT_THRESHOLD = 0.62;
+  // Threshold muy bajo: sólo colapsa automáticamente con zoom muy extremo (Ctrl+Scroll muy alejado)
+  const AUTO_COMPACT_THRESHOLD = 0.32;
   const [zoomLevel, setZoomLevel] = useState(1);
   const [manualCompact, setManualCompact] = useState(false);
   const autoCompact = zoomLevel < AUTO_COMPACT_THRESHOLD;

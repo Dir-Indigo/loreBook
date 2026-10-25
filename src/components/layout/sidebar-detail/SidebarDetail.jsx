@@ -9,6 +9,7 @@ import {
   useMediaQuery,
   useTheme,
   Chip,
+  Slide,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import PersonIcon from '@mui/icons-material/Person';
@@ -52,7 +53,7 @@ export default function SidebarDetail({
     setDetailView,
   } = useSidebarDetail();
 
-  if (!isOpen) return null;
+  if (!isOpen && isMobile) return null;
 
   // View titles and icons
   let viewTitle = 'Detalle';
@@ -280,5 +281,9 @@ export default function SidebarDetail({
     );
   }
 
-  return containerContent;
+  return (
+    <Slide direction="right" in={isOpen} timeout={220} mountOnEnter unmountOnExit>
+      {containerContent}
+    </Slide>
+  );
 }

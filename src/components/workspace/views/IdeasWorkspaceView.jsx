@@ -53,18 +53,26 @@ import CustomButton from '../../common/CustomButton';
 // ─── Idea Management Card with Story Tagging ──────────────────────────────────
 function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(note.content);
+  const [draft, setDraft] = useState(note.content || '');
+  const [isExpanded, setIsExpanded] = useState(false);
   const [colorAnchor, setColorAnchor] = useState(null);
   const [statusAnchor, setStatusAnchor] = useState(null);
   const [storyAnchor, setStoryAnchor] = useState(null);
+  const textRef = useRef(null);
 
   useEffect(() => {
-    setDraft(note.content);
+    setDraft(note.content || '');
   }, [note.content]);
+
+  useEffect(() => {
+    if (editing && textRef.current) {
+      textRef.current.focus();
+    }
+  }, [editing]);
 
   const handleBlur = () => {
     setEditing(false);
-    if (draft.trim() !== note.content) {
+    if (draft.trim() !== (note.content || '').trim()) {
       onUpdate(note.id, { content: draft.trim() || note.content });
     }
   };
@@ -72,73 +80,144 @@ function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onToggleP
   const statusInfo = NOTE_STATUSES.find((s) => s.value === note.status) || NOTE_STATUSES[0];
   const isDark = note.color === '#263238';
   const assignedStory = stories.find((s) => s.id === note.story_id);
+  const contentText = note.content || '';
+  const isLong = contentText.length > 220 || (contentText.match(/\n/g) || []).length >= 5;
 
   return (
     <Card
-      elevation={note.is_pinned ? 3 : 1}
+      elevation={0}
       sx={{
-        bgcolor: note.color,
-        borderRadius: 3,
-        border: note.is_pinned ? '2px solid rgba(0,0,0,0.25)' : '1px solid rgba(0,0,0,0.08)',
-        height: '100%',
+        bgcolor: note.color || '#f5e6c8',
+        borderRadius: 2.5,
+        border: '1px solid',
+        borderColor: note.is_pinned
+          ? (isDark ? 'rgba(255, 179, 0, 0.5)' : 'rgba(230, 81, 0, 0.4)')
+          : (isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)'),
+        height: 'auto',
         display: 'flex',
         flexDirection: 'column',
-        justify: 'space-between',
-        transition: 'all 0.2s ease',
+        position: 'relative',
+        boxShadow: note.is_pinned
+          ? '0 4px 14px -2px rgba(0,0,0,0.12), 0 2px 6px -1px rgba(0,0,0,0.06)'
+          : '0 2px 8px -2px rgba(0,0,0,0.06), 0 1px 3px -1px rgba(0,0,0,0.03)',
+        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
         '&:hover': {
-          transform: 'translateY(-3px)',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          transform: 'translateY(-2px)',
+          boxShadow: '0 8px 24px -4px rgba(0,0,0,0.14), 0 4px 12px -2px rgba(0,0,0,0.07)',
+          borderColor: note.is_pinned
+            ? (isDark ? 'rgba(255, 179, 0, 0.7)' : 'rgba(230, 81, 0, 0.6)')
+            : (isDark ? 'rgba(255, 255, 255, 0.22)' : 'rgba(0, 0, 0, 0.16)'),
+          '& .card-actions-hover': {
+            opacity: 1,
+          },
         },
       }}
     >
-      <CardContent sx={{ p: { xs: 1.8, sm: 2 }, pb: 1 }}>
+      <CardContent sx={{ p: { xs: 1.5, sm: 1.8 }, pb: '10px !important' }}>
         {/* Header row: Status chip + Story Tag + Pin */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, gap: 1, flexWrap: 'wrap' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
-            <Chip
-              label={statusInfo.label}
-              size="small"
-              onClick={(e) => setStatusAnchor(e.currentTarget)}
-              sx={{
-                height: 22,
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                bgcolor: statusInfo.color,
-                color: '#fff',
-                cursor: 'pointer',
-                boxShadow: '0 2px 5px rgba(0,0,0,0.15)',
-                '&:hover': { opacity: 0.9 },
-              }}
-            />
-
-            <Tooltip title="Asignar o cambiar historia vinculada">
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            mb: 1.2,
+            gap: 0.8,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, flexWrap: 'wrap', minWidth: 0, flex: 1 }}>
+            {/* Status Pill */}
+            <Tooltip title="Cambiar estado">
               <Chip
-                icon={assignedStory ? <BookmarkBorderIcon sx={{ fontSize: '14px !important' }} /> : <PublicIcon sx={{ fontSize: '14px !important' }} />}
-                label={assignedStory ? assignedStory.title : 'Global (Sin historia)'}
+                size="small"
+                onClick={(e) => setStatusAnchor(e.currentTarget)}
+                icon={
+                  <Box
+                    sx={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: '50%',
+                      bgcolor: statusInfo.color,
+                      ml: '6px !important',
+                      flexShrink: 0,
+                    }}
+                  />
+                }
+                label={statusInfo.label}
+                sx={{
+                  height: 22,
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  bgcolor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)',
+                  color: isDark ? '#fff' : 'rgba(0,0,0,0.8)',
+                  border: '1px solid',
+                  borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  '&:hover': {
+                    bgcolor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.12)',
+                  },
+                  '& .MuiChip-label': { px: 0.8 },
+                }}
+              />
+            </Tooltip>
+
+            {/* Story Tag */}
+            <Tooltip title={assignedStory ? `Historia vinculada: ${assignedStory.title}` : 'Idea global (sin historia vinculada)'}>
+              <Chip
+                icon={
+                  assignedStory ? (
+                    <BookmarkBorderIcon sx={{ fontSize: '13px !important', color: isDark ? '#90caf9' : '#1976d2' }} />
+                  ) : (
+                    <PublicIcon sx={{ fontSize: '13px !important', opacity: 0.65 }} />
+                  )
+                }
+                label={assignedStory ? assignedStory.title : 'Global'}
                 size="small"
                 onClick={(e) => setStoryAnchor(e.currentTarget)}
                 sx={{
                   height: 22,
-                  fontSize: '0.68rem',
+                  fontSize: '0.66rem',
                   fontWeight: 600,
-                  maxWidth: 150,
-                  bgcolor: assignedStory ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.04)',
-                  color: isDark ? '#fff' : 'inherit',
+                  maxWidth: 135,
+                  bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                  color: isDark ? '#e0e0e0' : 'rgba(0,0,0,0.7)',
                   cursor: 'pointer',
-                  border: '1px solid rgba(0,0,0,0.12)',
-                  '&:hover': { bgcolor: 'rgba(0,0,0,0.15)' },
+                  border: '1px solid',
+                  borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
+                  transition: 'all 0.15s ease',
+                  '&:hover': {
+                    bgcolor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                  },
+                  '& .MuiChip-label': { px: 0.7, overflow: 'hidden', textOverflow: 'ellipsis' },
                 }}
               />
             </Tooltip>
           </Box>
 
-          <Tooltip title={note.is_pinned ? 'Desanclar' : 'Anclar al inicio'}>
-            <IconButton size="small" onClick={() => onTogglePin(note.id)}>
-              {note.is_pinned ? (
-                <PushPinIcon sx={{ fontSize: 18, color: isDark ? '#ffca28' : '#e65100' }} />
-              ) : (
-                <PushPinOutlinedIcon sx={{ fontSize: 18, color: isDark ? '#b0bec5' : '#757575' }} />
-              )}
+          {/* Pin Icon */}
+          <Tooltip title={note.is_pinned ? 'Desanclar idea' : 'Anclar al inicio'}>
+            <IconButton
+              size="small"
+              onClick={() => onTogglePin(note.id)}
+              sx={{
+                p: 0.4,
+                color: note.is_pinned
+                  ? (isDark ? '#ffca28' : '#e65100')
+                  : (isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.35)'),
+                bgcolor: note.is_pinned
+                  ? (isDark ? 'rgba(255, 202, 40, 0.16)' : 'rgba(230, 81, 0, 0.08)')
+                  : 'transparent',
+                transform: note.is_pinned ? 'rotate(-20deg)' : 'none',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  bgcolor: note.is_pinned
+                    ? (isDark ? 'rgba(255, 202, 40, 0.25)' : 'rgba(230, 81, 0, 0.15)')
+                    : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'),
+                  color: note.is_pinned ? (isDark ? '#ffd54f' : '#f57c00') : (isDark ? '#fff' : '#000'),
+                },
+              }}
+            >
+              {note.is_pinned ? <PushPinIcon sx={{ fontSize: 17 }} /> : <PushPinOutlinedIcon sx={{ fontSize: 17 }} />}
             </IconButton>
           </Tooltip>
         </Box>
@@ -146,6 +225,7 @@ function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onToggleP
         {/* Content Body */}
         {editing ? (
           <TextField
+            inputRef={textRef}
             multiline
             fullWidth
             autoFocus
@@ -155,80 +235,166 @@ function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onToggleP
             onBlur={handleBlur}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
-                setDraft(note.content);
+                setDraft(note.content || '');
                 setEditing(false);
               }
             }}
             InputProps={{
               disableUnderline: true,
-              style: { fontSize: '0.92rem', lineHeight: 1.5, fontWeight: 500 },
+              style: {
+                fontSize: '0.88rem',
+                lineHeight: 1.6,
+                fontWeight: 500,
+                color: isDark ? '#eceff1' : '#1e293b',
+              },
             }}
             sx={{
               '& textarea': {
-                color: isDark ? '#eceff1' : '#212121',
                 resize: 'none',
               },
             }}
           />
         ) : (
-          <Typography
-            variant="body1"
-            onClick={() => setEditing(true)}
-            sx={{
-              fontSize: '0.92rem',
-              lineHeight: 1.5,
-              fontWeight: 500,
-              color: isDark ? '#eceff1' : '#212121',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              cursor: 'text',
-              minHeight: 50,
-            }}
-          >
-            {note.content || <em style={{ opacity: 0.4 }}>Toca aquí para escribir el contenido…</em>}
-          </Typography>
+          <Box sx={{ position: 'relative' }}>
+            <Box
+              sx={{
+                maxHeight: !isExpanded && isLong ? 170 : 'none',
+                overflow: 'hidden',
+                position: 'relative',
+              }}
+            >
+              <Typography
+                variant="body2"
+                onClick={() => setEditing(true)}
+                sx={{
+                  fontSize: '0.88rem',
+                  lineHeight: 1.6,
+                  fontWeight: 500,
+                  color: isDark ? '#f1f5f9' : '#1e293b',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  cursor: 'text',
+                  letterSpacing: '-0.01em',
+                }}
+              >
+                {note.content || <em style={{ opacity: 0.4 }}>Toca aquí para escribir el contenido…</em>}
+              </Typography>
+
+              {/* Gradient fade if truncated */}
+              {isLong && !isExpanded && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: 52,
+                    background: `linear-gradient(to bottom, transparent, ${note.color || '#f5e6c8'})`,
+                    pointerEvents: 'none',
+                  }}
+                />
+              )}
+            </Box>
+
+            {/* Toggle show more / show less */}
+            {isLong && (
+              <Box sx={{ display: 'flex', justifyContent: 'flex-start', mt: 0.6 }}>
+                <Button
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsExpanded(!isExpanded);
+                  }}
+                  sx={{
+                    p: 0,
+                    minWidth: 'auto',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    color: isDark ? '#90caf9' : '#1976d2',
+                    textTransform: 'none',
+                    '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' },
+                  }}
+                >
+                  {isExpanded ? 'Ver menos ▲' : 'Ver más… ▼'}
+                </Button>
+              </Box>
+            )}
+          </Box>
         )}
       </CardContent>
 
       {/* Footer row: Date & Actions */}
       <CardActions
         sx={{
-          px: 2,
-          pb: 1.2,
-          pt: 0,
+          px: { xs: 1.5, sm: 1.8 },
+          py: 0.8,
           display: 'flex',
-          justify: 'space-between',
+          justifyContent: 'space-between',
           alignItems: 'center',
-          borderTop: '1px solid rgba(0,0,0,0.06)',
-          mt: 0.5,
+          borderTop: '1px solid',
+          borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+          mt: 'auto',
         }}
       >
-        <Typography
-          variant="caption"
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <AccessTimeIcon sx={{ fontSize: 13, color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)' }} />
+          <Typography
+            variant="caption"
+            sx={{
+              fontSize: '0.68rem',
+              fontWeight: 500,
+              color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)',
+            }}
+          >
+            {new Date(note.updated_at || note.created_at).toLocaleDateString('es', {
+              day: 'numeric',
+              month: 'short',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </Typography>
+        </Box>
+
+        <Box
+          className="card-actions-hover"
           sx={{
-            fontSize: '0.68rem',
-            opacity: 0.55,
-            color: isDark ? '#b0bec5' : '#616161',
+            display: 'flex',
+            gap: 0.4,
+            opacity: { xs: 1, sm: 0.7 },
+            transition: 'opacity 0.15s ease',
           }}
         >
-          {new Date(note.updated_at).toLocaleDateString('es', {
-            day: 'numeric',
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </Typography>
-
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Tooltip title="Cambiar color">
-            <IconButton size="small" onClick={(e) => setColorAnchor(e.currentTarget)}>
-              <PaletteOutlinedIcon sx={{ fontSize: 18, color: isDark ? '#b0bec5' : '#616161' }} />
+          <Tooltip title="Cambiar color de nota">
+            <IconButton
+              size="small"
+              onClick={(e) => setColorAnchor(e.currentTarget)}
+              sx={{
+                p: 0.4,
+                color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)',
+                '&:hover': {
+                  bgcolor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                  color: isDark ? '#fff' : '#000',
+                },
+              }}
+            >
+              <PaletteOutlinedIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
 
           <Tooltip title="Eliminar idea">
-            <IconButton size="small" onClick={() => onDelete(note.id)}>
-              <DeleteOutlineIcon sx={{ fontSize: 18, color: '#e53935' }} />
+            <IconButton
+              size="small"
+              onClick={() => onDelete(note.id)}
+              sx={{
+                p: 0.4,
+                color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)',
+                '&:hover': {
+                  bgcolor: 'rgba(229, 57, 53, 0.12)',
+                  color: '#e53935',
+                },
+              }}
+            >
+              <DeleteOutlineIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
         </Box>
@@ -411,6 +577,14 @@ export default function CentralizedIdeasPage() {
     if (effectiveQuery) {
       result = result.filter((n) => n.content?.toLowerCase().includes(effectiveQuery));
     }
+
+    // Ordenar notas: fijadas primero, luego por fecha más reciente
+    result.sort((a, b) => {
+      if (a.is_pinned !== b.is_pinned) {
+        return a.is_pinned ? -1 : 1;
+      }
+      return new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0);
+    });
 
     return result;
   }, [notes, storyFilter, activeTab, ideasStatus, searchQuery, ideasSearch]);
@@ -679,10 +853,24 @@ export default function CentralizedIdeasPage() {
               </Typography>
             </Box>
           ) : viewMode === 'grid' ? (
-            /* GRID VIEW */
-            <Grid container spacing={2}>
+            /* MASONRY WALL VIEW (Columnas orgánicas sin espacios vacíos ni estiramiento) */
+            <Box
+              sx={{
+                columns: { xs: 1, sm: 2, md: 3, lg: 4, xl: 4 },
+                columnGap: 2,
+                width: '100%',
+                '& > *': {
+                  breakInside: 'avoid-column',
+                  pageBreakInside: 'avoid',
+                  display: 'inline-block',
+                  width: '100%',
+                  mb: 2,
+                  verticalAlign: 'top',
+                },
+              }}
+            >
               {filteredNotes.map((note) => (
-                <Grid item key={note.id} xs={12} sm={6} md={4} lg={3}>
+                <Box key={note.id}>
                   <CentralizedIdeaCard
                     note={note}
                     stories={stories}
@@ -690,9 +878,9 @@ export default function CentralizedIdeasPage() {
                     onDelete={deleteNote}
                     onTogglePin={togglePin}
                   />
-                </Grid>
+                </Box>
               ))}
-            </Grid>
+            </Box>
           ) : (
             /* KANBAN VIEW */
             <Grid container spacing={2}>
