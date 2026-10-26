@@ -92,7 +92,7 @@ function CompactNoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }
             }}
             sx={{
               height: 18,
-              fontSize: '0.62rem',
+              fontSize: '0.68rem',
               fontWeight: 700,
               bgcolor: statusInfo.color,
               color: '#fff',
@@ -110,7 +110,7 @@ function CompactNoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }
               onClick={(e) => setStoryAnchor(e.currentTarget)}
               sx={{
                 height: 18,
-                fontSize: '0.62rem',
+                fontSize: '0.68rem',
                 fontWeight: 600,
                 maxWidth: 110,
                 bgcolor: assignedStory ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.04)',
@@ -237,7 +237,7 @@ function CompactNoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }
         sx={{
           display: 'block',
           mt: 0.4,
-          fontSize: '0.62rem',
+          fontSize: '0.68rem',
           color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)',
         }}
       >
@@ -371,7 +371,7 @@ function DenseNoteRow({ note, stories = [], onUpdate, onDelete }) {
       </Typography>
 
       {assignedStory && (
-        <Typography variant="caption" sx={{ fontSize: '0.62rem', opacity: 0.6, flexShrink: 0 }}>
+        <Typography variant="caption" sx={{ fontSize: '0.68rem', opacity: 0.6, flexShrink: 0 }}>
           {assignedStory.title}
         </Typography>
       )}
@@ -675,7 +675,7 @@ export default function NotesDetailView({ isExpanded = false }) {
             color={statusFilter === st.value ? 'primary' : 'default'}
             sx={{
               height: 20,
-              fontSize: '0.64rem',
+              fontSize: '0.68rem',
               fontWeight: 600,
               bgcolor: statusFilter === st.value ? st.color : 'transparent',
               color: statusFilter === st.value ? '#fff' : 'inherit',

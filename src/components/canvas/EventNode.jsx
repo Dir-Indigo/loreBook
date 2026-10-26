@@ -511,7 +511,7 @@ function EventNodeComponent({ data, selected }) {
                       sx={{
                         width: 24,
                         height: 24,
-                        fontSize: '0.65rem',
+                        fontSize: '0.68rem',
                         bgcolor: char.color_tag || 'primary.main',
                         color: '#fff',
                         fontWeight: 700,
@@ -524,7 +524,7 @@ function EventNodeComponent({ data, selected }) {
                         {char.name}
                       </Typography>
                       {char.role_archetype && (
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', display: 'block' }} noWrap>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem', display: 'block' }} noWrap>
                           {char.role_archetype}
                         </Typography>
                       )}
@@ -654,7 +654,7 @@ function EventNodeComponent({ data, selected }) {
             label={`#${orderIndex}`}
             sx={{
               height: 20,
-              fontSize: '0.65rem',
+              fontSize: '0.68rem',
               fontWeight: 700,
               bgcolor: 'background.subtle',
               color: 'text.primary',
@@ -727,7 +727,7 @@ function EventNodeComponent({ data, selected }) {
                 '& .MuiAvatar-root': {
                   width: 24,
                   height: 24,
-                  fontSize: '0.65rem',
+                  fontSize: '0.68rem',
                   border: '1.5px solid',
                   borderColor: 'background.paper',
                 },

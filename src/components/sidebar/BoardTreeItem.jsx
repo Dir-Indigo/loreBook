@@ -267,7 +267,7 @@ export default function BoardTreeItem({
           <Typography
             variant="caption"
             sx={{
-              fontSize: '0.65rem',
+              fontSize: '0.68rem',
               fontWeight: 700,
               color: 'text.disabled',
               bgcolor: 'background.subtle',

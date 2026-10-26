@@ -720,7 +720,7 @@ export default function StoryModal({
                           sx={{
                             mt: 0.8,
                             height: 18,
-                            fontSize: '0.62rem',
+                            fontSize: '0.68rem',
                             fontWeight: 600,
                             bgcolor: 'rgba(255,255,255,0.15)',
                             color: hasCover ? '#fff' : 'text.secondary',

@@ -178,7 +178,7 @@ function CentralizedIdeaCard({ note, stories = [], onUpdate, onDelete, onToggleP
                 onClick={(e) => setStoryAnchor(e.currentTarget)}
                 sx={{
                   height: 22,
-                  fontSize: '0.66rem',
+                  fontSize: '0.68rem',
                   fontWeight: 600,
                   maxWidth: 135,
                   bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',

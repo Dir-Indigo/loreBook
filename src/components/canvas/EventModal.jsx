@@ -162,7 +162,7 @@ function HeaderConnectionNav({ connectedEvents, computedOrderMap, allEvents, onN
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '0.62rem',
+                  fontSize: '0.68rem',
                   fontWeight: 800,
                   flexShrink: 0,
                   lineHeight: 1,
@@ -231,7 +231,7 @@ function HeaderConnectionNav({ connectedEvents, computedOrderMap, allEvents, onN
               fontWeight: 700,
               color: 'text.secondary',
               textTransform: 'uppercase',
-              fontSize: '0.65rem',
+              fontSize: '0.68rem',
               letterSpacing: '0.04em',
             }}
           >
@@ -342,7 +342,7 @@ function HeaderConnectionNav({ connectedEvents, computedOrderMap, allEvents, onN
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '0.62rem',
+                  fontSize: '0.68rem',
                   fontWeight: 800,
                   flexShrink: 0,
                   lineHeight: 1,
@@ -398,7 +398,7 @@ function HeaderConnectionNav({ connectedEvents, computedOrderMap, allEvents, onN
               fontWeight: 700,
               color: 'text.secondary',
               textTransform: 'uppercase',
-              fontSize: '0.65rem',
+              fontSize: '0.68rem',
               letterSpacing: '0.04em',
             }}
           >

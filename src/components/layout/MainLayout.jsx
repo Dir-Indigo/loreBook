@@ -109,7 +109,7 @@ export default function MainLayout({ children }) {
     }
   }, [changeActiveStory, router, setActiveView]);
 
-  const isAuthPage = router.pathname === '/login';
+  const isAuthPage = router.pathname === '/login' || router.pathname === '/404';
 
   // El early return va después de todos los hooks para respetar las reglas de hooks
   if (isAuthPage) {

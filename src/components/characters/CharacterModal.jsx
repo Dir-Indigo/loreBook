@@ -620,7 +620,7 @@ export default function CharacterModal({
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <LocalOfferOutlinedIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
                     <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                      Etiquetas Propias de la Historia:
+                      Etiquetas de la Historia:
                     </Typography>
                   </Box>
                   {onOpenTagManager && (
@@ -638,7 +638,7 @@ export default function CharacterModal({
 
                 {availableTags.length === 0 ? (
                   <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                    No hay etiquetas creadas en esta historia. Haz clic en "Gestionar Etiquetas" para crear tus propias etiquetas.
+                    Aún no hay etiquetas creadas en esta historia.
                   </Typography>
                 ) : (
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6 }}>

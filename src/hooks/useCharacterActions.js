@@ -23,16 +23,16 @@ export function useCharacterActions({ selectedCharacter, isCloneMode, onSaved } 
 
   const handleSave = useCallback(async (charData) => {
     if (!activeStoryId) return;
-    await saveCharacter({
+    // El personaje aparece (o se actualiza) al instante; el modal se cierra sin esperar al servidor
+    saveCharacter({
       storyId: activeStoryId,
       charData,
       selectedCharacterId,
       isCloneMode,
       cloneOptions: null,
-      setLoading,
     });
     onSaved?.();
-  }, [activeStoryId, selectedCharacterId, isCloneMode, saveCharacter, setLoading, onSaved]);
+  }, [activeStoryId, selectedCharacterId, isCloneMode, saveCharacter, onSaved]);
 
   const handleClone = useCallback(async (originalCharId, cloneOptions) => {
     if (!activeStoryId) return;

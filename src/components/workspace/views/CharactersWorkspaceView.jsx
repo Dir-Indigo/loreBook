@@ -302,38 +302,42 @@ export default function CharactersWorkspaceView({ storyId = null }) {
     setCharModalOpen(false);
   };
 
+  // Guardado optimista: el modal se cierra y la lista se actualiza al instante; si el servidor falla se revierte
   const handleSaveCharacter = async (charData) => {
     if (!story_id) return;
 
     // Default folder assignment if none specified
     const finalFolderId = charData.folder_id || (activeFolderId !== 'all' ? activeFolderId : defaultFolder?.id || null);
-
-    const result =
-      selectedCharacter && !isCloneCharMode
-        ? await ApiService.characters.update(
-            selectedCharacter.id,
-            { ...charData, folder_id: charData.folder_id },
-            setLoading
-          )
-        : await ApiService.characters.create(
-            {
-              ...charData,
-              folder_id: finalFolderId,
-              story_id,
-            },
-            setLoading
-          );
-
-    if (!result.error && result.data) {
-      setCharacters((current) =>
-        selectedCharacter && !isCloneCharMode
-          ? current.map((character) =>
-              character.id === selectedCharacter.id ? result.data : character
-            )
-          : [...current, result.data].sort((a, b) => a.name.localeCompare(b.name))
-      );
-    }
+    const editing = selectedCharacter && !isCloneCharMode ? selectedCharacter : null;
     setCharModalOpen(false);
+
+    if (editing) {
+      const previousCharacters = characters;
+      setCharacters((current) => current.map((c) => (
+        c.id === editing.id ? { ...c, ...charData, folder_id: charData.folder_id } : c
+      )));
+      const result = await ApiService.characters.update(editing.id, { ...charData, folder_id: charData.folder_id }, null);
+      if (result.error || !result.data) {
+        setCharacters(previousCharacters);
+        notify.error('No se pudo guardar el personaje. Se restauró el estado anterior.');
+      } else {
+        setCharacters((current) => current.map((c) => (c.id === editing.id ? result.data : c)));
+      }
+      return;
+    }
+
+    const tempId = `temp-char-${Date.now()}`;
+    const optimistic = { ...charData, folder_id: finalFolderId, story_id, id: tempId, created_at: new Date().toISOString() };
+    const sortByName = (list) => [...list].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    setCharacters((current) => sortByName([...current, optimistic]));
+
+    const result = await ApiService.characters.create({ ...charData, folder_id: finalFolderId, story_id }, null);
+    if (result.error || !result.data) {
+      setCharacters((current) => current.filter((c) => c.id !== tempId));
+      notify.error('No se pudo crear el personaje.');
+    } else {
+      setCharacters((current) => sortByName(current.map((c) => (c.id === tempId ? result.data : c))));
+    }
   };
 
   const handleRoleChange = async (charId, newRole) => {
@@ -352,23 +356,28 @@ export default function CharactersWorkspaceView({ storyId = null }) {
   // ─── Folder Operations ──────────────────────────────────────────────────
   const handleCommitCreateFolder = async (name, parentFolderId = null) => {
     if (!story_id || !name.trim()) return;
-    const result = await ApiService.characterFolders.create(
-      {
-        story_id,
-        name: name.trim(),
-        parent_folder_id: parentFolderId,
-        color: DEFAULT_ENTITY_COLOR,
-        position: folders.length,
-      },
-      setLoading
-    );
-
-    if (!result.error && result.data) {
-      setFolders((current) => [...current, result.data]);
-      setActiveFolderId(result.data.id);
-    }
+    const payload = {
+      story_id,
+      name: name.trim(),
+      parent_folder_id: parentFolderId,
+      color: DEFAULT_ENTITY_COLOR,
+      position: folders.length,
+    };
+    const tempId = `temp-folder-${Date.now()}`;
+    setFolders((current) => [...current, { ...payload, id: tempId }]);
+    setActiveFolderId(tempId);
     setCreatingInParentId(null);
     setIsCreatingRootFolder(false);
+
+    const result = await ApiService.characterFolders.create(payload, null);
+    if (result.error || !result.data) {
+      setFolders((current) => current.filter((f) => f.id !== tempId));
+      setActiveFolderId((current) => (current === tempId ? 'all' : current));
+      notify.error('No se pudo crear la carpeta.');
+      return;
+    }
+    setFolders((current) => current.map((f) => (f.id === tempId ? result.data : f)));
+    setActiveFolderId((current) => (current === tempId ? result.data.id : current));
   };
 
   const handleRenameFolder = async (folderId, newName) => {

@@ -304,7 +304,7 @@ export default function CharacterFolderTreeItem({
           <Typography
             variant="caption"
             sx={{
-              fontSize: '0.65rem',
+              fontSize: '0.68rem',
               fontWeight: 700,
               color: 'text.disabled',
               bgcolor: 'background.subtle',
@@ -526,7 +526,7 @@ export default function CharacterFolderTreeItem({
               sx={{
                 width: 18,
                 height: 18,
-                fontSize: '0.62rem',
+                fontSize: '0.68rem',
                 fontWeight: 700,
                 bgcolor: char.color_tag || folder.color || 'primary.main',
                 color: '#fff',
@@ -557,7 +557,7 @@ export default function CharacterFolderTreeItem({
                 size="small"
                 sx={{
                   height: 16,
-                  fontSize: '0.58rem',
+                  fontSize: '0.68rem',
                   fontWeight: 600,
                   bgcolor: 'background.subtle',
                   flexShrink: 0,

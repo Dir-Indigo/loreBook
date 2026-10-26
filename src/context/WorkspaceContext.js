@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { ApiService } from '../utils/ApiService';
 import { useStory } from './StoryContext';
 import { DEFAULT_ENTITY_COLOR } from '../constants/constants';
+import { useNotify } from './FeedbackContext';
 
 const WorkspaceDataContext = createContext(null);
 const WorkspaceActionsContext = createContext(null);
@@ -29,6 +30,11 @@ const PRIMARY_BOARD_DEFAULTS = {
 const createPrimaryBoard = (storyId, setLoading) => (
   ApiService.boards.create({ story_id: storyId, ...PRIMARY_BOARD_DEFAULTS }, setLoading)
 );
+
+// IDs temporales: permiten mostrar un registro al instante mientras el servidor confirma el guardado
+const TEMP_PREFIX = 'temp-';
+const makeTempId = (kind) => `${TEMP_PREFIX}${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const isTempId = (id) => typeof id === 'string' && id.startsWith(TEMP_PREFIX);
 
 const getNextOrderIndex = (events) => (
   events.length > 0 ? Math.max(...events.map((event) => Number(event.order_index) || 0)) + 1 : 1
@@ -59,6 +65,9 @@ const appendMissingEvents = (current, boardEvents) => current.concat(
 
 export const WorkspaceProvider = ({ children }) => {
   const { activeStoryId } = useStory();
+  const notify = useNotify();
+  const notifyRef = useRef(notify);
+  notifyRef.current = notify;
   const loadedStoryIdRef = useRef(null);
   const isFetchingStoryIdRef = useRef(null);
   const [dataLoading, setDataLoading] = useState(false);
@@ -78,7 +87,63 @@ export const WorkspaceProvider = ({ children }) => {
 
   // Último estado visible para las acciones: así mantienen identidad estable sin quedar con datos viejos
   const latestRef = useRef({});
-  latestRef.current = { activeStoryId, boards, events, activeBoardId, eventConnections, characters };
+  latestRef.current = { activeStoryId, boards, events, allEvents, activeBoardId, eventConnections, characters, relationships };
+
+  // Registros creados de forma optimista: mientras el servidor no confirma, otras acciones esperan el id real
+  const pendingRef = useRef(new Map()); // tempId -> Promise<realId | null>
+  const idMapRef = useRef(new Map()); // tempId -> realId
+
+  const resolveId = useCallback(async (id) => {
+    if (!isTempId(id)) return id;
+    if (idMapRef.current.has(id)) return idMapRef.current.get(id);
+    const pending = pendingRef.current.get(id);
+    return pending ? pending : null;
+  }, []);
+
+  const updateQueuesRef = useRef(new Map()); // eventId -> cola de actualizaciones para que no se pisen entre sí
+
+  const trackPending = useCallback((tempId, promise) => {
+    pendingRef.current.set(tempId, promise);
+    promise.finally(() => pendingRef.current.delete(tempId));
+  }, []);
+
+  // Reglas para construir el vínculo evento↔personaje con los datos que ya tenemos en memoria
+  const buildEventCharacters = useCallback((eventId, ids = []) => (
+    (ids || [])
+      .map((item) => (typeof item === 'object' ? item?.id : item))
+      .filter(Boolean)
+      .map((charId) => {
+        const character = latestRef.current.characters.find((c) => c.id === charId);
+        return character ? { id: `local-${eventId}-${charId}`, character_id: charId, character } : null;
+      })
+      .filter(Boolean)
+  ), []);
+
+  const patchEventLocal = useCallback((eventId, patch) => {
+    const merge = (list) => list.map((event) => (event.id === eventId ? { ...event, ...patch } : event));
+    setEvents(merge);
+    setAllEvents(merge);
+  }, []);
+
+  // Cuando el servidor confirma, el id temporal pasa a ser el real (también en las conexiones que lo usan)
+  const swapEventId = useCallback((tempId, realId, serverFields = {}) => {
+    patchEventLocal(tempId, { id: realId, ...serverFields });
+    setEventConnections((current) => current.map((conn) => (
+      conn.source_event_id === tempId || conn.target_event_id === tempId
+        ? {
+            ...conn,
+            source_event_id: conn.source_event_id === tempId ? realId : conn.source_event_id,
+            target_event_id: conn.target_event_id === tempId ? realId : conn.target_event_id,
+          }
+        : conn
+    )));
+  }, [patchEventLocal]);
+
+  const removeEventLocal = useCallback((eventId) => {
+    setEvents((current) => current.filter((event) => event.id !== eventId));
+    setAllEvents((current) => current.filter((event) => event.id !== eventId));
+    setEventConnections((current) => current.filter((conn) => conn.source_event_id !== eventId && conn.target_event_id !== eventId));
+  }, []);
 
   const resetWorkspace = useCallback(() => {
     setCharacters(EMPTY_WORKSPACE.characters);
@@ -221,37 +286,65 @@ export const WorkspaceProvider = ({ children }) => {
     return { data: eventsData || [], error: null };
   }, []);
 
-  const createBoard = useCallback(async ({ storyId, name, parentBoardId = null, position, color = DEFAULT_ENTITY_COLOR, setLoading }) => {
+  const createBoard = useCallback(async ({ storyId, name, parentBoardId = null, position, color = DEFAULT_ENTITY_COLOR }) => {
     if (!storyId || !name) return { data: null, error: new Error('Story ID and name are required') };
 
-    const { data, error } = await ApiService.boards.create({
-      story_id: storyId,
-      name,
-      parent_board_id: parentBoardId,
-      position,
-      color,
-    }, setLoading);
+    // El tablero aparece (y se activa) al instante; el servidor confirma en segundo plano
+    const tempId = makeTempId('board');
+    const previousActiveBoardId = latestRef.current.activeBoardId;
+    const previousEvents = latestRef.current.events;
+    const optimistic = { id: tempId, story_id: storyId, name, parent_board_id: parentBoardId, position, color };
+    setBoards((prev) => [...prev, optimistic]);
+    setActiveBoardId(tempId);
+    setEvents([]);
 
-    if (error || !data) return { data: null, error };
+    const persist = (async () => {
+      const { data, error } = await ApiService.boards.create({
+        story_id: storyId,
+        name,
+        parent_board_id: parentBoardId,
+        position,
+        color,
+      }, null);
 
-    setBoards((prev) => [...prev, data]);
-    setActiveBoardId(data.id);
+      if (error || !data) {
+        setBoards((prev) => prev.filter((board) => board.id !== tempId));
+        setActiveBoardId((current) => (current === tempId ? previousActiveBoardId : current));
+        setEvents(previousEvents);
+        notifyRef.current?.error?.('No se pudo crear el tablero.');
+        return null;
+      }
 
-    const { data: eventsData } = await ApiService.events.getAll(storyId, data.id, setLoading);
-    setEvents(eventsData || []);
+      idMapRef.current.set(tempId, data.id);
+      setBoards((prev) => prev.map((board) => (board.id === tempId ? data : board)));
+      setActiveBoardId((current) => (current === tempId ? data.id : current));
+      return data.id;
+    })();
+    trackPending(tempId, persist);
 
-    return { data, error: null };
-  }, []);
+    const realId = await persist;
+    return realId ? { data: { ...optimistic, id: realId }, error: null } : { data: null, error: new Error('No se pudo crear el tablero') };
+  }, [trackPending]);
 
-  const updateBoard = useCallback(async ({ boardId, patch, setLoading }) => {
+  const updateBoard = useCallback(async ({ boardId, patch }) => {
     if (!boardId) return { data: null, error: new Error('Board ID is required') };
 
-    const { data, error } = await ApiService.boards.update(boardId, patch, setLoading);
-    if (error || !data) return { data: null, error };
+    const previous = latestRef.current.boards.find((board) => board.id === boardId);
+    const snapshot = {};
+    Object.keys(patch || {}).forEach((key) => { snapshot[key] = previous?.[key]; });
+    setBoards((prev) => prev.map((board) => (board.id === boardId ? { ...board, ...patch } : board)));
 
-    setBoards((prev) => prev.map((board) => (board.id === boardId ? data : board)));
+    const realId = await resolveId(boardId);
+    if (!realId) return { data: null, error: new Error('El tablero no existe') };
+
+    const { data, error } = await ApiService.boards.update(realId, patch, null);
+    if (error || !data) {
+      setBoards((prev) => prev.map((board) => (board.id === boardId || board.id === realId ? { ...board, ...snapshot } : board)));
+      notifyRef.current?.error?.('No se pudo actualizar el tablero.');
+      return { data: null, error };
+    }
     return { data, error: null };
-  }, []);
+  }, [resolveId]);
 
   const refreshBoardEvents = useCallback(async ({ storyId, boardId, setLoading }) => {
     if (!storyId || !boardId) {
@@ -268,48 +361,68 @@ export const WorkspaceProvider = ({ children }) => {
     return { data: boardEvents || [], error: null };
   }, []);
 
-  const deleteBoard = useCallback(async ({ storyId, boardId, setLoading }) => {
+  const deleteBoard = useCallback(async ({ storyId, boardId }) => {
     if (!storyId || !boardId) return { data: null, error: new Error('Story ID and board ID are required') };
 
-    const { data, error } = await ApiService.boards.delete(boardId, setLoading);
-    if (error) return { data: null, error };
-
-    const { boards, activeBoardId } = latestRef.current;
+    const { boards, activeBoardId, allEvents, events } = latestRef.current;
     const remainingBoards = boards.filter((board) => board.id !== boardId);
+    const wasActive = activeBoardId === boardId;
+    const fallbackId = remainingBoards.find((board) => !board.parent_board_id)?.id || null;
+
+    // Desaparece al instante; si el servidor falla se restaura todo
     setBoards(remainingBoards);
     setAllEvents((current) => current.filter((event) => event.board_id !== boardId));
-
-    if (activeBoardId !== boardId) return { data, error: null };
-
-    const fallbackBoard = remainingBoards.find((board) => !board.parent_board_id);
-    const fallbackId = fallbackBoard?.id || await ensurePrimaryBoard({ storyId, setLoading });
-
-    if (fallbackId) {
+    if (wasActive) {
       setActiveBoardId(fallbackId);
-      await refreshBoardEvents({ storyId, boardId: fallbackId, setLoading });
-    } else {
-      setActiveBoardId(null);
-      setEvents([]);
+      if (!fallbackId) setEvents([]);
     }
 
-    return { data, error: null };
-  }, [ensurePrimaryBoard, refreshBoardEvents]);
+    const realId = await resolveId(boardId);
+    const [deleteResult] = await Promise.all([
+      realId ? ApiService.boards.delete(realId, null) : Promise.resolve({ data: null, error: null }),
+      wasActive && fallbackId ? refreshBoardEvents({ storyId, boardId: fallbackId }) : Promise.resolve(),
+    ]);
 
-  const createConnection = useCallback(async ({ storyId, sourceEventId, targetEventId, setLoading }) => {
+    if (deleteResult.error) {
+      setBoards(boards);
+      setAllEvents(allEvents);
+      if (wasActive) {
+        setActiveBoardId(activeBoardId);
+        setEvents(events);
+      }
+      notifyRef.current?.error?.('No se pudo eliminar el tablero.');
+      return { data: null, error: deleteResult.error };
+    }
+
+    if (wasActive && !fallbackId) {
+      const newPrimaryId = await ensurePrimaryBoard({ storyId });
+      if (newPrimaryId) setActiveBoardId(newPrimaryId);
+    }
+    return { data: deleteResult.data, error: null };
+  }, [ensurePrimaryBoard, refreshBoardEvents, resolveId]);
+
+  const createConnection = useCallback(async ({ storyId, sourceEventId, targetEventId }) => {
     if (!storyId) return { data: null, error: new Error('Story ID is required') };
 
-    const temporaryId = `temp-${Date.now()}`;
-    const optimisticConnection = {
+    const temporaryId = makeTempId('conn');
+    setEventConnections((current) => [...current, {
       id: temporaryId,
       story_id: storyId,
       source_event_id: sourceEventId,
       target_event_id: targetEventId,
-    };
-    setEventConnections((current) => [...current, optimisticConnection]);
+    }]);
 
-    const result = await ApiService.events.createConnection(storyId, sourceEventId, targetEventId, setLoading);
+    // Si algún extremo aún se está creando en el servidor, se espera su id real
+    const [realSource, realTarget] = await Promise.all([resolveId(sourceEventId), resolveId(targetEventId)]);
+    if (!realSource || !realTarget) {
+      setEventConnections((current) => current.filter((connection) => connection.id !== temporaryId));
+      return { data: null, error: new Error('El evento no existe') };
+    }
+
+    const result = await ApiService.events.createConnection(storyId, realSource, realTarget, null);
     if (result.error || !result.data) {
       setEventConnections((current) => current.filter((connection) => connection.id !== temporaryId));
+      notifyRef.current?.error?.('No se pudo crear la conexión.');
       return result;
     }
 
@@ -317,117 +430,193 @@ export const WorkspaceProvider = ({ children }) => {
       connection.id === temporaryId ? result.data : connection
     )));
     return result;
-  }, []);
+  }, [resolveId]);
 
-  const deleteConnection = useCallback(async ({ storyId, sourceEventId, targetEventId, setLoading }) => {
+  const deleteConnection = useCallback(async ({ storyId, sourceEventId, targetEventId }) => {
     if (!storyId) return { data: null, error: new Error('Story ID is required') };
 
+    const previous = latestRef.current.eventConnections;
     setEventConnections((current) => current.filter((connection) => (
       connection.source_event_id !== sourceEventId || connection.target_event_id !== targetEventId
     )));
-    return ApiService.events.deleteConnection({ storyId, source: sourceEventId, target: targetEventId }, setLoading);
-  }, []);
 
-  const saveEvent = useCallback(async ({ storyId, eventData, characterIds, createBackup, backupNote, selectedEventId, setLoading }) => {
+    const [realSource, realTarget] = await Promise.all([resolveId(sourceEventId), resolveId(targetEventId)]);
+    if (!realSource || !realTarget) return { data: null, error: null };
+
+    const result = await ApiService.events.deleteConnection({ storyId, source: realSource, target: realTarget }, null);
+    if (result?.error) {
+      setEventConnections(previous);
+      notifyRef.current?.error?.('No se pudo eliminar la conexión.');
+    }
+    return result;
+  }, [resolveId]);
+  // Crear: el evento aparece al instante (id temporal) y `persisted` resuelve cuando el servidor confirma.
+  // Editar: el cambio se aplica al instante y se revierte solo si el servidor falla.
+  // `localPatch` agrega campos que solo viven en el estado (no se envían a la BD).
+  const saveEvent = useCallback(async ({ storyId, eventData, characterIds, createBackup, backupNote, selectedEventId, localPatch = null, tempId: providedTempId = null }) => {
     if (!storyId) return { data: null, error: new Error('Story ID is required') };
 
     let resolvedBoardId = latestRef.current.activeBoardId;
     if (!resolvedBoardId) {
-      resolvedBoardId = await ensurePrimaryBoard({ storyId, setLoading });
+      resolvedBoardId = await ensurePrimaryBoard({ storyId });
     }
     if (!resolvedBoardId) return { data: null, error: new Error('A primary board is required') };
 
-    const result = selectedEventId
-      ? await ApiService.events.update(selectedEventId, eventData, characterIds, createBackup, backupNote, setLoading)
-      : await ApiService.events.create({ ...eventData, story_id: storyId }, characterIds, resolvedBoardId, setLoading);
+    // ── Editar ──
+    if (selectedEventId) {
+      const hasCharacters = Array.isArray(characterIds);
+      const patch = {
+        ...eventData,
+        ...(hasCharacters ? { event_characters: buildEventCharacters(selectedEventId, characterIds) } : {}),
+        ...(localPatch || {}),
+      };
+      const previous = latestRef.current.allEvents.find((e) => e.id === selectedEventId)
+        || latestRef.current.events.find((e) => e.id === selectedEventId);
+      const snapshot = {};
+      Object.keys(patch).forEach((key) => { snapshot[key] = previous?.[key]; });
+      patchEventLocal(selectedEventId, patch);
 
-    if (result.error) return result;
+      const realId = await resolveId(selectedEventId);
+      if (!realId) return { data: null, error: new Error('El evento no existe') };
+      if (!Object.keys(eventData || {}).length && !hasCharacters && !createBackup) return { data: null, error: null };
 
-    setActiveBoardId(resolvedBoardId);
-    const { data: boardEvents } = await refreshBoardEvents({ storyId, boardId: resolvedBoardId, setLoading });
-    setAllEvents((current) => selectedEventId
-      ? current.map((event) => event.id === selectedEventId ? { ...event, ...eventData } : event)
-      : appendMissingEvents(current, boardEvents));
-
-    return result;
-  }, [ensurePrimaryBoard, refreshBoardEvents]);
-
-  const deleteEvent = useCallback(async ({ storyId, boardId, eventId, setLoading = null }) => {
-    if (!storyId || !eventId) return { data: null, error: new Error('Story ID and event ID are required') };
-
-    // 1. Optimistic removal: remove immediately from active board events, allEvents, and connections
-    setEvents((current) => current.filter((event) => event.id !== eventId));
-    setAllEvents((current) => current.filter((event) => event.id !== eventId));
-    setEventConnections((current) => current.filter((conn) => conn.source_event_id !== eventId && conn.target_event_id !== eventId));
-
-    // 2. Perform API delete in the background
-    const result = await ApiService.events.delete(eventId, setLoading);
-    if (result.error) {
-      // Revert if delete failed
-      if (storyId && boardId) {
-        await refreshBoardEvents({ storyId, boardId, setLoading });
+      const queues = updateQueuesRef.current;
+      const task = (queues.get(realId) || Promise.resolve())
+        .catch(() => {})
+        .then(() => ApiService.events.update(realId, eventData || {}, characterIds, createBackup, backupNote, null));
+      queues.set(realId, task);
+      const result = await task;
+      if (queues.get(realId) === task) queues.delete(realId);
+      if (result.error) {
+        patchEventLocal(realId, snapshot);
+        notifyRef.current?.error?.('No se pudo guardar el evento. Se restauró el estado anterior.');
       }
       return result;
     }
 
+    // ── Crear ──
+    const tempId = providedTempId || makeTempId('event');
+    const now = new Date().toISOString();
+    const optimistic = {
+      ...eventData,
+      id: tempId,
+      story_id: storyId,
+      board_id: resolvedBoardId,
+      event_characters: buildEventCharacters(tempId, characterIds),
+      created_at: now,
+      updated_at: now,
+    };
+    setActiveBoardId(resolvedBoardId);
+    setEvents((current) => [...current, optimistic]);
+    setAllEvents((current) => [...current, optimistic]);
+
+    const boardRealId = await resolveId(resolvedBoardId);
+    const persisted = (async () => {
+      const result = boardRealId
+        ? await ApiService.events.create({ ...eventData, story_id: storyId }, characterIds, boardRealId, null)
+        : { data: null, error: new Error('El tablero no existe') };
+
+      if (result.error || !result.data) {
+        removeEventLocal(tempId);
+        notifyRef.current?.error?.('No se pudo crear el evento.');
+        return { data: null, error: result.error || new Error('No se pudo crear el evento') };
+      }
+      idMapRef.current.set(tempId, result.data.id);
+      // Conserva lo que el usuario haya cambiado mientras tanto (posición, título…) y solo toma lo asignado por el servidor
+      swapEventId(tempId, result.data.id, { created_at: result.data.created_at, updated_at: result.data.updated_at });
+      return { data: { ...optimistic, id: result.data.id }, error: null };
+    })();
+    trackPending(tempId, persisted.then((r) => r.data?.id || null));
+
+    return { data: optimistic, error: null, tempId, persisted };
+  }, [ensurePrimaryBoard, buildEventCharacters, patchEventLocal, removeEventLocal, swapEventId, resolveId, trackPending]);
+
+  const deleteEvent = useCallback(async ({ storyId, boardId, eventId }) => {
+    if (!storyId || !eventId) return { data: null, error: new Error('Story ID and event ID are required') };
+
+    // Se quita al instante (junto a sus conexiones); si el servidor falla se restaura
+    const { events, allEvents, eventConnections } = latestRef.current;
+    removeEventLocal(eventId);
+
+    const realId = await resolveId(eventId);
+    if (!realId) return { data: null, error: null }; // nunca llegó a crearse
+
+    const result = await ApiService.events.delete(realId, null);
+    if (result.error) {
+      setEvents(events);
+      setAllEvents(allEvents);
+      setEventConnections(eventConnections);
+      notifyRef.current?.error?.('No se pudo eliminar el evento.');
+    }
     return result;
-  }, [refreshBoardEvents]);
+  }, [removeEventLocal, resolveId]);
 
-  const duplicateEvent = useCallback(async ({ storyId, boardId, originalEvent, offset = { x: 50, y: 40 }, setLoading }) => {
-    if (!storyId || !boardId || !originalEvent) return { data: null, error: null, ids: [] };
-
-    const eventData = buildDuplicateEventData(
-      originalEvent,
-      storyId,
-      getNextOrderIndex(latestRef.current.events),
-      offset.x,
-      offset.y,
-    );
-    const characterIds = getEventCharacterIds(originalEvent);
-    const result = await ApiService.events.create(eventData, characterIds, boardId, setLoading);
-    if (result.error || !result.data) return { ...result, ids: [] };
-
-    const { data: boardEvents } = await refreshBoardEvents({ storyId, boardId, setLoading });
-    setAllEvents((current) => appendMissingEvents(current, boardEvents));
-    return { ...result, ids: [result.data.id] };
-  }, [refreshBoardEvents]);
-
-  const duplicateEvents = useCallback(async ({ storyId, boardId, originalEvents, setLoading }) => {
-    if (!storyId || !boardId || !originalEvents?.length) return [];
+  // Las copias aparecen al instante con id temporal; devuelve los ids temporales y `persisted` con los reales
+  const duplicateEvents = useCallback(async ({ storyId, boardId, originalEvents }) => {
+    if (!storyId || !boardId || !originalEvents?.length) return { ids: [], persisted: Promise.resolve([]) };
 
     let nextOrderIndex = getNextOrderIndex(latestRef.current.events);
-    const createdIds = [];
+    const now = new Date().toISOString();
+    const drafts = originalEvents.map((originalEvent, index) => {
+      const eventData = buildDuplicateEventData(originalEvent, storyId, nextOrderIndex + index, 50 + (index * 20), 40 + (index * 20));
+      const tempId = makeTempId('event');
+      const characterIds = getEventCharacterIds(originalEvent);
+      return {
+        tempId,
+        eventData,
+        characterIds,
+        optimistic: {
+          ...eventData,
+          id: tempId,
+          board_id: boardId,
+          event_characters: buildEventCharacters(tempId, characterIds),
+          created_at: now,
+          updated_at: now,
+        },
+      };
+    });
 
-    for (const [index, originalEvent] of originalEvents.entries()) {
-      const { data, error } = await ApiService.events.create(
-        buildDuplicateEventData(originalEvent, storyId, nextOrderIndex, 50 + (index * 20), 40 + (index * 20)),
-        getEventCharacterIds(originalEvent),
-        boardId,
-        setLoading,
-      );
+    setEvents((current) => [...current, ...drafts.map((d) => d.optimistic)]);
+    setAllEvents((current) => [...current, ...drafts.map((d) => d.optimistic)]);
 
-      if (!error && data?.id) {
-        createdIds.push(data.id);
-        nextOrderIndex += 1;
+    const persisted = (async () => {
+      const realIds = [];
+      for (const draft of drafts) {
+        const { data, error } = await ApiService.events.create(draft.eventData, draft.characterIds, boardId, null);
+        if (error || !data?.id) {
+          removeEventLocal(draft.tempId);
+          notifyRef.current?.error?.('No se pudo duplicar un evento.');
+          continue;
+        }
+        idMapRef.current.set(draft.tempId, data.id);
+        swapEventId(draft.tempId, data.id, { created_at: data.created_at, updated_at: data.updated_at });
+        realIds.push(data.id);
       }
-    }
+      return realIds;
+    })();
+    drafts.forEach((draft, index) => {
+      trackPending(draft.tempId, persisted.then(() => idMapRef.current.get(draft.tempId) || null));
+    });
 
-    const { data: boardEvents } = await refreshBoardEvents({ storyId, boardId, setLoading });
-    setAllEvents((current) => (boardEvents || []).reduce((updatedEvents, event) => (
-      updatedEvents.some((item) => item.id === event.id)
-        ? updatedEvents.map((item) => item.id === event.id ? event : item)
-        : [...updatedEvents, event]
-    ), current));
-    return createdIds;
-  }, [refreshBoardEvents]);
+    return { ids: drafts.map((d) => d.tempId), persisted };
+  }, [buildEventCharacters, removeEventLocal, swapEventId, trackPending]);
+
+  const duplicateEvent = useCallback(async ({ storyId, boardId, originalEvent }) => {
+    if (!originalEvent) return { ids: [], persisted: Promise.resolve([]) };
+    return duplicateEvents({ storyId, boardId, originalEvents: [originalEvent] });
+  }, [duplicateEvents]);
 
   const getEventDetails = useCallback(async ({ eventId, setLoading }) => (
     ApiService.events.getById(eventId, setLoading)
   ), []);
 
-  const saveEventPosition = useCallback(async ({ eventId, position, setLoading }) => (
-    ApiService.events.savePosition(eventId, position, setLoading)
-  ), []);
+  const saveEventPosition = useCallback(async ({ eventId, position, posX, posY }) => {
+    const pos = position || { pos_x: posX, pos_y: posY };
+    if (pos.pos_x === undefined || pos.pos_y === undefined) return { data: null, error: null };
+    const realId = await resolveId(eventId); // si el evento aún se está creando, espera su id real
+    if (!realId) return { data: null, error: null };
+    return ApiService.events.savePosition(realId, pos, null);
+  }, [resolveId]);
 
   const createEventBackup = useCallback(async ({ storyId, eventId, note, setLoading }) => {
     // Creating a backup snapshot doesn't change any visible list state — no reload needed.
@@ -448,28 +637,53 @@ export const WorkspaceProvider = ({ children }) => {
     return result;
   }, [refreshBoardEvents]);
 
-  const saveCharacter = useCallback(async ({ storyId, charData, selectedCharacterId = null, isCloneMode = false, cloneOptions = null, setLoading }) => {
+  const saveCharacter = useCallback(async ({ storyId, charData, selectedCharacterId = null, isCloneMode = false, cloneOptions = null }) => {
     if (!storyId) return { data: null, error: new Error('Story ID is required') };
 
-    const result = selectedCharacterId && !isCloneMode
-      ? await ApiService.characters.update(selectedCharacterId, charData, setLoading)
-      : isCloneMode && cloneOptions
-        ? await ApiService.characters.clone(selectedCharacterId, { ...cloneOptions, targetStoryId: storyId }, setLoading)
-        : await ApiService.characters.create({ ...charData, story_id: storyId }, setLoading);
-
-    if (!result?.error && result?.data) {
-      const saved = result.data;
-      if (selectedCharacterId && !isCloneMode) {
-        // Update: patch the existing character in place
-        setCharacters((prev) => prev.map((c) => c.id === selectedCharacterId ? { ...c, ...saved } : c));
-      } else {
-        // Create or clone: append the new character
-        setCharacters((prev) => [...prev, saved]);
-      }
+    // Clonar requiere que el servidor copie datos: se espera su respuesta
+    if (isCloneMode && cloneOptions) {
+      const result = await ApiService.characters.clone(selectedCharacterId, { ...cloneOptions, targetStoryId: storyId }, null);
+      if (!result?.error && result?.data) setCharacters((prev) => [...prev, result.data]);
+      return result;
     }
 
-    return result;
-  }, []);
+    // Editar: se refleja al instante y se revierte si falla
+    if (selectedCharacterId && !isCloneMode) {
+      const previous = latestRef.current.characters.find((c) => c.id === selectedCharacterId);
+      const snapshot = {};
+      Object.keys(charData || {}).forEach((key) => { snapshot[key] = previous?.[key]; });
+      setCharacters((prev) => prev.map((c) => (c.id === selectedCharacterId ? { ...c, ...charData } : c)));
+
+      const realId = await resolveId(selectedCharacterId);
+      if (!realId) return { data: null, error: new Error('El personaje no existe') };
+      const result = await ApiService.characters.update(realId, charData, null);
+      if (result?.error) {
+        setCharacters((prev) => prev.map((c) => (c.id === realId || c.id === selectedCharacterId ? { ...c, ...snapshot } : c)));
+        notifyRef.current?.error?.('No se pudo guardar el personaje. Se restauró el estado anterior.');
+      } else if (result?.data) {
+        setCharacters((prev) => prev.map((c) => (c.id === realId ? { ...c, ...result.data } : c)));
+      }
+      return result;
+    }
+
+    // Crear: aparece al instante con id temporal
+    const tempId = makeTempId('char');
+    const optimistic = { ...charData, id: tempId, story_id: storyId, created_at: new Date().toISOString() };
+    setCharacters((prev) => [...prev, optimistic]);
+    const persist = (async () => {
+      const result = await ApiService.characters.create({ ...charData, story_id: storyId }, null);
+      if (result?.error || !result?.data) {
+        setCharacters((prev) => prev.filter((c) => c.id !== tempId));
+        notifyRef.current?.error?.('No se pudo crear el personaje.');
+        return { result, realId: null };
+      }
+      idMapRef.current.set(tempId, result.data.id);
+      setCharacters((prev) => prev.map((c) => (c.id === tempId ? { ...c, ...result.data } : c)));
+      return { result, realId: result.data.id };
+    })();
+    trackPending(tempId, persist.then((r) => r.realId));
+    return (await persist).result;
+  }, [resolveId, trackPending]);
 
   const deleteCharacter = useCallback(async ({ storyId, charId, setLoading }) => {
     if (!storyId || !charId) return { data: null, error: new Error('Story ID and character ID are required') };
@@ -511,14 +725,31 @@ export const WorkspaceProvider = ({ children }) => {
     return { error: null, changed: true };
   }, []);
 
-  const createRelationship = useCallback(async ({ storyId, relData, setLoading }) => {
+  const createRelationship = useCallback(async ({ storyId, relData }) => {
     if (!storyId) return { data: null, error: new Error('Story ID is required') };
 
-    const result = await ApiService.relationships.create({ ...relData, story_id: storyId }, setLoading);
-    if (!result?.error && result?.data) {
-      // Append the fully-joined relationship returned by the API
-      setRelationships((prev) => [...prev, result.data]);
+    const tempId = makeTempId('rel');
+    const { characters } = latestRef.current;
+    const pick = (id) => {
+      const c = characters.find((item) => item.id === id);
+      return c ? { id: c.id, name: c.name, avatar_url: c.avatar_url } : null;
+    };
+    const optimistic = {
+      ...relData,
+      id: tempId,
+      story_id: storyId,
+      source: pick(relData.source_character_id),
+      target: pick(relData.target_character_id),
+    };
+    setRelationships((prev) => [...prev, optimistic]);
+
+    const result = await ApiService.relationships.create({ ...relData, story_id: storyId }, null);
+    if (result?.error || !result?.data) {
+      setRelationships((prev) => prev.filter((r) => r.id !== tempId));
+      notifyRef.current?.error?.('No se pudo crear la relación.');
+      return result;
     }
+    setRelationships((prev) => prev.map((r) => (r.id === tempId ? result.data : r)));
     return result;
   }, []);
 

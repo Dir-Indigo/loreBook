@@ -76,7 +76,7 @@ export default function NavbarWorkspaceTabs() {
                     slotProps={{
                       badge: {
                         sx: {
-                          fontSize: '0.62rem',
+                          fontSize: '0.68rem',
                           height: 15,
                           minWidth: 15,
                           px: '3px',

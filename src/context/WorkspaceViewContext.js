@@ -19,30 +19,38 @@ export const WORKSPACE_VIEW_KEYS = {
  */
 export const WORKSPACE_VIEWS_CONFIG = [
   {
-    id: WORKSPACE_VIEW_KEYS.EVENTS,
-    label: 'Eventos & Tramas',
-    shortLabel: 'Tramas',
-    icon: AccountTreeOutlinedIcon,
-    description: 'Lienzo visual de líneas narrativas, tableros y eventos',
+    id: WORKSPACE_VIEW_KEYS.IDEAS,
+    label: 'Pizarra de Ideas',
+    shortLabel: 'Ideas',
+    navLabel: 'Ideas',
+    navShortLabel: 'Ideas',
+    icon: LightbulbOutlinedIcon,
+    description: 'Pizarra centralizada de ideas, notas rápidas y brainstorming',
   },
   {
     id: WORKSPACE_VIEW_KEYS.CHARACTERS,
     label: 'Personajes',
     shortLabel: 'Personajes',
+    navLabel: 'Personajes',
+    navShortLabel: 'Personajes',
     icon: PeopleOutlineIcon,
     description: 'Fichas completas, relaciones, carpetas y etiquetas',
   },
   {
-    id: WORKSPACE_VIEW_KEYS.IDEAS,
-    label: 'Pizarra de Ideas',
-    shortLabel: 'Ideas',
-    icon: LightbulbOutlinedIcon,
-    description: 'Pizarra centralizada de ideas, notas rápidas y brainstorming',
+    id: WORKSPACE_VIEW_KEYS.EVENTS,
+    label: 'Eventos & Tramas',
+    shortLabel: 'Tramas',
+    navLabel: 'Estructura Narrativa',
+    navShortLabel: 'Estructura',
+    icon: AccountTreeOutlinedIcon,
+    description: 'Lienzo visual de líneas narrativas, tableros y eventos',
   },
   {
     id: WORKSPACE_VIEW_KEYS.MANUSCRIPT,
     label: 'Capítulos & Manuscrito',
     shortLabel: 'Manuscrito',
+    navLabel: 'Capítulos',
+    navShortLabel: 'Capítulos',
     icon: AutoStoriesIcon,
     description: 'Redacción continua por capítulos con historial de versiones y diffs estilo Git',
   },
@@ -99,6 +107,18 @@ export function WorkspaceViewProvider({ children }) {
   const [charactersViewMode, setCharactersViewMode] = useState('compact'); // 'gallery' | 'compact' | 'medium' | 'detailed'
   const [charactersShowDescriptions, setCharactersShowDescriptions] = useState(true);
   const [charactersGroupByRole, setCharactersGroupByRole] = useState(true);
+  // Tarjetas de personaje con color de fondo (true) o neutras con acento lateral (false); se recuerda
+  const [charactersColorCards, setCharactersColorCardsState] = useState(true);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('lorebook_characters_color_cards');
+      if (saved !== null) setCharactersColorCardsState(saved === 'true');
+    } catch (e) { /* almacenamiento no disponible */ }
+  }, []);
+  const setCharactersColorCards = useCallback((value) => {
+    setCharactersColorCardsState(value);
+    try { localStorage.setItem('lorebook_characters_color_cards', String(value)); } catch (e) { /* ignorar */ }
+  }, []);
   // Datos y acciones que la vista de personajes registra para que el navbar los muestre (tags, roles, conteos, modales)
   const [charactersToolbar, setCharactersToolbar] = useState(null);
   const [ideasSearch, setIdeasSearch] = useState('');
@@ -173,6 +193,8 @@ export function WorkspaceViewProvider({ children }) {
     setCharactersShowDescriptions,
     charactersGroupByRole,
     setCharactersGroupByRole,
+    charactersColorCards,
+    setCharactersColorCards,
     charactersToolbar,
     setCharactersToolbar,
     ideasSearch,
@@ -200,6 +222,8 @@ export function WorkspaceViewProvider({ children }) {
     charactersViewMode,
     charactersShowDescriptions,
     charactersGroupByRole,
+    charactersColorCards,
+    setCharactersColorCards,
     charactersToolbar,
     ideasSearch,
     ideasStatus,
@@ -246,6 +270,8 @@ export function useWorkspaceView() {
       setCharactersShowDescriptions: () => {},
       charactersGroupByRole: true,
       setCharactersGroupByRole: () => {},
+      charactersColorCards: true,
+      setCharactersColorCards: () => {},
       charactersToolbar: null,
       setCharactersToolbar: () => {},
       ideasSearch: '',

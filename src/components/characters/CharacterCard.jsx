@@ -29,6 +29,7 @@ import {
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { CHARACTER_ARCHETYPES, DEFAULT_ENTITY_COLOR } from '../../constants/constants';
 import { ApiService } from '../../utils/ApiService';
+import { useWorkspaceView } from '../../context/WorkspaceViewContext';
 
 export default function CharacterCard({
   character,
@@ -48,6 +49,7 @@ export default function CharacterCard({
   viewMode = 'compact', // 'gallery' | 'compact' | 'medium' | 'detailed'
   showBiography = true,
 }) {
+  const { charactersColorCards: colorCards } = useWorkspaceView();
   const [anchorEl, setAnchorEl] = useState(null);
   const [roleAnchorEl, setRoleAnchorEl] = useState(null);
   const [archMenuTab, setArchMenuTab] = useState(0);
@@ -468,7 +470,7 @@ export default function CharacterCard({
               onClick={handleRoleChipClick}
               sx={{
                 height: 18,
-                fontSize: '0.65rem',
+                fontSize: '0.68rem',
                 fontWeight: 600,
                 bgcolor: isRoleMenuOpen
                   ? 'action.selected'
@@ -524,7 +526,7 @@ export default function CharacterCard({
 
       {/* Quick Action Hint */}
       <Divider sx={{ my: 0.6 }} />
-      <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.64rem', display: 'block', textAlign: 'center' }}>
+      <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.68rem', display: 'block', textAlign: 'center' }}>
         Clic en rol para cambiar • Clic para seleccionar • Doble clic para editar
       </Typography>
     </Box>
@@ -581,10 +583,10 @@ export default function CharacterCard({
               border: selected ? '2px solid' : '1px solid',
               borderColor: selected
                 ? character.color_tag || 'primary.main'
-                : character.color_tag
+                : colorCards && character.color_tag
                 ? alpha(character.color_tag, 0.4)
                 : 'divider',
-              bgcolor: character.color_tag ? alpha(character.color_tag, 0.08) : 'background.paper',
+              bgcolor: colorCards && character.color_tag ? alpha(character.color_tag, 0.08) : 'background.paper',
               boxShadow: selected
                 ? `0 0 0 3px ${alpha(character.color_tag || DEFAULT_ENTITY_COLOR, 0.35)}`
                 : '0 2px 6px rgba(0,0,0,0.04)',
@@ -594,7 +596,7 @@ export default function CharacterCard({
               '&:hover': {
                 transform: 'translateY(-4px)',
                 borderColor: character.color_tag || 'primary.main',
-                boxShadow: character.color_tag
+                boxShadow: colorCards && character.color_tag
                   ? `0 8px 20px ${alpha(character.color_tag, 0.22)}`
                   : '0 6px 18px rgba(0,0,0,0.1)',
                 '& .portrait-img': {
@@ -686,7 +688,7 @@ export default function CharacterCard({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '0.65rem',
+                    fontSize: '0.68rem',
                   }}
                 >
                   ⭐
@@ -762,15 +764,17 @@ export default function CharacterCard({
         border: selected ? '2px solid' : '1px solid',
         borderColor: selected
           ? character.color_tag || 'primary.main'
-          : character.color_tag
+          : colorCards && character.color_tag
           ? alpha(character.color_tag, 0.4)
           : 'divider',
+        // Modo neutro: acento lateral con el color del personaje sobre fondo neutro
+        borderLeft: !colorCards && character.color_tag ? `4px solid ${character.color_tag}` : undefined,
         borderRadius: isCompact ? 2.5 : 3,
         background: 'none',
-        bgcolor: character.color_tag ? alpha(character.color_tag, 0.15) : 'background.paper',
+        bgcolor: colorCards && character.color_tag ? alpha(character.color_tag, 0.15) : 'background.paper',
         boxShadow: selected
           ? `0 0 0 3px ${alpha(character.color_tag || DEFAULT_ENTITY_COLOR, 0.3)}`
-          : character.color_tag
+          : colorCards && character.color_tag
           ? `0 2px 4px ${alpha(character.color_tag, 0.12)}`
           : '0 1px 3px rgba(0,0,0,0.04)',
         animation: selected ? 'selected-character-bounce 260ms ease-out' : 'none',
@@ -783,8 +787,8 @@ export default function CharacterCard({
           transform: 'translateY(-4px)',
           borderColor: character.color_tag || 'primary.main',
           background: 'none',
-          bgcolor: character.color_tag ? alpha(character.color_tag, 0.25) : 'action.hover',
-          boxShadow: character.color_tag
+          bgcolor: colorCards && character.color_tag ? alpha(character.color_tag, 0.25) : 'action.hover',
+          boxShadow: colorCards && character.color_tag
             ? `0 6px 16px ${alpha(character.color_tag, 0.2)}`
             : '0 4px 12px rgba(0,0,0,0.08)',
         },
@@ -922,7 +926,7 @@ export default function CharacterCard({
             />
           ))}
           {characterTags.length > (isCompact ? 3 : 5) && (
-            <Typography variant="caption" sx={{ fontSize: '0.62rem', color: 'text.secondary', fontWeight: 700, alignSelf: 'center' }}>
+            <Typography variant="caption" sx={{ fontSize: '0.68rem', color: 'text.secondary', fontWeight: 700, alignSelf: 'center' }}>
               +{characterTags.length - (isCompact ? 3 : 5)}
             </Typography>
           )}

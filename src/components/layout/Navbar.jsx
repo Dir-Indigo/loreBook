@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
+import { darken } from '@mui/material/styles';
 import {
   AppBar,
   Toolbar,
@@ -71,10 +72,13 @@ function Navbar({ activeStory, onOpenStorySelector }) {
       position="static"
       elevation={0}
       sx={{
-        bgcolor: 'background.paper',
+        // Más oscuro que el sidebar para jerarquizar la barra superior
+        bgcolor: (t) => darken(t.palette.custom.sidebar, t.palette.mode === 'dark' ? 0.3 : 0.07),
         color: 'text.primary',
-        borderBottom: 1,
-        borderColor: 'divider',
+        // Borde inferior un tono más oscuro + sombra suave para asentar la barra sobre el resto
+        borderBottom: '1px solid',
+        borderColor: (t) => darken(t.palette.custom.sidebar, t.palette.mode === 'dark' ? 0.5 : 0.2),
+        boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
         zIndex: (theme) => theme.zIndex.drawer + 1,
       }}
     >
@@ -345,7 +349,7 @@ function Navbar({ activeStory, onOpenStorySelector }) {
             color="text.secondary"
             sx={{ px: 2, py: 1, display: 'block', fontWeight: 600, textTransform: 'uppercase' }}
           >
-            Paletas Mate Anti-Fatiga
+            Temas
           </Typography>
           <Divider sx={{ my: 0.5 }} />
           {Object.values(themes).map((t) => {

@@ -99,7 +99,7 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
             }}
             sx={{
               height: 18,
-              fontSize: '0.62rem',
+              fontSize: '0.68rem',
               fontWeight: 700,
               bgcolor: statusInfo.color,
               color: '#fff',
@@ -117,7 +117,7 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
               onClick={(e) => setStoryAnchor(e.currentTarget)}
               sx={{
                 height: 18,
-                fontSize: '0.62rem',
+                fontSize: '0.68rem',
                 fontWeight: 600,
                 maxWidth: 110,
                 bgcolor: assignedStory ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.04)',
@@ -230,7 +230,7 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
           variant="caption"
           sx={{
             opacity: 0.55,
-            fontSize: '0.62rem',
+            fontSize: '0.68rem',
             color: isDark ? '#b0bec5' : '#757575',
           }}
         >
@@ -245,7 +245,7 @@ function NoteCard({ note, stories = [], onUpdate, onDelete, onTogglePin }) {
               setExpandedText((prev) => !prev);
             }}
             sx={{
-              fontSize: '0.62rem',
+              fontSize: '0.68rem',
               fontWeight: 700,
               cursor: 'pointer',
               color: isDark ? '#90caf9' : 'primary.main',

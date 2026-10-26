@@ -218,7 +218,7 @@ export default function WorkspaceNavbar() {
                       slotProps={{
                         badge: {
                           sx: {
-                            fontSize: '0.62rem',
+                            fontSize: '0.68rem',
                             height: 15,
                             minWidth: 15,
                             px: '3px',
@@ -241,13 +241,14 @@ export default function WorkspaceNavbar() {
                         variant="caption"
                         sx={{
                           fontWeight: isSelected ? 800 : 600,
-                          fontSize: { xs: '0.78rem', sm: '0.82rem' },
-                          textTransform: 'none',
+                          fontSize: { xs: '0.72rem', sm: '0.76rem' },
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
                           color: isSelected ? 'text.primary' : 'text.secondary',
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        {isTablet ? v.shortLabel : v.label}
+                        {isTablet ? v.navShortLabel : v.navLabel}
                       </Typography>
                       {v.isUpcoming && (
                         <Chip

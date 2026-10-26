@@ -71,114 +71,90 @@ export default function EventsWorkspaceView({ onOpenStorySelector }) {
   const [backupNoteDialog, setBackupNoteDialog] = useState({ open: false, eventId: null, note: '' });
 
   // Optimistic Connection Handlers
-  const handleCreateConnection = async (sourceEventId, targetEventId) => {
-    await createConnection({ storyId: activeStoryId, sourceEventId, targetEventId, setLoading });
+  const handleCreateConnection = (sourceEventId, targetEventId) => {
+    createConnection({ storyId: activeStoryId, sourceEventId, targetEventId });
   };
 
-  const handleDeleteConnection = async (sourceEventId, targetEventId) => {
-    await deleteConnection({ storyId: activeStoryId, sourceEventId, targetEventId, setLoading });
+  const handleDeleteConnection = (sourceEventId, targetEventId) => {
+    deleteConnection({ storyId: activeStoryId, sourceEventId, targetEventId });
   };
 
-  const handleSaveEvent = async (eventData) => {
-    await saveEvent({
-      storyId: activeStoryId,
-      boardId: activeBoardId,
-      eventData,
-      selectedEventId: selectedEvent?.id || null,
-      setLoading,
-    });
+  // Las acciones aplican el cambio en pantalla al instante; el guardado en el servidor ocurre en segundo plano.
+  // Si el servidor falla, WorkspaceContext revierte el cambio y avisa al usuario.
+
+  // EventModal entrega { eventData, characterIds, createBackup, backupNote }
+  const handleSaveEvent = ({ eventData, characterIds, createBackup, backupNote }) => {
+    const editingId = selectedEvent?.id || null;
     setSelectedEvent(null);
-    closeCreateEvent();
+    closeCreateEvent(); // el modal se cierra sin esperar al servidor
+    saveEvent({
+      storyId: activeStoryId,
+      eventData,
+      characterIds,
+      createBackup,
+      backupNote,
+      selectedEventId: editingId,
+    });
   };
 
-  const handleDeleteEvent = async (eventId) => {
-    await deleteEvent({ storyId: activeStoryId, eventId, setLoading });
+  const handleDeleteEvent = (eventId) => {
     if (selectedEvent?.id === eventId) {
       setSelectedEvent(null);
       closeCreateEvent();
     }
+    deleteEvent({ storyId: activeStoryId, boardId: activeBoardId, eventId });
   };
 
-  const handleDuplicateEvent = async (eventId) => {
-    await duplicateEvent({ storyId: activeStoryId, eventId, setLoading });
+  const handleDuplicateEvent = async (originalEvent) => {
+    const { ids } = await duplicateEvent({ storyId: activeStoryId, boardId: activeBoardId, originalEvent });
+    return ids;
   };
 
-  const handleDuplicateEvents = async (eventIds) => {
-    await duplicateEvents({ storyId: activeStoryId, eventIds, setLoading });
+  const handleDuplicateEvents = async (originalEvents) => {
+    const { ids } = await duplicateEvents({ storyId: activeStoryId, boardId: activeBoardId, originalEvents });
+    return ids;
   };
 
-  const handleInlineUpdateEvent = async (eventId, fields) => {
-    setEvents((prev) => prev.map((ev) => (ev.id === eventId ? { ...ev, ...fields } : ev)));
-    await saveEvent({
-      storyId: activeStoryId,
-      boardId: activeBoardId,
-      eventData: fields,
-      selectedEventId: eventId,
-      setLoading,
-    });
-  };
+  const handleInlineUpdateEvent = (eventId, fields) => (
+    saveEvent({ storyId: activeStoryId, eventData: fields, selectedEventId: eventId })
+  );
 
-  const handleUpdateEventCharacters = async (eventId, characterIds) => {
-    await handleInlineUpdateEvent(eventId, { character_ids: characterIds });
-  };
+  const handleUpdateEventCharacters = (eventId, characterIds) => (
+    saveEvent({ storyId: activeStoryId, eventData: {}, characterIds, selectedEventId: eventId })
+  );
 
   const handleQuickCreateEventAtPosition = async ({ x, y, orderIndex }) => {
-    let resolvedBoardId = activeBoardId;
-    if (!resolvedBoardId) {
-      resolvedBoardId = await ensurePrimaryBoard({ storyId: activeStoryId, setLoading });
-    }
-    if (!resolvedBoardId) {
-      setFeedback('Primero crea un tablero narrativo para guardar eventos.');
-      return;
-    }
-
-    const defaultTitle = `Evento #${orderIndex || events.length + 1}`;
-    await saveEvent({
+    const result = await saveEvent({
       storyId: activeStoryId,
-      boardId: resolvedBoardId,
       eventData: {
-        title: defaultTitle,
+        title: `Evento #${orderIndex || events.length + 1}`,
         pos_x: x,
         pos_y: y,
         order_index: orderIndex || events.length + 1,
-        event_type: 'plot',
       },
       selectedEventId: null,
-      setLoading,
     });
+    if (result?.error) setFeedback('Primero crea un tablero narrativo para guardar eventos.');
   };
 
   const handleQuickCreateConnectedEvent = async ({ sourceEventId, x, y, orderIndex }) => {
-    let resolvedBoardId = activeBoardId;
-    if (!resolvedBoardId) {
-      resolvedBoardId = await ensurePrimaryBoard({ storyId: activeStoryId, setLoading });
-    }
-    if (!resolvedBoardId) return;
-
     const sourceEvent = events.find((e) => e.id === sourceEventId);
     const newTitle = sourceEvent ? `Secuela de "${sourceEvent.title}"` : `Nuevo Evento #${orderIndex}`;
 
-    const createdEvent = await saveEvent({
+    const result = await saveEvent({
       storyId: activeStoryId,
-      boardId: resolvedBoardId,
       eventData: {
         title: newTitle,
         pos_x: x,
         pos_y: y,
         order_index: orderIndex,
-        event_type: sourceEvent?.event_type || 'plot',
       },
       selectedEventId: null,
-      setLoading,
     });
 
-    if (createdEvent?.id && sourceEventId) {
-      await createConnection({
-        storyId: activeStoryId,
-        sourceEventId,
-        targetEventId: createdEvent.id,
-        setLoading,
-      });
+    // La conexión también es instantánea: usa el id temporal y el contexto la confirma cuando el evento exista
+    if (result?.data?.id && sourceEventId) {
+      createConnection({ storyId: activeStoryId, sourceEventId, targetEventId: result.data.id });
     }
   };
 
@@ -241,10 +217,19 @@ export default function EventsWorkspaceView({ onOpenStorySelector }) {
     });
   };
 
+  // El modal se abre al instante con los datos locales; el detalle completo se completa en segundo plano
   const handleOpenEditEvent = async (event) => {
-    const { data: completeEvent } = await getEventDetails({ eventId: event.id, setLoading });
-    setSelectedEvent(completeEvent || event);
+    setSelectedEvent(event);
     openCreateEvent();
+    if (typeof event.id === 'string' && event.id.startsWith('temp-')) return; // aún no existe en el servidor
+    try {
+      const { data: completeEvent } = await getEventDetails({ eventId: event.id });
+      if (completeEvent) {
+        setSelectedEvent((curr) => (curr?.id === event.id ? completeEvent : curr));
+      }
+    } catch {
+      // se mantiene el evento local
+    }
   };
 
   const handleNavigateToConnectedEvent = useCallback(async (targetEvent) => {

@@ -25,6 +25,7 @@ import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import ViewComfyIcon from '@mui/icons-material/ViewComfy';
 import ViewAgendaIcon from '@mui/icons-material/ViewAgenda';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 
 import { useWorkspaceView } from '../../../context/WorkspaceViewContext';
@@ -101,6 +102,8 @@ export default function CharactersToolbar() {
     setCharactersShowDescriptions,
     charactersGroupByRole,
     setCharactersGroupByRole,
+    charactersColorCards,
+    setCharactersColorCards,
     charactersToolbar,
   } = useWorkspaceView();
 
@@ -260,6 +263,12 @@ export default function CharactersToolbar() {
         <Tooltip title={charactersShowDescriptions ? 'Ocultar descripciones' : 'Mostrar descripciones'}>
           <IconButton size="small" onClick={() => setCharactersShowDescriptions(!charactersShowDescriptions)} sx={toggleSx(!charactersShowDescriptions)}>
             <DescriptionOutlinedIcon sx={{ fontSize: 17 }} />
+          </IconButton>
+        </Tooltip>
+
+        <Tooltip title={charactersColorCards ? 'Tarjetas neutras (solo acento de color)' : 'Tarjetas con color de fondo'}>
+          <IconButton size="small" onClick={() => setCharactersColorCards(!charactersColorCards)} sx={toggleSx(charactersColorCards)}>
+            <PaletteOutlinedIcon sx={{ fontSize: 17 }} />
           </IconButton>
         </Tooltip>
 

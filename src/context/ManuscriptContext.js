@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useStory } from './StoryContext';
 import { useAuth } from './AuthContext';
 import { useLoading } from './LoadingContext';
+import { useNotify } from './FeedbackContext';
 import { ApiService } from '../utils/ApiService';
 import { countWords, computeLineDiff, computeWordDiff } from '../utils/diffUtils';
 
@@ -50,6 +51,18 @@ export function ManuscriptProvider({ children }) {
   const latestDraftRef = useRef({ chapterId: null, patch: null, unsaved: false });
   // Capítulo cuyo contenido ya está volcado en el buffer local (evita guardar con el buffer del capítulo anterior)
   const hydratedChapterIdRef = useRef(null);
+  const notify = useNotify();
+  const notifyRef = useRef(notify);
+  notifyRef.current = notify;
+  // Capítulos creados de forma optimista: hasta que el servidor confirma, las demás acciones esperan el id real
+  const pendingChaptersRef = useRef(new Map()); // tempId -> Promise<realId | null>
+  const chapterIdMapRef = useRef(new Map());
+  const isTempChapter = (id) => typeof id === 'string' && id.startsWith('temp-chapter-');
+  const resolveChapterId = async (id) => {
+    if (!isTempChapter(id)) return id;
+    if (chapterIdMapRef.current.has(id)) return chapterIdMapRef.current.get(id);
+    return pendingChaptersRef.current.get(id) || null;
+  };
   const activeChapterRef = useRef(null);
 
   // 1. Cargar capítulos cuando cambia la historia activa
@@ -94,8 +107,9 @@ export function ManuscriptProvider({ children }) {
 
   // 2. Cargar versiones del capítulo activo y sincronizar buffer local
   const loadVersions = useCallback(async (chapterId) => {
-    if (!chapterId) {
+    if (!chapterId || (typeof chapterId === 'string' && chapterId.startsWith('temp-chapter-'))) {
       setVersions([]);
+      setLastCommittedContent('');
       return;
     }
     setVersionsLoading(true);
@@ -217,12 +231,17 @@ export function ManuscriptProvider({ children }) {
     const run = async () => {
       setSaveStatus('saving');
       try {
-        const res = await ApiService.chapters.updateDraft(chapterId, patch, silent ? undefined : setLoading);
+        const realId = await resolveChapterId(chapterId); // si el capítulo aún se está creando, espera su id real
+        if (!realId) {
+          setSaveStatus('idle');
+          return;
+        }
+        const res = await ApiService.chapters.updateDraft(realId, patch, silent ? undefined : setLoading);
         if (res.error || !res.data) {
           setSaveStatus('error');
           return;
         }
-        setChapters((prev) => prev.map((c) => (c.id === chapterId ? { ...c, ...res.data } : c)));
+        setChapters((prev) => prev.map((c) => (c.id === realId || c.id === chapterId ? { ...c, ...res.data } : c)));
         setSaveStatus('saved');
       } catch (err) {
         console.error('[ManuscriptContext] Error saving draft:', err);
@@ -286,6 +305,7 @@ export function ManuscriptProvider({ children }) {
   // 5. Commit de versión (Git-like snapshot)
   const commitVersion = useCallback(async (commitMessage) => {
     if (!activeChapterId) return { success: false, error: 'No hay capítulo activo' };
+    if (isTempChapter(activeChapterId)) return { success: false, error: 'El capítulo aún se está guardando, inténtalo en un momento' };
     const { chapterId: draftChapterId, patch: draft } = latestDraftRef.current;
     if (!draft || draftChapterId !== activeChapterId) return { success: false, error: 'El borrador aún no está listo' };
     const msg = (commitMessage || '').trim() || 'Punto de control sin mensaje';
@@ -345,45 +365,81 @@ export function ManuscriptProvider({ children }) {
     if (!activeStoryId) return null;
     const nextOrder = chapters.length + 1;
     const defaultTitle = customTitle || `Capítulo ${nextOrder}`;
+    const tempId = `temp-chapter-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const now = new Date().toISOString();
+    const previousActiveId = activeChapterId;
+    const optimistic = {
+      id: tempId,
+      story_id: activeStoryId,
+      title: defaultTitle,
+      content: '',
+      summary: '',
+      order_index: nextOrder,
+      status: 'draft',
+      word_count: 0,
+      created_at: now,
+      updated_at: now,
+    };
 
-    try {
-      const res = await ApiService.chapters.create({
-        story_id: activeStoryId,
-        title: defaultTitle,
-        content: '',
-        order_index: nextOrder,
-        status: 'draft',
-      }, setLoading);
+    // El capítulo aparece y se abre al instante; el servidor confirma en segundo plano
+    setChapters((prev) => [...prev, optimistic]);
+    setActiveChapterIdState(tempId);
 
-      if (res.data) {
-        setChapters((prev) => [...prev, res.data]);
-        setActiveChapterIdState(res.data.id);
-        return res.data;
+    const persist = (async () => {
+      try {
+        const res = await ApiService.chapters.create({
+          story_id: activeStoryId,
+          title: defaultTitle,
+          content: '',
+          order_index: nextOrder,
+          status: 'draft',
+        }, null);
+        if (!res.data) throw res.error || new Error('Sin datos');
+
+        chapterIdMapRef.current.set(tempId, res.data.id);
+        // Conserva lo que ya se escribió mientras se creaba el capítulo
+        const typed = latestDraftRef.current.chapterId === tempId ? latestDraftRef.current.patch : null;
+        setChapters((prev) => prev.map((c) => (c.id === tempId ? { ...c, ...res.data, ...(typed || {}) } : c)));
+        setActiveChapterIdState((current) => (current === tempId ? res.data.id : current));
+        if (typed && (typed.content || typed.title !== defaultTitle || typed.summary)) {
+          persistDraft(res.data.id, typed, true);
+        }
+        return res.data.id;
+      } catch (err) {
+        console.error('[ManuscriptContext] Error creating chapter:', err);
+        setChapters((prev) => prev.filter((c) => c.id !== tempId));
+        setActiveChapterIdState((current) => (current === tempId ? previousActiveId : current));
+        notifyRef.current?.error?.('No se pudo crear el capítulo.');
+        return null;
       }
-    } catch (err) {
-      console.error('[ManuscriptContext] Error creating chapter:', err);
-    }
-    return null;
-  }, [activeStoryId, chapters.length, setLoading]);
+    })();
+    pendingChaptersRef.current.set(tempId, persist);
+    persist.finally(() => pendingChaptersRef.current.delete(tempId));
 
-  // 8. Eliminar capítulo
+    return optimistic;
+  }, [activeStoryId, activeChapterId, chapters.length, persistDraft]);
+
+  // 8. Eliminar capítulo (desaparece al instante; si el servidor falla se restaura)
   const deleteChapter = useCallback(async (chapterId) => {
     if (!chapterId) return;
+    const previousChapters = chapters;
+    const previousActiveId = activeChapterId;
+    const filtered = chapters.filter((c) => c.id !== chapterId);
+    setChapters(filtered);
+    if (activeChapterId === chapterId) setActiveChapterIdState(filtered[0]?.id || null);
+
     try {
-      const res = await ApiService.chapters.delete(chapterId, setLoading);
-      if (!res.error) {
-        setChapters((prev) => {
-          const filtered = prev.filter((c) => c.id !== chapterId);
-          if (activeChapterId === chapterId) {
-            setActiveChapterIdState(filtered[0]?.id || null);
-          }
-          return filtered;
-        });
-      }
+      const realId = await resolveChapterId(chapterId);
+      if (!realId) return; // nunca llegó a crearse
+      const res = await ApiService.chapters.delete(realId, null);
+      if (res.error) throw res.error;
     } catch (err) {
       console.error('[ManuscriptContext] Error deleting chapter:', err);
+      setChapters(previousChapters);
+      setActiveChapterIdState(previousActiveId);
+      notifyRef.current?.error?.('No se pudo eliminar el capítulo.');
     }
-  }, [activeChapterId, setLoading]);
+  }, [chapters, activeChapterId]);
 
   const editorValue = useMemo(() => ({ workingDraft, setWorkingDraft }), [workingDraft]);
 

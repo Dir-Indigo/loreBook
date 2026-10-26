@@ -64,6 +64,7 @@ import AutoStoriesIcon from "@mui/icons-material/AutoStories";
 import ViewSidebarOutlinedIcon from "@mui/icons-material/ViewSidebarOutlined";
 import { useSidebarDetail, DETAIL_VIEWS } from "../../context/SidebarDetailContext";
 import { useWorkspaceView, WORKSPACE_VIEW_KEYS } from "../../context/WorkspaceViewContext";
+import { useManuscriptCore } from "../../context/ManuscriptContext";
 import { uploadStoryCover } from "../../services/storageService";
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { APP_CONFIG, DEFAULT_ENTITY_COLOR } from '../../constants/constants';
@@ -115,12 +116,14 @@ function SidebarLore({
     events: ctxEvents,
     eventConnections: ctxEventConnections,
     boards: ctxBoards,
+    relationships: ctxRelationships = [],
     activeBoardId: ctxActiveBoardId,
     selectBoard: ctxSelectBoard,
     createBoard: ctxCreateBoard,
     updateBoard: ctxUpdateBoard,
     deleteBoard: ctxDeleteBoard,
   } = useWorkspace();
+  const { chapters: manuscriptChapters = [], totalManuscriptWords = 0 } = useManuscriptCore();
   const { openCreateEvent, openCreateChar } = useGlobalActions();
   const {
     notes,
@@ -326,12 +329,12 @@ function SidebarLore({
 
   const handleConfirmCreateBoard = async () => {
     const name = newBoardName.trim() || "Nuevo tablero";
+    setNewBoardDialogOpen(false); // el tablero aparece al instante; el servidor confirma en segundo plano
     if (onCreateBoard) {
       onCreateBoard(name, newBoardParentId);
     } else if (effectiveStory?.id) {
-      await ctxCreateBoard({ storyId: effectiveStory.id, name, parentBoardId: newBoardParentId });
+      ctxCreateBoard({ storyId: effectiveStory.id, name, parentBoardId: newBoardParentId });
     }
-    setNewBoardDialogOpen(false);
   };
 
   const handleRenameBoardAction = async (boardId, name) => {
@@ -608,6 +611,28 @@ function SidebarLore({
             overflowX: 'hidden',
           }}
         >
+      {/* Cabecera unificada: la portada cubre el título del panel y el resumen de la historia */}
+      <Box
+        sx={{
+          position: 'relative',
+          flexShrink: 0,
+          borderBottom: 1,
+          borderColor: 'divider',
+          bgcolor: hasCover ? 'transparent' : 'background.subtle',
+          backgroundImage: hasCover
+            ? `linear-gradient(to bottom, rgba(15, 23, 42, 0.62) 0%, rgba(15, 23, 42, 0.92) 100%), url(${effectiveStory.cover_url})`
+            : 'none',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          ...(hasCover && {
+            color: '#fff',
+            '& .MuiIconButton-root': {
+              color: 'rgba(255,255,255,0.9) !important',
+              borderColor: 'rgba(255,255,255,0.35) !important',
+            },
+          }),
+        }}
+      >
       {/* Top Header */}
       <Box
         sx={{
@@ -616,24 +641,14 @@ function SidebarLore({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          borderBottom: 1,
-          borderColor: "divider",
         }}
       >
-        <Typography variant="subtitle2" sx={{ fontWeight: 800, fontSize: '0.88rem' }}>
-          {sidebarTab === 0
-            ? 'Líneas & Escenas'
-            : sidebarTab === 1
-            ? 'Personajes & Carpetas'
-            : sidebarTab === 2
-            ? 'Ideas del Proyecto'
-            : sidebarTab === 3
-            ? 'Capítulos & Manuscrito'
-            : 'Ficha de la Historia'}
+        <Typography variant="subtitle1" sx={{ fontWeight: 800, fontSize: '1rem', lineHeight: 1.2, minWidth: 0, pr: 1 }} noWrap>
+          {effectiveStory ? effectiveStory.title : 'Sin historia seleccionada'}
         </Typography>
 
         {/* Grupo de acciones del header: botón Detalles + colapsar */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, flexShrink: 0 }}>
           {/* Botón universal de Detalles — abre SidebarDetail según el tab activo */}
           {(() => {
             // Mapeo: tab del sidebar → vista del SidebarDetail
@@ -695,23 +710,28 @@ function SidebarLore({
         sx={{
           width: "100%",
           p: 1.5,
+          pt: 0.5,
           px: 2,
           position: "relative",
-          borderBottom: 1,
-          borderColor: "divider",
-          bgcolor: hasCover ? "transparent" : "background.subtle",
-          backgroundImage: hasCover
-            ? `linear-gradient(to bottom, rgba(15, 23, 42, 0.6) 0%, rgba(15, 23, 42, 0.92) 100%), url(${story.cover_url})`
-            : "none",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          color: "#fff",
+          color: hasCover ? "#fff" : "inherit",
           display: "flex",
           flexDirection: "column",
           gap: 0.5,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+          <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.74rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: 0 }} noWrap>
+          {sidebarTab === 0
+            ? 'Líneas & Escenas'
+            : sidebarTab === 1
+            ? 'Personajes & Carpetas'
+            : sidebarTab === 2
+            ? 'Ideas del Proyecto'
+            : sidebarTab === 3
+            ? 'Capítulos & Manuscrito'
+            : 'Ficha de la Historia'}
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
           <Chip
             size="small"
             icon={<BookmarkBorderIcon style={{ fontSize: 12, color: '#fff' }} />}
@@ -719,7 +739,7 @@ function SidebarLore({
             variant="outlined"
             sx={{
               height: 18,
-              fontSize: "0.62rem",
+              fontSize: "0.68rem",
               fontWeight: 700,
               borderColor: "rgba(255,255,255,0.3)",
               color: "#fff",
@@ -735,17 +755,10 @@ function SidebarLore({
               <PhotoCameraIcon sx={{ fontSize: 15 }} />
             </IconButton>
           </Tooltip>
+          </Box>
         </Box>
+      </Box>
 
-        <Typography variant="subtitle1" sx={{ fontWeight: 800, fontSize: "0.95rem", lineHeight: 1.2 }} noWrap>
-          {story ? story.title : "Sin historia seleccionada"}
-        </Typography>
-
-        {story && (
-          <Typography variant="caption" sx={{ opacity: 0.8, fontSize: "0.68rem" }} noWrap>
-            {events.length} escenas · {characters.length} personajes · {effectiveFolders.length} carpetas
-          </Typography>
-        )}
       </Box>
 
       {/* ─── Modular Section Tabs (Navigation Hub) ────────────────────────── */}
@@ -761,7 +774,8 @@ function SidebarLore({
           '& .MuiTab-root': {
             minHeight: 44,
             py: 1,
-            px: 0.5,
+            px: 0,
+            minWidth: 0,
             fontSize: '0.68rem',
             fontWeight: 700,
             textTransform: 'none',
@@ -944,7 +958,7 @@ function SidebarLore({
               <Typography
                 variant="caption"
                 sx={{
-                  fontSize: '0.65rem',
+                  fontSize: '0.68rem',
                   fontWeight: 700,
                   color: 'text.disabled',
                   bgcolor: 'background.subtle',
@@ -1086,62 +1100,98 @@ function SidebarLore({
       )}
 
       {/* ─── SECTION 4: FICHA & METADATOS DE LA HISTORIA ─────────────────── */}
-      {sidebarTab === 4 && (
-        <Box sx={{ p: 2, flexGrow: 1, overflowY: "auto", display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Box>
-            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem' }}>
-              Descripción / Logline
-            </Typography>
-            <Typography variant="body2" sx={{ mt: 0.5, fontSize: '0.82rem', color: 'text.primary', lineHeight: 1.5 }}>
-              {effectiveStory?.description || 'Sin descripción redactada.'}
-            </Typography>
+      {sidebarTab === 4 && (() => {
+        const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+        const storyChars = effectiveCharacters.filter((c) => c.story_id === effectiveStory?.id);
+        const globalChars = effectiveCharacters.filter((c) => c.is_global).length;
+        const roleCounts = Object.entries(
+          filteredCharacters.reduce((acc, c) => {
+            const r = c.role_archetype || 'Sin rol';
+            acc[r] = (acc[r] || 0) + 1;
+            return acc;
+          }, {})
+        ).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        const avgWords = manuscriptChapters.length ? Math.round(totalManuscriptWords / manuscriptChapters.length) : 0;
+
+        const Stat = ({ label, value, hint }) => (
+          <Box sx={{ p: 1.1, borderRadius: 2, bgcolor: 'background.subtle', border: 1, borderColor: 'divider', minWidth: 0 }}>
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', fontSize: '0.68rem' }}>{label}</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.05rem', lineHeight: 1.2 }}>{value}</Typography>
+            {hint && <Typography variant="caption" color="text.disabled" noWrap sx={{ display: 'block', fontSize: '0.68rem' }}>{hint}</Typography>}
           </Box>
+        );
+        const SectionLabel = ({ children }) => (
+          <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: '0.04em' }}>
+            {children}
+          </Typography>
+        );
 
-          <Divider />
+        return (
+          <Box sx={{ p: 2, flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6 }}>
+              {effectiveStory?.genre && <Chip size="small" label={effectiveStory.genre} sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700 }} />}
+              {effectiveStory?.universe?.title && (
+                <Chip size="small" variant="outlined" icon={<BookmarkBorderIcon style={{ fontSize: 12 }} />} label={`Universo: ${effectiveStory.universe.title}`} sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700 }} />
+              )}
+              {effectiveStory?.is_universe_root && <Chip size="small" color="secondary" label="Raíz del universo" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700 }} />}
+            </Box>
 
-          <Box>
-            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem' }}>
-              Métricas del Proyecto
-            </Typography>
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.2, mt: 1 }}>
-              <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: 'background.subtle', border: 1, borderColor: 'divider' }}>
-                <Typography variant="caption" color="text.secondary">Escenas / Nodos</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{effectiveEvents.length}</Typography>
-              </Box>
-              <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: 'background.subtle', border: 1, borderColor: 'divider' }}>
-                <Typography variant="caption" color="text.secondary">Personajes</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{effectiveCharacters.length}</Typography>
-              </Box>
-              <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: 'background.subtle', border: 1, borderColor: 'divider' }}>
-                <Typography variant="caption" color="text.secondary">Tableros</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{effectiveBoards.length}</Typography>
-              </Box>
-              <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: 'background.subtle', border: 1, borderColor: 'divider' }}>
-                <Typography variant="caption" color="text.secondary">Ideas Vinculadas</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{storyNotes.length}</Typography>
+            <Box>
+              <SectionLabel>Sinopsis</SectionLabel>
+              <Typography variant="body2" sx={{ mt: 0.5, fontSize: '0.82rem', lineHeight: 1.5, color: effectiveStory?.synopsis ? 'text.primary' : 'text.disabled' }}>
+                {effectiveStory?.synopsis || 'Sin sinopsis. Edítala desde el selector de historias.'}
+              </Typography>
+            </Box>
+
+            <Divider />
+
+            <Box>
+              <SectionLabel>Manuscrito</SectionLabel>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, mt: 1 }}>
+                <Stat label="Palabras" value={totalManuscriptWords.toLocaleString('es')} />
+                <Stat label="Capítulos" value={manuscriptChapters.length} />
+                <Stat label="Prom./cap." value={avgWords.toLocaleString('es')} />
               </Box>
             </Box>
-          </Box>
 
-          <Divider />
+            <Box>
+              <SectionLabel>Estructura y mundo</SectionLabel>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mt: 1 }}>
+                <Stat label="Escenas" value={effectiveEvents.length} hint={`${effectiveConnections.length} conexiones`} />
+                <Stat label="Tableros" value={effectiveBoards.length} />
+                <Stat label="Personajes" value={filteredCharacters.length} hint={`${storyChars.length} locales · ${globalChars} globales`} />
+                <Stat label="Relaciones" value={ctxRelationships.length} />
+              </Box>
+            </Box>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <CustomButton
-              variant="outlined"
-              size="small"
-              startIcon={<PhotoCameraIcon fontSize="small" />}
-              onClick={handleOpenQuickCover}
-              sx={{ fontSize: '0.75rem' }}
-            >
+            {roleCounts.length > 0 && (
+              <Box>
+                <SectionLabel>Reparto por rol</SectionLabel>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, mt: 0.8 }}>
+                  {roleCounts.map(([role, n]) => (
+                    <Chip key={role} size="small" variant="outlined" label={`${role} · ${n}`} sx={{ height: 22, fontSize: '0.68rem', fontWeight: 600 }} />
+                  ))}
+                </Box>
+              </Box>
+            )}
+
+            <Divider />
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>Creada: {fmtDate(effectiveStory?.created_at)}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>Actualizada: {fmtDate(effectiveStory?.updated_at)}</Typography>
+            </Box>
+
+            <CustomButton variant="outlined" size="small" startIcon={<PhotoCameraIcon fontSize="small" />} onClick={handleOpenQuickCover} sx={{ fontSize: '0.75rem' }}>
               Cambiar Portada Panorámica
             </CustomButton>
           </Box>
-        </Box>
-      )}
+        );
+      })()}
 
       {/* Version display */}
       <Box sx={{ p: 1, pl: 2, textAlign: 'left', position: 'absolute', bottom: 0, width: '100%', pointerEvents: 'none' }}>
-        <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.disabled' }}>
+        <Typography variant="caption" sx={{ fontSize: '0.68rem', color: 'text.disabled' }}>
           {APP_CONFIG.VERSION}
         </Typography>
       </Box>

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { ApiService } from '../utils/ApiService';
+import { useNotify } from './FeedbackContext';
 
 const AuthContext = createContext({
   user: null,
@@ -17,6 +18,11 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const notify = useNotify();
+  const notifyRef = useRef(notify);
+  notifyRef.current = notify;
+  const manualSignOutRef = useRef(false); // distingue cierre voluntario de sesión expirada
+  const hadSessionRef = useRef(false);
   const currentProfileIdRef = useRef(null); // ID cuyo perfil ya se cargó
   const profileRef = useRef(null); // último perfil, para que fetchProfile no dependa del estado
   profileRef.current = profile;
@@ -70,14 +76,24 @@ export const AuthProvider = ({ children }) => {
 
     initSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // IMPORTANTE: este callback corre dentro del lock interno de Supabase. Hacer `await` de otra
+    // llamada de supabase aquí (p. ej. el perfil) puede bloquear la renovación del token y dejar
+    // las consultas siguientes con un token vencido (401). Por eso el trabajo async se difiere.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
+        hadSessionRef.current = true;
         setUser(session.user);
-        // Evitar el uso de fetchProfile dentro del callback puro de setProfile
         if (currentProfileIdRef.current !== session.user.id) {
-            await fetchProfile(session.user.id);
+          setTimeout(() => {
+            if (mounted) fetchProfile(session.user.id);
+          }, 0);
         }
       } else {
+        if (event === 'SIGNED_OUT' && hadSessionRef.current && !manualSignOutRef.current) {
+          notifyRef.current?.warning?.('Tu sesión expiró. Vuelve a iniciar sesión para continuar.');
+        }
+        hadSessionRef.current = false;
+        manualSignOutRef.current = false;
         setUser(null);
         setProfile(null);
         currentProfileIdRef.current = null;
@@ -150,6 +166,7 @@ export const AuthProvider = ({ children }) => {
 
   const signOut = useCallback(async () => {
     setLoading(true);
+    manualSignOutRef.current = true;
     try {
       await supabase.auth.signOut();
       setUser(null);

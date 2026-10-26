@@ -197,7 +197,7 @@ export default function SidebarIdeasSection({ story, storyNotes = [] }) {
               <Typography variant="subtitle2" sx={{ fontWeight: 800, fontSize: '0.8rem', color: 'primary.main' }}>
                 {storyNotes.length}
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
                 En {story?.title || 'Esta Historia'}
               </Typography>
             </Box>
@@ -221,7 +221,7 @@ export default function SidebarIdeasSection({ story, storyNotes = [] }) {
               <Typography variant="subtitle2" sx={{ fontWeight: 800, fontSize: '0.8rem', color: 'secondary.main' }}>
                 {notes.filter((n) => !n.story_id).length}
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
                 Globales
               </Typography>
             </Box>
