@@ -109,7 +109,8 @@ export default function MainLayout({ children }) {
     }
   }, [changeActiveStory, router, setActiveView]);
 
-  const isAuthPage = router.pathname === '/login' || router.pathname === '/404';
+  // Páginas a pantalla completa, sin la estructura de la app (barras laterales, navbar…)
+  const isAuthPage = ['/', '/login', '/404'].includes(router.pathname);
 
   // El early return va después de todos los hooks para respetar las reglas de hooks
   if (isAuthPage) {
