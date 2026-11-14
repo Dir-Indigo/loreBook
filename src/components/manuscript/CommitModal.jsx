@@ -5,114 +5,125 @@ import {
   DialogContent,
   DialogActions,
   Button,
-  TextField,
   Typography,
-  Box,
-  Chip,
   Alert,
+  Box,
+  Checkbox,
+  Chip,
+  FormControlLabel,
 } from '@mui/material';
-import CommitIcon from '@mui/icons-material/Commit';
+import { alpha } from '@mui/material/styles';
+import BookmarkAddOutlinedIcon from '@mui/icons-material/BookmarkAddOutlined';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useManuscriptCore } from '../../context/ManuscriptContext';
 
-export default function CommitModal({ open, onClose }) {
-  const {
-    activeChapter,
-    workingTitle,
-    diffSummary,
-    wordCount,
-    versions,
-    commitVersion,
-  } = useManuscriptCore();
+const formatDate = (iso) => (
+  iso
+    ? new Date(iso).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : ''
+);
 
-  const [message, setMessage] = useState('');
+// Fila con icono de color y su contenido
+function Row({ icon: Icon, color, title, children }) {
+  return (
+    <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+      <Box
+        sx={{
+          flexShrink: 0,
+          width: 32,
+          height: 32,
+          borderRadius: 2,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          bgcolor: (t) => alpha(t.palette[color].main, 0.12),
+          color: `${color}.main`,
+        }}
+      >
+        <Icon sx={{ fontSize: 19 }} />
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="body2" sx={{ fontWeight: 800, lineHeight: 1.3, pt: 0.5 }}>{title}</Typography>
+        {children}
+      </Box>
+    </Box>
+  );
+}
+
+/**
+ * Confirmación para crear una copia de seguridad cuando ya se alcanzó el máximo.
+ * Se muestra solo si crear la copia va a eliminar otra (si hay cupo, la copia se guarda directo).
+ */
+export default function CommitModal({ open, onClose }) {
+  const { versions, commitVersion, copiesToReplace, maxVersions, setSkipCopyConfirm } = useManuscriptCore();
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
 
-  const nextVersionNumber = (versions?.[0]?.version_number || 0) + 1;
+  // versions viene de la más nueva a la más antigua: las primeras se conservan, el resto se elimina
+  const keepCount = Math.max(0, maxVersions - 1);
+  const toKeep = (versions || []).slice(0, keepCount);
+  const toDelete = (versions || []).slice(keepCount);
+  const oldest = toDelete[toDelete.length - 1];
+  const newestDeleted = toDelete[0];
 
-  const handleCommit = async () => {
-    if (!message.trim()) {
-      setError('Por favor ingresa un mensaje descriptivo para este commit / versión.');
-      return;
-    }
+  const handleConfirm = async () => {
     setLoading(true);
     setError(null);
-    const result = await commitVersion(message.trim());
+    const result = await commitVersion('');
     setLoading(false);
     if (result.success) {
-      setMessage('');
+      if (dontShowAgain) setSkipCopyConfirm(true);
       onClose();
     } else {
-      setError(result.error || 'No se pudo guardar la versión');
+      setError(result.error || 'No se pudo crear la copia de seguridad');
     }
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="sm"
-      fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: 3,
-          p: 1,
-        },
-      }}
-    >
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 800 }}>
-        <CommitIcon color="primary" />
-        Guardar Punto de Control — Versión #{nextVersionNumber}
+    <Dialog open={open} onClose={loading ? undefined : onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3, p: 0.5 } }}>
+      <DialogTitle sx={{ pb: 0.5 }}>
+        <Typography component="span" sx={{ display: 'block', fontWeight: 800, fontSize: '1.15rem' }}>
+          Crear copia de seguridad
+        </Typography>
+        <Typography component="span" variant="body2" color="text.secondary" sx={{ display: 'block', fontWeight: 400, mt: 0.3 }}>
+          Tu texto ya se guarda solo. Se conservan las {maxVersions} copias más recientes por capítulo.
+        </Typography>
       </DialogTitle>
 
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-        <Typography variant="body2" color="text.secondary">
-          Guardarás un punto de control inmutable de <strong>"{workingTitle || activeChapter?.title}"</strong>.
-          Podrás comparar cambios futuros o restaurar este punto en cualquier momento.
-        </Typography>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+        <Row icon={BookmarkAddOutlinedIcon} color="primary" title="Nueva copia · ahora" />
 
-        {/* Diff Stats Banner */}
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1.5,
-            p: 1.5,
-            borderRadius: 2,
-            bgcolor: 'background.subtle',
-            border: 1,
-            borderColor: 'divider',
-          }}
-        >
-          <Chip
-            size="small"
-            label={`+${diffSummary.addedLines} líneas`}
-            sx={{ bgcolor: 'custom.diff.addedBg', color: 'custom.diff.added', fontWeight: 700 }}
-          />
-          <Chip
-            size="small"
-            label={`-${diffSummary.removedLines} líneas`}
-            sx={{ bgcolor: 'custom.diff.removedBg', color: 'custom.diff.removed', fontWeight: 700 }}
-          />
-          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-            {wordCount} palabras en borrador
-          </Typography>
-        </Box>
+        {toKeep.length > 0 && (
+          <Row icon={CheckCircleOutlineIcon} color="success" title="Se conservan">
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, mt: 0.6 }}>
+              {toKeep.map((v) => (
+                <Chip key={v.id} size="small" label={formatDate(v.created_at)} sx={{ height: 22, fontSize: '0.72rem', fontWeight: 600 }} />
+              ))}
+            </Box>
+          </Row>
+        )}
+
+        {toDelete.length > 0 && (
+          <Row icon={DeleteOutlineIcon} color="error" title={toDelete.length === 1 ? 'Se elimina 1 copia antigua' : `Se eliminan ${toDelete.length} copias antiguas`}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.4 }}>
+              {toDelete.length === 1
+                ? formatDate(oldest?.created_at)
+                : `Desde ${formatDate(oldest?.created_at)} hasta ${formatDate(newestDeleted?.created_at)}`}
+              {' · no se puede deshacer'}
+            </Typography>
+          </Row>
+        )}
+
+        <FormControlLabel
+          control={<Checkbox size="small" checked={dontShowAgain} onChange={(e) => setDontShowAgain(e.target.checked)} />}
+          label={<Typography variant="body2" color="text.secondary">No volver a mostrar este aviso</Typography>}
+          sx={{ ml: -0.5 }}
+        />
 
         {error && <Alert severity="error">{error}</Alert>}
-
-        <TextField
-          autoFocus
-          label="Nota de la Versión"
-          placeholder="Ej: Reescribí el diálogo inicial y añadí la descripción del bosque..."
-          multiline
-          rows={3}
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          fullWidth
-          variant="outlined"
-          helperText="Describe brevemente qué cambios o avances hiciste en este punto de tu historia."
-        />
       </DialogContent>
 
       <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -120,14 +131,12 @@ export default function CommitModal({ open, onClose }) {
           Cancelar
         </Button>
         <Button
-          onClick={handleCommit}
+          onClick={handleConfirm}
           variant="contained"
-          color="primary"
-          startIcon={<CommitIcon />}
-          disabled={loading || !message.trim()}
+          disabled={loading || copiesToReplace === 0}
           sx={{ fontWeight: 700, borderRadius: 2 }}
         >
-          {loading ? 'Guardando...' : `Guardar Versión #${nextVersionNumber}`}
+          {loading ? 'Creando…' : 'Crear copia'}
         </Button>
       </DialogActions>
     </Dialog>

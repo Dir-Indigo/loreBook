@@ -44,6 +44,7 @@ import { useGlobalActions } from '../../context/GlobalActionsContext';
 import { useCharacterDrawer } from '../../context/CharacterDrawerContext';
 import { useManuscriptCore } from '../../context/ManuscriptContext';
 import CharactersToolbar from './toolbars/CharactersToolbar';
+import WritingToolbar from '../manuscript/WritingToolbar';
 import IdeasToolbar from './toolbars/IdeasToolbar';
 
 /**
@@ -95,7 +96,13 @@ export default function WorkspaceNavbar() {
     isDirty: isChapterDirty,
     diffSummary: chapterDiffSummary,
     createChapter,
-    setIsCommitModalOpen,
+    requestSaveCopy,
+    copiesToReplace,
+    maxVersions,
+    writingPrefs,
+    updateWritingPrefs,
+    resetWritingPrefs,
+    editorApiRef,
     setIsHistoryDrawerOpen,
     setIsDiffModalOpen,
   } = useManuscriptCore();
@@ -560,10 +567,10 @@ export default function WorkspaceNavbar() {
 
                 {/* Estado de Versión (Para escritores: Cambios sin guardar / Versión al día) */}
                 {isChapterDirty ? (
-                  <Tooltip title="Ver los cambios pendientes frente a la última versión guardada">
+                  <Tooltip title="Ver los cambios hechos desde la última copia de seguridad">
                     <Chip
                       size="small"
-                      label={`Cambios sin guardar (+${chapterDiffSummary?.addedLines || 0} -${chapterDiffSummary?.removedLines || 0})`}
+                      label={`Cambios desde la última copia (+${chapterDiffSummary?.addedLines || 0} -${chapterDiffSummary?.removedLines || 0})`}
                       onClick={() => setIsDiffModalOpen(true)}
                       sx={{
                         height: 24,
@@ -579,7 +586,7 @@ export default function WorkspaceNavbar() {
                 ) : (
                   <Chip
                     size="small"
-                    label="Versión al día"
+                    label="Copia al día"
                     sx={{
                       height: 24,
                       fontSize: '0.72rem',
@@ -597,7 +604,17 @@ export default function WorkspaceNavbar() {
               </Box>
 
               {/* Botones de acción narrativa del Subbar */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, ml: 'auto' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, ml: 'auto', flexWrap: 'wrap' }}>
+                {/* Formato del texto: negrita, tamaño de letra y menú Vista */}
+                <WritingToolbar
+                  onBold={() => editorApiRef.current?.toggleBold()}
+                  prefs={writingPrefs}
+                  onChangePrefs={updateWritingPrefs}
+                  onResetPrefs={resetWritingPrefs}
+                />
+
+                <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
+
                 {/* Toggle Modo Revisión en Vivo */}
                 <Tooltip title={reviewMode ? 'Cerrar vista de revisión comparativa' : 'Activar Modo Revisión comparativa en vivo'}>
                   <Button
@@ -638,28 +655,39 @@ export default function WorkspaceNavbar() {
                   Ver Cambios
                 </Button>
 
-                {/* Botón Guardar Versión (en lugar de Comitear) */}
-                <Button
-                  size="small"
-                  variant="contained"
-                  color="primary"
-                  startIcon={<BookmarkAddOutlinedIcon sx={{ fontSize: 14 }} />}
-                  onClick={() => setIsCommitModalOpen(true)}
-                  disabled={!isChapterDirty}
-                  sx={{
-                    fontSize: '0.72rem',
-                    py: 0.3,
-                    px: 1.3,
-                    fontWeight: 700,
-                    textTransform: 'none',
-                    borderRadius: 1.8,
-                  }}
+                {/* Copia de seguridad: distinta del autoguardado (el texto ya se guarda solo) */}
+                <Tooltip
+                  title={
+                    isChapterDirty
+                      ? `Tu texto ya se guarda solo. Esto crea una copia de seguridad a la que podrás volver (se conservan ${maxVersions}${copiesToReplace > 0 ? '; reemplaza la más antigua' : ''}).`
+                      : 'No hay cambios nuevos desde la última copia de seguridad.'
+                  }
                 >
-                  Guardar Versión
-                </Button>
+                  <span>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="primary"
+                      startIcon={<BookmarkAddOutlinedIcon sx={{ fontSize: 14 }} />}
+                      onClick={requestSaveCopy}
+                      disabled={!isChapterDirty}
+                      sx={{
+                        fontSize: '0.72rem',
+                        py: 0.3,
+                        px: 1.3,
+                        fontWeight: 700,
+                        textTransform: 'none',
+                        borderRadius: 1.8,
+                        borderStyle: 'dashed',
+                      }}
+                    >
+                      Crear copia de seguridad
+                    </Button>
+                  </span>
+                </Tooltip>
 
                 {/* Historial de Versiones */}
-                <Tooltip title="Historial de versiones y puntos de control guardados">
+                <Tooltip title={`Copias de seguridad guardadas (máx. ${maxVersions})`}>
                   <IconButton
                     size="small"
                     onClick={() => setIsHistoryDrawerOpen(true)}

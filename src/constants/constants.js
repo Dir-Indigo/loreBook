@@ -8,6 +8,8 @@ export const APP_CONFIG = {
   VERSION: 'v1.3.0',
   EVENT_TITLE_MAX_LENGTH: 55,
   ZOOM_COMPACT_THRESHOLD: 0.72,
+  // Copias de seguridad que se conservan por capítulo; al crear una nueva se elimina la más antigua
+  MAX_CHAPTER_VERSIONS: 3,
 };
 
 export const USER_ROLES = {

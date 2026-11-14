@@ -4,6 +4,8 @@ import { useAuth } from './AuthContext';
 import { useLoading } from './LoadingContext';
 import { useNotify } from './FeedbackContext';
 import { ApiService } from '../utils/ApiService';
+import { APP_CONFIG } from '../constants/constants';
+import { useWritingPrefs } from '../hooks/useWritingPrefs';
 import { countWords, computeLineDiff, computeWordDiff } from '../utils/diffUtils';
 
 // Dos contextos: el texto del borrador cambia en cada pulsación y vive solo en el contexto "editor";
@@ -51,6 +53,20 @@ export function ManuscriptProvider({ children }) {
   const latestDraftRef = useRef({ chapterId: null, patch: null, unsaved: false });
   // Capítulo cuyo contenido ya está volcado en el buffer local (evita guardar con el buffer del capítulo anterior)
   const hydratedChapterIdRef = useRef(null);
+  // Preferencias de escritura y acceso al editor: los usa la barra del navbar y la vista del manuscrito
+  const { prefs: writingPrefs, updatePrefs: updateWritingPrefs, resetPrefs: resetWritingPrefs } = useWritingPrefs();
+  const editorApiRef = useRef(null);
+  // Si está activa, crear una copia que reemplaza a otra no pide confirmación
+  const [skipCopyConfirm, setSkipCopyConfirmState] = useState(false);
+  useEffect(() => {
+    try {
+      setSkipCopyConfirmState(localStorage.getItem('lorebook_skip_copy_confirm') === 'true');
+    } catch (e) { /* almacenamiento no disponible */ }
+  }, []);
+  const setSkipCopyConfirm = useCallback((value) => {
+    setSkipCopyConfirmState(value);
+    try { localStorage.setItem('lorebook_skip_copy_confirm', String(value)); } catch (e) { /* ignorar */ }
+  }, []);
   const notify = useNotify();
   const notifyRef = useRef(notify);
   notifyRef.current = notify;
@@ -302,13 +318,16 @@ export function ManuscriptProvider({ children }) {
     };
   }, [flushDraft]);
 
-  // 5. Commit de versión (Git-like snapshot)
+  // 5. Copia de seguridad (snapshot). Sin mensaje: se nombra sola. Solo se conservan las más recientes.
+  const maxVersions = APP_CONFIG.MAX_CHAPTER_VERSIONS;
+
   const commitVersion = useCallback(async (commitMessage) => {
     if (!activeChapterId) return { success: false, error: 'No hay capítulo activo' };
     if (isTempChapter(activeChapterId)) return { success: false, error: 'El capítulo aún se está guardando, inténtalo en un momento' };
     const { chapterId: draftChapterId, patch: draft } = latestDraftRef.current;
     if (!draft || draftChapterId !== activeChapterId) return { success: false, error: 'El borrador aún no está listo' };
-    const msg = (commitMessage || '').trim() || 'Punto de control sin mensaje';
+    const msg = (commitMessage || '').trim()
+      || `Copia del ${new Date().toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
 
     try {
       const res = await ApiService.chapters.createCommit(
@@ -322,14 +341,15 @@ export function ManuscriptProvider({ children }) {
 
       if (res.data) {
         const { chapter, version } = res.data;
-        // Actualiza el baseline del commit
+        // Actualiza el baseline de la copia
         setLastCommittedContent(version.content_snapshot);
-        // Actualiza capítulos y versiones
+        // Actualiza capítulos y versiones (solo las más recientes, igual que en el servidor)
         setChapters((prev) =>
           prev.map((c) => (c.id === activeChapterId ? { ...c, ...chapter } : c))
         );
-        setVersions((prev) => [version, ...prev]);
+        setVersions((prev) => [version, ...prev].slice(0, maxVersions));
         setIsCommitModalOpen(false);
+        notifyRef.current?.success?.('Copia de seguridad creada.');
         return { success: true, version };
       }
       return { success: false, error: res.error };
@@ -337,7 +357,19 @@ export function ManuscriptProvider({ children }) {
       console.error('[ManuscriptContext] Error committing version:', err);
       return { success: false, error: err.message };
     }
-  }, [activeChapterId, user?.id, setLoading]);
+  }, [activeChapterId, user?.id, setLoading, maxVersions]);
+
+  // Cuántas copias se eliminarían al crear una nueva (0 si todavía hay cupo)
+  const copiesToReplace = Math.max(0, versions.length - (maxVersions - 1));
+
+  // Punto de entrada único para "Guardar copia": si hay cupo se guarda directo; si no, pide confirmar el reemplazo
+  const requestSaveCopy = useCallback(() => {
+    if (copiesToReplace > 0 && !skipCopyConfirm) {
+      setIsCommitModalOpen(true);
+      return Promise.resolve(null);
+    }
+    return commitVersion('');
+  }, [copiesToReplace, skipCopyConfirm, commitVersion]);
 
   // 6. Restaurar a versión anterior
   const restoreVersion = useCallback(async (version) => {
@@ -472,6 +504,15 @@ export function ManuscriptProvider({ children }) {
     hasUnsavedDraft,
     commitVersion,
     restoreVersion,
+    requestSaveCopy,
+    copiesToReplace,
+    maxVersions,
+    writingPrefs,
+    updateWritingPrefs,
+    resetWritingPrefs,
+    editorApiRef,
+    skipCopyConfirm,
+    setSkipCopyConfirm,
     createChapter,
     deleteChapter,
     loadChapters,
@@ -507,6 +548,14 @@ export function ManuscriptProvider({ children }) {
     hasUnsavedDraft,
     commitVersion,
     restoreVersion,
+    requestSaveCopy,
+    copiesToReplace,
+    maxVersions,
+    writingPrefs,
+    updateWritingPrefs,
+    resetWritingPrefs,
+    skipCopyConfirm,
+    setSkipCopyConfirm,
     createChapter,
     deleteChapter,
     loadChapters,

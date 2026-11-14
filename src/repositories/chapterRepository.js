@@ -50,6 +50,13 @@ export const chapterRepository = {
       .order('version_number', { ascending: false });
   },
 
+  deleteVersions: async (versionIds) => {
+    return await supabase
+      .from('chapter_versions')
+      .delete()
+      .in('id', versionIds);
+  },
+
   createVersion: async (versionData) => {
     return await supabase
       .from('chapter_versions')

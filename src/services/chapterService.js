@@ -1,5 +1,6 @@
 import { chapterRepository } from '../repositories/chapterRepository';
 import { countWords, computeLineDiff } from '../utils/diffUtils';
+import { APP_CONFIG } from '../constants/constants';
 
 export const chapterService = {
   getAll: async (storyId) => {
@@ -26,16 +27,7 @@ export const chapterService = {
     const { data: newChapter, error } = await chapterRepository.create(payload);
     if (error) throw error;
 
-    // Crea el commit #1 (Snapshot inicial estilo Git)
-    await chapterRepository.createVersion({
-      chapter_id: newChapter.id,
-      version_number: 1,
-      commit_message: 'Borrador inicial',
-      title_snapshot: newChapter.title,
-      content_snapshot: newChapter.content || '',
-      word_count: wordCount,
-      diff_stats: { addedLines: (newChapter.content || '').split('\n').length, removedLines: 0 },
-    });
+    // No se crea una copia inicial: un capítulo vacío no necesita respaldo y ocuparía uno de los cupos.
 
     return newChapter;
   },
@@ -92,6 +84,15 @@ export const chapterService = {
     const { data: newVersion, error: createVErr } = await chapterRepository.createVersion(versionPayload);
     if (createVErr) throw createVErr;
 
+    // 2b. Conserva solo las copias más recientes: se eliminan las más antiguas (después de crear la nueva,
+    // para no perder nada si la creación falla)
+    const keepOld = Math.max(0, APP_CONFIG.MAX_CHAPTER_VERSIONS - 1);
+    const staleIds = (existingVersions || []).slice(keepOld).map((v) => v.id);
+    if (staleIds.length > 0) {
+      const { error: pruneErr } = await chapterRepository.deleteVersions(staleIds);
+      if (pruneErr) console.warn('[chapterService] No se pudieron eliminar copias antiguas:', pruneErr);
+    }
+
     // 3. Sincronizar el capítulo
     const { data: updatedChapter, error: uErr } = await chapterRepository.update(chapterId, {
       title,
@@ -112,19 +113,7 @@ export const chapterService = {
     });
     if (error) throw error;
 
-    // Crea un commit de restauración
-    const { data: existingVersions } = await chapterRepository.getVersions(chapterId);
-    const nextVersionNumber = (existingVersions?.[0]?.version_number || 0) + 1;
-
-    await chapterRepository.createVersion({
-      chapter_id: chapterId,
-      version_number: nextVersionNumber,
-      commit_message: `Revertido a Versión #${version.version_number}: "${version.commit_message}"`,
-      title_snapshot: version.title_snapshot,
-      content_snapshot: version.content_snapshot,
-      word_count: wordCount,
-      diff_stats: { restoredFrom: version.version_number },
-    });
+    // Restaurar no crea otra copia: las copias existentes se conservan tal cual.
 
     return updatedChapter;
   },

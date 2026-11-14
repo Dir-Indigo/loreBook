@@ -20,7 +20,7 @@ export default function DiffViewerModal({ open, onClose }) {
     workingTitle,
     diffSummary,
     versions,
-    setIsCommitModalOpen,
+    requestSaveCopy,
   } = useManuscriptCore();
 
   const lastVersion = versions?.[0] || null;
@@ -44,7 +44,7 @@ export default function DiffViewerModal({ open, onClose }) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <DifferenceIcon color="primary" />
           <Typography variant="h6" sx={{ fontWeight: 800 }}>
-            Cambios desde la última versión
+            Cambios desde la última copia
           </Typography>
         </Box>
 
@@ -64,13 +64,13 @@ export default function DiffViewerModal({ open, onClose }) {
 
       <Box sx={{ px: 3, pb: 1.5 }}>
         <Typography variant="caption" color="text.secondary">
-          Comparando borrador de <strong>"{workingTitle}"</strong> contra la versión base:{' '}
+          Comparando borrador de <strong>"{workingTitle}"</strong> contra la última copia de seguridad:{' '}
           {lastVersion ? (
             <span>
               <strong>Versión #{lastVersion.version_number}</strong> ({lastVersion.commit_message})
             </span>
           ) : (
-            'Sin versión previa'
+            'Aún no hay copias'
           )}
         </Typography>
       </Box>
@@ -176,11 +176,11 @@ export default function DiffViewerModal({ open, onClose }) {
             color="primary"
             onClick={() => {
               onClose();
-              setIsCommitModalOpen(true);
+              requestSaveCopy();
             }}
             sx={{ fontWeight: 700, borderRadius: 2 }}
           >
-            Guardar esta versión
+            Crear copia de seguridad
           </Button>
         )}
       </DialogActions>

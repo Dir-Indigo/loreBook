@@ -119,6 +119,17 @@ export function WorkspaceViewProvider({ children }) {
     setCharactersColorCardsState(value);
     try { localStorage.setItem('lorebook_characters_color_cards', String(value)); } catch (e) { /* ignorar */ }
   }, []);
+  // Si está activo, cambiar la pestaña del sidebar cambia la vista de trabajo y viceversa
+  const [tabsLinked, setTabsLinkedState] = useState(false);
+  useEffect(() => {
+    try {
+      setTabsLinkedState(localStorage.getItem('lorebook_tabs_linked') === 'true');
+    } catch (e) { /* almacenamiento no disponible */ }
+  }, []);
+  const setTabsLinked = useCallback((value) => {
+    setTabsLinkedState(value);
+    try { localStorage.setItem('lorebook_tabs_linked', String(value)); } catch (e) { /* ignorar */ }
+  }, []);
   // Datos y acciones que la vista de personajes registra para que el navbar los muestre (tags, roles, conteos, modales)
   const [charactersToolbar, setCharactersToolbar] = useState(null);
   const [ideasSearch, setIdeasSearch] = useState('');
@@ -209,6 +220,8 @@ export function WorkspaceViewProvider({ children }) {
     setEventsCompact,
     hasWorkspaceNavbar,
     setHasWorkspaceNavbar,
+    tabsLinked,
+    setTabsLinked,
   }), [
     activeView,
     setActiveView,
@@ -231,6 +244,8 @@ export function WorkspaceViewProvider({ children }) {
     ideasViewMode,
     eventsCompact,
     hasWorkspaceNavbar,
+    tabsLinked,
+    setTabsLinked,
   ]);
 
   return (
@@ -286,6 +301,8 @@ export function useWorkspaceView() {
       setEventsCompact: () => {},
       hasWorkspaceNavbar: false,
       setHasWorkspaceNavbar: () => {},
+      tabsLinked: false,
+      setTabsLinked: () => {},
     };
   }
   return context;

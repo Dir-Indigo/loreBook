@@ -42,6 +42,7 @@ import AddIcon from "@mui/icons-material/Add";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import LinkIcon from "@mui/icons-material/Link";
+import LinkOffIcon from "@mui/icons-material/LinkOff";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
@@ -58,6 +59,8 @@ import BoardTreeItem from "../sidebar/BoardTreeItem";
 import CharacterFolderTreeItem, { InlineFolderInput as InlineCharFolderInput } from "../characters/CharacterFolderTree";
 import MoveToFolderModal from "../characters/MoveToFolderModal";
 import ImageCropModal from "../common/ImageCropModal";
+import StoryExportModal from "../stories/StoryExportModal";
+import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import SidebarIdeasSection from "./sidebar-lore/SidebarIdeasSection";
 import SidebarManuscriptSection from "./sidebar-lore/SidebarManuscriptSection";
 import AutoStoriesIcon from "@mui/icons-material/AutoStories";
@@ -134,7 +137,12 @@ function SidebarLore({
     toggleOpen: toggleNotesPanel,
   } = useQuickNotes();
   const { openDetail, closeDetail, activeView, isOpen: isDetailOpen } = useSidebarDetail();
-  const { activeView: workspaceActiveView, setActiveView: setWorkspaceActiveView } = useWorkspaceView();
+  const {
+    activeView: workspaceActiveView,
+    setActiveView: setWorkspaceActiveView,
+    tabsLinked,
+    setTabsLinked,
+  } = useWorkspaceView();
 
   // Effective fallbacks so SidebarLore works anywhere without missing data
   const effectiveStory = story || activeStory;
@@ -162,6 +170,28 @@ function SidebarLore({
       }
     }
   }, []);
+
+  // Pestaña del sidebar <-> vista de trabajo (la Ficha no tiene vista equivalente)
+  const TAB_TO_VIEW = [
+    WORKSPACE_VIEW_KEYS.EVENTS,
+    WORKSPACE_VIEW_KEYS.CHARACTERS,
+    WORKSPACE_VIEW_KEYS.IDEAS,
+    WORKSPACE_VIEW_KEYS.MANUSCRIPT,
+  ];
+
+  // Todas las formas de cambiar de pestaña pasan por aquí para respetar el vínculo
+  const selectSidebarTab = (tab) => {
+    setSidebarTab(tab);
+    if (tabsLinked && TAB_TO_VIEW[tab]) setWorkspaceActiveView(TAB_TO_VIEW[tab]);
+  };
+
+  // Con el vínculo activo, la vista de trabajo manda sobre el sidebar (también al activarlo)
+  useEffect(() => {
+    if (!tabsLinked) return;
+    const tab = TAB_TO_VIEW.indexOf(workspaceActiveView);
+    if (tab !== -1) setSidebarTab(tab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabsLinked, workspaceActiveView]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -214,6 +244,7 @@ function SidebarLore({
     }
   }, [isMobile]);
 
+  const [storyExportOpen, setStoryExportOpen] = useState(false);
   const [quickCoverOpen, setQuickCoverOpen] = useState(false);
   const [newCoverUrl, setNewCoverUrl] = useState("");
   const [coverMode, setCoverMode] = useState("upload");
@@ -496,7 +527,7 @@ function SidebarLore({
             <IconButton
               size="small"
               onClick={() => {
-                setSidebarTab(0);
+                selectSidebarTab(0);
                 setCollapsed(false);
               }}
               sx={{ color: sidebarTab === 0 ? 'primary.main' : 'action' }}
@@ -509,7 +540,7 @@ function SidebarLore({
             <IconButton
               size="small"
               onClick={() => {
-                setSidebarTab(1);
+                selectSidebarTab(1);
                 setCollapsed(false);
               }}
             >
@@ -523,7 +554,7 @@ function SidebarLore({
             <IconButton
               size="small"
               onClick={() => {
-                setSidebarTab(2);
+                selectSidebarTab(2);
                 setCollapsed(false);
               }}
             >
@@ -536,7 +567,7 @@ function SidebarLore({
           <Tooltip title="Capítulos del Manuscrito" placement="right">
             <IconButton
               size="small"
-              onClick={() => { setSidebarTab(3); setCollapsed(false); }}
+              onClick={() => { selectSidebarTab(3); setCollapsed(false); }}
             >
               <AutoStoriesIcon fontSize="small" color={sidebarTab === 3 ? 'primary' : 'action'} />
             </IconButton>
@@ -545,7 +576,7 @@ function SidebarLore({
           <Tooltip title="Resumen e información" placement="right">
             <IconButton
               size="small"
-              onClick={() => { setSidebarTab(4); setCollapsed(false); }}
+              onClick={() => { selectSidebarTab(4); setCollapsed(false); }}
             >
               <InfoOutlinedIcon fontSize="small" color={sidebarTab === 4 ? 'primary' : 'action'} />
             </IconButton>
@@ -649,6 +680,27 @@ function SidebarLore({
 
         {/* Grupo de acciones del header: botón Detalles + colapsar */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, flexShrink: 0 }}>
+          {/* Vincular pestañas: el sidebar y la barra de trabajo cambian juntos */}
+          <Tooltip title={tabsLinked ? 'Pestañas vinculadas: desactivar' : 'Vincular pestañas del sidebar con las de trabajo'}>
+            <IconButton
+              size="small"
+              onClick={() => setTabsLinked(!tabsLinked)}
+              aria-pressed={tabsLinked}
+              sx={{
+                border: 1,
+                borderRadius: 1.5,
+                p: 0.5,
+                borderColor: tabsLinked ? 'primary.main' : 'divider',
+                color: tabsLinked ? 'primary.main' : 'text.secondary',
+                bgcolor: tabsLinked ? 'action.selected' : 'transparent',
+                transition: 'all 0.18s cubic-bezier(0.4,0,0.2,1)',
+                '&:hover': { borderColor: 'primary.main', color: 'primary.main', bgcolor: 'action.hover' },
+              }}
+            >
+              {tabsLinked ? <LinkIcon sx={{ fontSize: 17 }} /> : <LinkOffIcon sx={{ fontSize: 17 }} />}
+            </IconButton>
+          </Tooltip>
+
           {/* Botón universal de Detalles — abre SidebarDetail según el tab activo */}
           {(() => {
             // Mapeo: tab del sidebar → vista del SidebarDetail
@@ -764,7 +816,7 @@ function SidebarLore({
       {/* ─── Modular Section Tabs (Navigation Hub) ────────────────────────── */}
       <Tabs
         value={sidebarTab}
-        onChange={(e, val) => setSidebarTab(val)}
+        onChange={(e, val) => selectSidebarTab(val)}
         variant="fullWidth"
         sx={{
           minHeight: 44,
@@ -1182,6 +1234,9 @@ function SidebarLore({
               <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>Actualizada: {fmtDate(effectiveStory?.updated_at)}</Typography>
             </Box>
 
+            <CustomButton size="small" startIcon={<FileDownloadOutlinedIcon fontSize="small" />} onClick={() => setStoryExportOpen(true)} disabled={!effectiveStory} sx={{ fontSize: '0.75rem' }}>
+              Exportar historia
+            </CustomButton>
             <CustomButton variant="outlined" size="small" startIcon={<PhotoCameraIcon fontSize="small" />} onClick={handleOpenQuickCover} sx={{ fontSize: '0.75rem' }}>
               Cambiar Portada Panorámica
             </CustomButton>
@@ -1373,6 +1428,8 @@ function SidebarLore({
           )}
         </DialogActions>
       </Dialog>
+
+      <StoryExportModal open={storyExportOpen} onClose={() => setStoryExportOpen(false)} story={effectiveStory} />
     </Box>
   );
 }

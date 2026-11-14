@@ -1,3 +1,22 @@
+// Errores de sesión vencida: Supabase responde 401 / "JWT expired" / PGRST301
+const isAuthError = (error) =>
+  error?.status === 401 ||
+  error?.code === 'PGRST301' ||
+  /jwt|token.*expired|invalid claim/i.test(error?.message || '');
+
+// Renueva la sesión una sola vez (si el refresh token ya no sirve, onAuthStateChange cerrará la sesión)
+let refreshing = null;
+const refreshSessionOnce = () => {
+  if (!refreshing) {
+    // Importación diferida: el cliente de Supabase solo hace falta cuando hay que renovar la sesión
+    refreshing = import('../utils/supabaseClient')
+      .then(({ supabase }) => supabase.auth.refreshSession())
+      .catch(() => null)
+      .finally(() => { refreshing = null; });
+  }
+  return refreshing;
+};
+
 /**
  * Base común de los controladores: gestiona el indicador de carga y convierte
  * cualquier fallo en `{ data, error }`, de modo que la UI nunca recibe excepciones.
@@ -10,23 +29,6 @@
  *   `task` resuelve `{ data, error }` (formato de los repositories / Supabase).
  *   `fallback` es el valor de `data` cuando hay error (por defecto null).
  */
-import { supabase } from '../utils/supabaseClient';
-
-// Errores de sesión vencida: Supabase responde 401 / "JWT expired" / PGRST301
-const isAuthError = (error) =>
-  error?.status === 401 ||
-  error?.code === 'PGRST301' ||
-  /jwt|token.*expired|invalid claim/i.test(error?.message || '');
-
-// Renueva la sesión una sola vez (si el refresh token ya no sirve, onAuthStateChange cerrará la sesión)
-let refreshing = null;
-const refreshSessionOnce = () => {
-  if (!refreshing) {
-    refreshing = supabase.auth.refreshSession().catch(() => null).finally(() => { refreshing = null; });
-  }
-  return refreshing;
-};
-
 export const createController = (name) => {
   const report = (error) => console.error(`[${name} Error]:`, error);
 

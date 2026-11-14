@@ -30,6 +30,9 @@ export default function VersionHistoryDrawer({ open, onClose }) {
     versionsLoading,
     restoreVersion,
     setIsDiffModalOpen,
+    skipCopyConfirm,
+    setSkipCopyConfirm,
+    maxVersions,
   } = useManuscriptCore();
 
   const [confirmVersionToRestore, setConfirmVersionToRestore] = useState(null);
@@ -76,7 +79,7 @@ export default function VersionHistoryDrawer({ open, onClose }) {
             <HistoryIcon color="primary" />
             <Box>
               <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
-                Historial de Versiones
+                Copias de seguridad
               </Typography>
               <Typography variant="caption" color="text.secondary" noWrap>
                 {activeChapter?.title || 'Capítulo'}
@@ -86,6 +89,17 @@ export default function VersionHistoryDrawer({ open, onClose }) {
           <IconAction label="Cerrar historial" size="small" onClick={onClose}>
             <CloseIcon fontSize="small" />
           </IconAction>
+        </Box>
+
+        <Box sx={{ px: 2, pt: 1.5 }}>
+          <Typography variant="caption" color="text.secondary">
+            Se conservan las {maxVersions} copias más recientes de cada capítulo.
+            {skipCopyConfirm && (
+              <Button size="small" onClick={() => setSkipCopyConfirm(false)} sx={{ textTransform: 'none', fontSize: '0.72rem', ml: 0.5, p: 0, minWidth: 0 }}>
+                Volver a mostrar el aviso al reemplazar
+              </Button>
+            )}
+          </Typography>
         </Box>
 
         {/* Content list */}
@@ -98,7 +112,7 @@ export default function VersionHistoryDrawer({ open, onClose }) {
             <Box sx={{ textAlign: 'center', py: 8 }}>
               <CommitIcon sx={{ fontSize: 48, opacity: 0.3, mb: 1 }} />
               <Typography variant="body2" color="text.secondary">
-                Aún no hay versiones guardadas en este capítulo.
+                Aún no hay copias de seguridad de este capítulo.
               </Typography>
             </Box>
           ) : (
@@ -132,7 +146,7 @@ export default function VersionHistoryDrawer({ open, onClose }) {
                         {isLatest && (
                           <Chip
                             size="small"
-                            label="Versión actual"
+                            label="Más reciente"
                             color="success"
                             variant="outlined"
                             sx={{ fontWeight: 700, height: 20, fontSize: '0.65rem' }}
@@ -187,14 +201,14 @@ export default function VersionHistoryDrawer({ open, onClose }) {
         maxWidth="xs"
         PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
       >
-        <DialogTitle sx={{ fontWeight: 800 }}>¿Restaurar a esta versión?</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 800 }}>¿Restaurar esta copia?</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary">
-            Se reemplazará el texto actual del capítulo por el snapshot de la{' '}
-            <strong>Versión #{confirmVersionToRestore?.version_number}</strong> ({confirmVersionToRestore?.commit_message}).
+            Se reemplazará el texto actual del capítulo por el de la copia{' '}
+            <strong>#{confirmVersionToRestore?.version_number}</strong> ({confirmVersionToRestore?.commit_message}).
           </Typography>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            Lorebook creará automáticamente un nuevo punto de control registrando esta restauración para que nunca pierdas nada.
+            Atención: lo que hayas escrito después de esa copia se perderá. Si quieres conservarlo, crea primero una copia de seguridad.
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>

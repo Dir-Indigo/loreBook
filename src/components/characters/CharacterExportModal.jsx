@@ -29,6 +29,7 @@ import DataObjectIcon from '@mui/icons-material/DataObject';
 import HubOutlinedIcon from '@mui/icons-material/HubOutlined';
 import CustomModal from '../common/CustomModal';
 import CustomButton from '../common/CustomButton';
+import { buildRelationshipsByChar, renderCharacterMarkdown } from '../../utils/storyExport';
 
 export default function CharacterExportModal({
   open,
@@ -60,34 +61,11 @@ export default function CharacterExportModal({
     return characters;
   }, [characters, filteredCharacters, selectedCharacterIds, scope]);
 
-  // Build relationships map (charId -> array of relationships with readable target name)
-  const relationshipsByChar = useMemo(() => {
-    const charMap = new Map(characters.map((c) => [c.id, c.name]));
-    const map = {};
-
-    relationships.forEach((rel) => {
-      const sourceName = charMap.get(rel.source_character_id) || 'Personaje';
-      const targetName = charMap.get(rel.target_character_id) || 'Personaje';
-
-      // Source side
-      if (!map[rel.source_character_id]) map[rel.source_character_id] = [];
-      map[rel.source_character_id].push({
-        withName: targetName,
-        type: rel.relationship_type,
-        description: rel.description,
-      });
-
-      // Target side (bidirectional context)
-      if (!map[rel.target_character_id]) map[rel.target_character_id] = [];
-      map[rel.target_character_id].push({
-        withName: sourceName,
-        type: rel.relationship_type,
-        description: rel.description,
-      });
-    });
-
-    return map;
-  }, [characters, relationships]);
+  // Mapa personaje -> vínculos con nombre legible
+  const relationshipsByChar = useMemo(
+    () => buildRelationshipsByChar(characters, relationships),
+    [characters, relationships]
+  );
 
   // Generated Text Output
   const generatedOutput = useMemo(() => {
@@ -99,41 +77,10 @@ export default function CharacterExportModal({
       doc += `*Generado con Lorebook Studio · Total: ${targetCharacters.length} personajes*\n\n`;
       doc += `---\n\n`;
 
+      const include = { bio: includeBio, psychology: includePsychology, relationships: includeRelationships, notes: includeNotes };
       targetCharacters.forEach((char, index) => {
-        const attr = char.attributes || {};
-        const charRels = relationshipsByChar[char.id] || [];
-
-        doc += `## ${index + 1}. ${char.name}\n`;
-        doc += `- **Rol / Arquetipo:** ${char.role_archetype || 'Sin rol definido'}\n`;
-        doc += `- **Ámbito:** ${char.is_global ? 'Global (Compartido en todo el universo)' : 'Local'}\n`;
-
-        if (includeBio && char.biography) {
-          doc += `\n### Biografía & Trasfondo\n${char.biography}\n`;
-        }
-
-        if (includePsychology) {
-          const hasPsych = attr.goal || attr.conflict || attr.strengths || attr.flaws;
-          if (hasPsych) {
-            doc += `\n### Perfil Psicológico & Motivaciones\n`;
-            if (attr.goal) doc += `- **Objetivo Principal:** ${attr.goal}\n`;
-            if (attr.conflict) doc += `- **Conflicto / Obstáculo:** ${attr.conflict}\n`;
-            if (attr.strengths) doc += `- **Fortalezas & Talentos:** ${attr.strengths}\n`;
-            if (attr.flaws) doc += `- **Debilidades & Defectos:** ${attr.flaws}\n`;
-          }
-        }
-
-        if (includeRelationships && charRels.length > 0) {
-          doc += `\n### Vínculos & Relaciones\n`;
-          charRels.forEach((rel) => {
-            doc += `- **${rel.type}** con *${rel.withName}*${rel.description ? `: ${rel.description}` : ''}\n`;
-          });
-        }
-
-        if (includeNotes && attr.notes) {
-          doc += `\n### Notas del Autor / Secretos\n> ${attr.notes}\n`;
-        }
-
-        doc += `\n---\n\n`;
+        doc += renderCharacterMarkdown(char, { index: index + 1, relsByChar: relationshipsByChar, include, level: 2 });
+        doc += '\n---\n\n';
       });
 
       return doc;

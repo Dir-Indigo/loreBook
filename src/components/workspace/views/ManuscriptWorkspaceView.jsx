@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -32,6 +32,8 @@ import { useManuscript } from '../../../context/ManuscriptContext';
 import CommitModal from '../../manuscript/CommitModal';
 import DiffViewerModal from '../../manuscript/DiffViewerModal';
 import VersionHistoryDrawer from '../../manuscript/VersionHistoryDrawer';
+import RichTextEditor from '../../manuscript/RichTextEditor';
+import { WRITING_THEMES, WRITING_FONTS } from '../../../hooks/useWritingPrefs';
 
 // ── Componente de Diff estilo literario idéntico a DiffViewerModal ───────────
 function ManuscriptDiffPanel({ diffSummary, versions }) {
@@ -185,9 +187,22 @@ export default function ManuscriptWorkspaceView() {
     setIsDiffModalOpen,
     reviewMode,
     setReviewMode,
+    writingPrefs: prefs,
+    editorApiRef: editorRef,
   } = useManuscript();
 
   const [showSummary, setShowSummary] = useState(false);
+
+  // Tema, fuente y espaciado (se eligen desde la barra del navbar y se recuerdan en este navegador)
+  const tone = WRITING_THEMES[prefs.theme];
+  const editorSx = useMemo(() => ({
+    fontSize: `${prefs.size}px`,
+    lineHeight: prefs.lineHeight,
+    letterSpacing: '0.005em',
+    fontFamily: WRITING_FONTS[prefs.font].family,
+    color: 'inherit',
+    p: 0,
+  }), [prefs.size, prefs.lineHeight, prefs.font]);
 
   // Scroll sincronizado proporcional para la vista dividida
   const syncTopRef = useRef(null);
@@ -267,7 +282,7 @@ export default function ManuscriptWorkspaceView() {
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 480, mb: 3 }}>
           Escribe por capítulos o escenas continuas. Lorebook registrará tus cambios en tiempo real y te permitirá
-          crear puntos de control (commits) para ver qué has cambiado y restaurar versiones cuando quieras.
+          crear copias de seguridad para ver qué has cambiado y volver atrás cuando quieras.
         </Typography>
         <Button
           variant="contained"
@@ -293,7 +308,7 @@ export default function ManuscriptWorkspaceView() {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        bgcolor: 'background.default',
+        bgcolor: tone.outer || 'background.default',
         overflow: 'hidden',
       }}
     >
@@ -341,7 +356,7 @@ export default function ManuscriptWorkspaceView() {
         }}
       >
         <Container
-          maxWidth={reviewMode ? false : 'md'}
+          maxWidth={reviewMode ? false : prefs.width}
           disableGutters
           sx={{
             width: '100%',
@@ -358,8 +373,9 @@ export default function ManuscriptWorkspaceView() {
               p: { xs: 2.5, sm: 5 },
               borderRadius: 3,
               border: 1,
-              borderColor: 'divider',
-              bgcolor: 'background.paper',
+              borderColor: tone.border || 'divider',
+              bgcolor: tone.paper || 'background.paper',
+              color: tone.text || 'text.primary',
               boxShadow: '0 2px 16px rgba(0,0,0,0.04)',
               width: '100%',
               display: 'flex',
@@ -384,7 +400,7 @@ export default function ManuscriptWorkspaceView() {
                   fontSize: { xs: '1.5rem', sm: '2rem' },
                   fontWeight: 900,
                   letterSpacing: '-0.02em',
-                  color: 'text.primary',
+                  color: 'inherit',
                   lineHeight: 1.2,
                 },
               }}
@@ -398,7 +414,7 @@ export default function ManuscriptWorkspaceView() {
                 endIcon={showSummary ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                 startIcon={<EditNoteIcon sx={{ fontSize: 16 }} />}
                 sx={{
-                  color: 'text.secondary',
+                  color: tone.muted || 'text.secondary',
                   fontSize: '0.72rem',
                   textTransform: 'none',
                   fontWeight: 600,
@@ -410,7 +426,7 @@ export default function ManuscriptWorkspaceView() {
               </Button>
 
               <Collapse in={showSummary}>
-                <Box sx={{ mt: 1, p: 1.5, borderRadius: 2, bgcolor: 'background.subtle', border: 1, borderColor: 'divider' }}>
+                <Box sx={{ mt: 1, p: 1.5, borderRadius: 2, bgcolor: tone.paper ? 'rgba(128,128,128,0.1)' : 'background.subtle', border: 1, borderColor: tone.border || 'divider' }}>
                   <TextField
                     multiline
                     rows={2}
@@ -421,7 +437,7 @@ export default function ManuscriptWorkspaceView() {
                     variant="standard"
                     InputProps={{
                       disableUnderline: true,
-                      sx: { fontSize: '0.85rem' },
+                      sx: { fontSize: '0.85rem', color: 'inherit' },
                     }}
                   />
                 </Box>
@@ -433,31 +449,13 @@ export default function ManuscriptWorkspaceView() {
             {/* ── Área de texto ──────────────────────────────────────── */}
             {!reviewMode ? (
               /* Editor normal */
-              <TextField
-                multiline
-                fullWidth
-                minRows={18}
+              <RichTextEditor
+                ref={editorRef}
                 value={workingDraft}
-                onChange={(e) => setWorkingDraft(e.target.value)}
-                placeholder="Comienza a escribir aquí tu historia en prosa continua... Cada palabra se guarda automáticamente y puedes guardar versiones cuando alcances un hito narrativo."
-                variant="standard"
-                InputProps={{
-                  disableUnderline: true,
-                  sx: {
-                    fontSize: { xs: '1rem', sm: '1.08rem' },
-                    lineHeight: 1.85,
-                    letterSpacing: '0.005em',
-                    fontFamily: 'Merriweather, Georgia, "Times New Roman", serif, -apple-system',
-                    color: 'text.primary',
-                    alignItems: 'flex-start',
-                    p: 0,
-                  },
-                }}
-                sx={{
-                  flexGrow: 1,
-                  '& .MuiInputBase-root': { p: 0 },
-                  '& .MuiInputBase-input': { p: 0 },
-                }}
+                onChange={setWorkingDraft}
+                placeholder="Comienza a escribir aquí tu historia en prosa continua... Tu texto se guarda automáticamente."
+                sx={editorSx}
+                minHeight={`calc(${prefs.size}px * ${prefs.lineHeight} * 18)`}
               />
             ) : (
               /* Vista dividida comparativa por defecto en Modo Revisión */
@@ -514,31 +512,12 @@ export default function ManuscriptWorkspaceView() {
                     </Typography>
                   </Box>
 
-                  <TextField
-                    multiline
-                    fullWidth
+                  <RichTextEditor
+                    ref={editorRef}
                     value={workingDraft}
-                    onChange={(e) => setWorkingDraft(e.target.value)}
+                    onChange={setWorkingDraft}
                     placeholder="Comienza a escribir aquí tu historia..."
-                    variant="standard"
-                    InputProps={{
-                      disableUnderline: true,
-                      sx: {
-                        fontSize: { xs: '1rem', sm: '1.08rem' },
-                        lineHeight: 1.85,
-                        letterSpacing: '0.005em',
-                        fontWeight: 400,
-                        fontFamily: 'Merriweather, Georgia, "Times New Roman", serif, -apple-system',
-                        color: 'text.primary',
-                        alignItems: 'flex-start',
-                        p: 0,
-                      },
-                    }}
-                    sx={{
-                      flexGrow: 1,
-                      '& .MuiInputBase-root': { p: 0 },
-                      '& .MuiInputBase-input': { p: 0 },
-                    }}
+                    sx={editorSx}
                   />
                 </Box>
 
@@ -625,7 +604,7 @@ export default function ManuscriptWorkspaceView() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                color: 'text.secondary',
+                color: tone.muted || 'text.secondary',
                 fontSize: '0.75rem',
               }}
             >
@@ -642,7 +621,7 @@ export default function ManuscriptWorkspaceView() {
               <Box
                 role="status"
                 aria-live="polite"
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.6, color: saveStatus === 'error' ? 'error.main' : 'text.secondary' }}
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.6, color: saveStatus === 'error' ? 'error.main' : 'inherit' }}
               >
                 {saveStatus === 'error' ? (
                   <CloudOffOutlinedIcon sx={{ fontSize: 15 }} />
@@ -655,8 +634,8 @@ export default function ManuscriptWorkspaceView() {
                     : saveStatus === 'saving'
                       ? 'Guardando…'
                       : hasUnsavedDraft
-                        ? 'Cambios sin guardar'
-                        : 'Guardado'}
+                        ? 'Guardando automáticamente en unos segundos…'
+                        : 'Guardado automáticamente'}
                 </Typography>
                 {saveStatus === 'error' && (
                   <Button size="small" color="inherit" onClick={() => saveDraft(true)} sx={{ minWidth: 0, py: 0, px: 0.75, fontSize: '0.75rem', textDecoration: 'underline' }}>
