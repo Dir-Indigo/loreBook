@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { useEventOrder } from '../../hooks/useEventOrder';
 import { useQuickNotes } from '../../context/QuickNotesContext';
 import { useStory } from '../../context/StoryContext';
-import { useWorkspace } from '../../context/WorkspaceContext';
+import { useWorkspace, useWorkspaceActions } from '../../context/WorkspaceContext';
 import { useGlobalActions } from '../../context/GlobalActionsContext';
 import { alpha } from '@mui/material/styles';
 import {
@@ -127,6 +127,7 @@ function SidebarLore({
     deleteBoard: ctxDeleteBoard,
   } = useWorkspace();
   const { chapters: manuscriptChapters = [], totalManuscriptWords = 0 } = useManuscriptCore();
+  const { moveCharactersToFolder } = useWorkspaceActions();
   const { openCreateEvent, openCreateChar } = useGlobalActions();
   const {
     notes,
@@ -472,10 +473,8 @@ function SidebarLore({
     if (onMoveCharacterToFolder) {
       await onMoveCharacterToFolder(charIds, targetFolderId);
     } else {
-      await ApiService.characters.moveToFolder(charIds, targetFolderId);
-      if (router.pathname.includes('/characters')) {
-        router.replace(router.asPath);
-      }
+      // Actualiza el estado al instante (sidebar y pestaña Personajes) y guarda en segundo plano
+      moveCharactersToFolder({ characterIds: charIds, folderId: targetFolderId });
     }
     setSidebarMoveChar(null);
   };
@@ -523,16 +522,17 @@ function SidebarLore({
             </IconButton>
           </Tooltip>
 
-          <Tooltip title={`Tramas (${effectiveBoards.length} tableros)`} placement="right">
+          <Tooltip title={`Ideas de la historia (${storyNotes.length})`} placement="right">
             <IconButton
               size="small"
               onClick={() => {
-                selectSidebarTab(0);
+                selectSidebarTab(2);
                 setCollapsed(false);
               }}
-              sx={{ color: sidebarTab === 0 ? 'primary.main' : 'action' }}
             >
-              <AccountTreeOutlinedIcon fontSize="small" />
+              <Badge badgeContent={storyNotes.length} color="secondary">
+                <LightbulbOutlinedIcon fontSize="small" color={isDetailOpen && activeView === DETAIL_VIEWS.NOTES ? 'primary' : 'action'} />
+              </Badge>
             </IconButton>
           </Tooltip>
 
@@ -550,17 +550,16 @@ function SidebarLore({
             </IconButton>
           </Tooltip>
 
-          <Tooltip title={`Ideas de la historia (${storyNotes.length})`} placement="right">
+          <Tooltip title={`Tramas (${effectiveBoards.length} tableros)`} placement="right">
             <IconButton
               size="small"
               onClick={() => {
-                selectSidebarTab(2);
+                selectSidebarTab(0);
                 setCollapsed(false);
               }}
+              sx={{ color: sidebarTab === 0 ? 'primary.main' : 'action' }}
             >
-              <Badge badgeContent={storyNotes.length} color="secondary">
-                <LightbulbOutlinedIcon fontSize="small" color={isDetailOpen && activeView === DETAIL_VIEWS.NOTES ? 'primary' : 'action'} />
-              </Badge>
+              <AccountTreeOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
 
@@ -834,25 +833,27 @@ function SidebarLore({
           },
         }}
       >
-        <Tab icon={<AccountTreeOutlinedIcon sx={{ fontSize: 18 }} />} label="Tramas" />
-        <Tab 
-          icon={
-            <Badge badgeContent={filteredCharacters.length} color="primary" slotProps={{ badge: { sx: { fontSize: '0.6rem', height: 14, minWidth: 14, p: '0 2px' } } }}>
-              <PeopleOutlineIcon sx={{ fontSize: 18 }} />
-            </Badge>
-          } 
-          label="Personajes" 
-        />
-        <Tab 
+        <Tab
+          value={2}
           icon={
             <Badge badgeContent={storyNotes.length} color="secondary" slotProps={{ badge: { sx: { fontSize: '0.6rem', height: 14, minWidth: 14, p: '0 2px' } } }}>
               <LightbulbOutlinedIcon sx={{ fontSize: 18 }} />
             </Badge>
-          } 
-          label="Ideas" 
+          }
+          label="Ideas"
         />
-        <Tab icon={<AutoStoriesIcon sx={{ fontSize: 18 }} />} label="Capítulos" />
-        <Tab icon={<InfoOutlinedIcon sx={{ fontSize: 18 }} />} label="Ficha" />
+        <Tab
+          value={1}
+          icon={
+            <Badge badgeContent={filteredCharacters.length} color="primary" slotProps={{ badge: { sx: { fontSize: '0.6rem', height: 14, minWidth: 14, p: '0 2px' } } }}>
+              <PeopleOutlineIcon sx={{ fontSize: 18 }} />
+            </Badge>
+          }
+          label="Personajes"
+        />
+        <Tab value={0} icon={<AccountTreeOutlinedIcon sx={{ fontSize: 18 }} />} label="Tramas" />
+        <Tab value={3} icon={<AutoStoriesIcon sx={{ fontSize: 18 }} />} label="Capítulos" />
+        <Tab value={4} icon={<InfoOutlinedIcon sx={{ fontSize: 18 }} />} label="Ficha" />
       </Tabs>
 
       {/* ─── SECTION 0: TRAMAS (Líneas Narrativas & Eventos) ──────────────── */}

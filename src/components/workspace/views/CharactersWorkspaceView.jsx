@@ -25,6 +25,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useStory } from '../../../context/StoryContext';
 import { useLoading } from '../../../context/LoadingContext';
 import { useWorkspaceView } from '../../../context/WorkspaceViewContext';
+import { useWorkspaceActions, CHARACTER_FOLDER_EVENT } from '../../../context/WorkspaceContext';
 import { ApiService } from '../../../utils/ApiService';
 import CustomLoading from '../../common/CustomLoading';
 import LinearProgress from '@mui/material/LinearProgress';
@@ -96,6 +97,8 @@ export default function CharactersWorkspaceView({ storyId = null }) {
     setCharactersToolbar,
     hasWorkspaceNavbar,
   } = useWorkspaceView();
+
+  const { moveCharactersToFolder } = useWorkspaceActions();
 
   // Guard: solo cargar una vez por story_id (evita re-fetches al alternar tabs)
   const hasLoadedRef = useRef(false);
@@ -353,6 +356,21 @@ export default function CharactersWorkspaceView({ storyId = null }) {
     }
   };
 
+  // Edición rápida de la biografía desde la carta: se ve al instante y se revierte si el servidor falla
+  const handleBiographyChange = async (charId, biography) => {
+    if (typeof charId === 'string' && charId.startsWith('temp-')) return; // aún se está creando
+    const previousCharacters = characters;
+    setCharacters((current) =>
+      current.map((char) => (char.id === charId ? { ...char, biography } : char))
+    );
+
+    const result = await ApiService.characters.update(charId, { biography }, null);
+    if (result.error) {
+      setCharacters(previousCharacters);
+      notify.error('No se pudo guardar la biografía.');
+    }
+  };
+
   // ─── Folder Operations ──────────────────────────────────────────────────
   const handleCommitCreateFolder = async (name, parentFolderId = null) => {
     if (!story_id || !name.trim()) return;
@@ -426,22 +444,23 @@ export default function CharactersWorkspaceView({ storyId = null }) {
     setMoveToFolderOpen(true);
   };
 
-  const handleConfirmMoveToFolder = async (characterIds, targetFolderId) => {
-    const previousCharacters = characters;
-    setCharacters((current) =>
-      current.map((c) =>
-        characterIds.includes(c.id) ? { ...c, folder_id: targetFolderId } : c
-      )
-    );
-
-    const result = await ApiService.characters.moveToFolder(characterIds, targetFolderId, setLoading);
-    if (result.error) {
-      setCharacters(previousCharacters);
-      notify.error('No se pudo mover uno o más personajes.');
-      return;
-    }
+  // El movimiento pasa por el contexto: así el sidebar y esta pestaña se actualizan a la vez
+  const handleConfirmMoveToFolder = (characterIds, targetFolderId) => {
+    moveCharactersToFolder({ characterIds, folderId: targetFolderId });
     setSelectedCharacterIds([]);
   };
+
+  // Cambios de carpeta hechos desde otro lugar (p. ej. arrastrando en el sidebar), incluida su reversión
+  useEffect(() => {
+    const onFolderChanged = (event) => {
+      const changes = event.detail?.changes || {};
+      setCharacters((current) => current.map((c) => (
+        Object.prototype.hasOwnProperty.call(changes, c.id) ? { ...c, folder_id: changes[c.id] } : c
+      )));
+    };
+    window.addEventListener(CHARACTER_FOLDER_EVENT, onFolderChanged);
+    return () => window.removeEventListener(CHARACTER_FOLDER_EVENT, onFolderChanged);
+  }, []);
 
   // ─── Custom Tag Operations ──────────────────────────────────────────────
   const handleCreateTag = async (tagData) => {
@@ -1029,6 +1048,7 @@ export default function CharactersWorkspaceView({ storyId = null }) {
                           onClone={handleClone}
                           onMakeLocalCopy={(c) => handleRequestCopyAsLocal([c])}
                           onRoleChange={handleRoleChange}
+                          onBiographyChange={handleBiographyChange}
                           onMoveToFolder={(c) => handleOpenMoveToFolder([c])}
                           onAssignTags={(c) => handleOpenBatchTagAssign([c])}
                         />
@@ -1066,6 +1086,7 @@ export default function CharactersWorkspaceView({ storyId = null }) {
                     onClone={handleClone}
                     onMakeLocalCopy={(c) => handleRequestCopyAsLocal([c])}
                     onRoleChange={handleRoleChange}
+                    onBiographyChange={handleBiographyChange}
                     onMoveToFolder={(c) => handleOpenMoveToFolder([c])}
                     onAssignTags={(c) => handleOpenBatchTagAssign([c])}
                   />

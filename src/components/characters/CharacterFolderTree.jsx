@@ -167,8 +167,46 @@ export default function CharacterFolderTreeItem({
 
   const INDENT = 16;
 
+  const isCharacterDrag = (e) => (
+    e.dataTransfer.types.includes('application/lorebook-character-id') || e.dataTransfer.types.includes('text/plain')
+  );
+  // Carpeta más profunda bajo el cursor: si se suelta sobre una subcarpeta, gana la subcarpeta
+  const deepestFolderId = (e) => e.target?.closest?.('[data-char-folder]')?.dataset.charFolder;
+
   return (
-    <Box>
+    // Toda la carpeta (fila, subcarpetas y personajes) es zona de soltar, no solo el nombre
+    <Box
+      data-char-folder={folder.id}
+      onDragOver={(e) => {
+        if (!isCharacterDrag(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const isTarget = deepestFolderId(e) === folder.id;
+        if (isTarget !== isDragOverFolder) setIsDragOverFolder(isTarget);
+      }}
+      onDragLeave={(e) => {
+        // Solo cuando el cursor sale de toda la carpeta (no al pasar entre sus elementos)
+        if (!e.currentTarget.contains(e.relatedTarget)) setIsDragOverFolder(false);
+      }}
+      onDrop={(e) => {
+        if (!isCharacterDrag(e)) return;
+        setIsDragOverFolder(false);
+        if (deepestFolderId(e) !== folder.id) return; // lo atiende la subcarpeta
+        e.preventDefault();
+        const charId = e.dataTransfer.getData('application/lorebook-character-id') || e.dataTransfer.getData('text/plain');
+        const alreadyHere = characters.some((c) => c.id === charId && (c.folder_id === folder.id || (isDefault && !c.folder_id)));
+        if (charId && !alreadyHere && onMoveCharacterToFolder) {
+          onMoveCharacterToFolder(charId, folder.id);
+        }
+      }}
+      sx={{
+        borderRadius: 1.5,
+        outline: isDragOverFolder ? `2px dashed ${folder.color || 'primary.main'}` : '2px dashed transparent',
+        outlineOffset: -1,
+        bgcolor: isDragOverFolder ? 'action.hover' : 'transparent',
+        transition: 'background-color 0.12s ease, outline-color 0.12s ease',
+      }}
+    >
       {/* Folder Row */}
       <Box
         onClick={(e) => {
@@ -183,28 +221,6 @@ export default function CharacterFolderTreeItem({
           }
           if (onSelectFolder) onSelectFolder(folder.id);
         }}
-        onDragOver={(e) => {
-          if (e.dataTransfer.types.includes('application/lorebook-character-id') || e.dataTransfer.types.includes('text/plain')) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.dataTransfer.dropEffect = 'move';
-            if (!isDragOverFolder) setIsDragOverFolder(true);
-          }
-        }}
-        onDragLeave={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setIsDragOverFolder(false);
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setIsDragOverFolder(false);
-          const charId = e.dataTransfer.getData('application/lorebook-character-id') || e.dataTransfer.getData('text/plain');
-          if (charId && onMoveCharacterToFolder) {
-            onMoveCharacterToFolder(charId, folder.id);
-          }
-        }}
         sx={{
           display: 'flex',
           alignItems: 'center',
@@ -214,12 +230,10 @@ export default function CharacterFolderTreeItem({
           py: 0.5,
           borderRadius: 1.5,
           cursor: 'pointer',
-          bgcolor: isDragOverFolder ? 'action.selected' : isActive ? 'action.selected' : 'transparent',
+          bgcolor: isActive ? 'action.selected' : 'transparent',
           borderLeft: isActive
             ? `3px solid ${folder.color || DEFAULT_ENTITY_COLOR}`
             : '3px solid transparent',
-          border: isDragOverFolder ? `2px dashed ${folder.color || 'primary.main'}` : undefined,
-          boxShadow: isDragOverFolder ? '0 0 10px rgba(2, 132, 199, 0.25)' : 'none',
           transition: 'all 0.15s ease',
           '&:hover': {
             bgcolor: isActive ? 'action.selected' : 'action.hover',

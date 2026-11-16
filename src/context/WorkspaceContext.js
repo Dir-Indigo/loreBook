@@ -32,6 +32,9 @@ const createPrimaryBoard = (storyId, setLoading) => (
 );
 
 // IDs temporales: permiten mostrar un registro al instante mientras el servidor confirma el guardado
+// Evento de ventana: avisa a las vistas con estado propio (p. ej. la pestaña Personajes) de que cambió la carpeta de personajes
+export const CHARACTER_FOLDER_EVENT = 'lorebook:characters-folder-changed';
+
 const TEMP_PREFIX = 'temp-';
 const makeTempId = (kind) => `${TEMP_PREFIX}${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const isTempId = (id) => typeof id === 'string' && id.startsWith(TEMP_PREFIX);
@@ -725,6 +728,38 @@ export const WorkspaceProvider = ({ children }) => {
     return { error: null, changed: true };
   }, []);
 
+  // Mover personajes a otra carpeta: se ve al instante (sidebar y pestaña Personajes) y se revierte si falla
+  const moveCharactersToFolder = useCallback(async ({ characterIds, folderId }) => {
+    const ids = (Array.isArray(characterIds) ? characterIds : [characterIds]).filter(Boolean);
+    if (!ids.length) return { data: null, error: null };
+
+    const previous = {};
+    latestRef.current.characters.forEach((c) => {
+      if (ids.includes(c.id)) previous[c.id] = c.folder_id ?? null;
+    });
+
+    const applyChanges = (changes) => {
+      setCharacters((current) => current.map((c) => (
+        Object.prototype.hasOwnProperty.call(changes, c.id) ? { ...c, folder_id: changes[c.id] } : c
+      )));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(CHARACTER_FOLDER_EVENT, { detail: { changes } }));
+      }
+    };
+
+    applyChanges(Object.fromEntries(ids.map((id) => [id, folderId])));
+
+    const realIds = (await Promise.all(ids.map((id) => resolveId(id)))).filter(Boolean);
+    if (!realIds.length) return { data: null, error: null };
+
+    const result = await ApiService.characters.moveToFolder(realIds, folderId, null);
+    if (result?.error) {
+      applyChanges(previous);
+      notifyRef.current?.error?.('No se pudo mover el personaje a la carpeta.');
+    }
+    return result;
+  }, [resolveId]);
+
   const createRelationship = useCallback(async ({ storyId, relData }) => {
     if (!storyId) return { data: null, error: new Error('Story ID is required') };
 
@@ -841,6 +876,7 @@ export const WorkspaceProvider = ({ children }) => {
     restoreEventVersion,
     saveCharacter,
     deleteCharacter,
+    moveCharactersToFolder,
     updateCharactersGlobal,
     copyCharactersAsLocal,
     createRelationship,
@@ -879,6 +915,7 @@ export const WorkspaceProvider = ({ children }) => {
     restoreEventVersion,
     saveCharacter,
     deleteCharacter,
+    moveCharactersToFolder,
     updateCharactersGlobal,
     copyCharactersAsLocal,
     createRelationship,

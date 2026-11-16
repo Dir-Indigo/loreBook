@@ -25,11 +25,111 @@ import {
   ListItemText,
   Tabs,
   Tab,
+  TextField,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { CHARACTER_ARCHETYPES, DEFAULT_ENTITY_COLOR } from '../../constants/constants';
 import { ApiService } from '../../utils/ApiService';
 import { useWorkspaceView } from '../../context/WorkspaceViewContext';
+
+// Biografía editable con un clic: se guarda al salir del campo o con Ctrl+Enter, y Esc cancela
+function InlineBiography({ value, onSave, isMedium }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || '');
+
+  const startEditing = (event) => {
+    event.stopPropagation(); // no seleccionar la carta
+    setDraft(value || '');
+    setEditing(true);
+  };
+
+  const commit = () => {
+    setEditing(false);
+    const next = draft.trim();
+    if (next !== (value || '').trim()) onSave(next);
+  };
+
+  const fontSize = isMedium ? '0.78rem' : '0.84rem';
+
+  // Tab / Shift+Tab: guarda y pasa a editar la biografía de la carta siguiente / anterior
+  const jumpToSibling = (event, direction) => {
+    const all = Array.from(document.querySelectorAll('[data-bio-card]'));
+    const index = all.indexOf(event.currentTarget.closest('[data-bio-card]'));
+    const target = all[index + direction] || null;
+    commit();
+    if (target) target.click(); // abre el editor de esa carta
+  };
+
+  if (editing) {
+    return (
+      <Box data-bio-card onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()} sx={{ mt: 0.8 }}>
+        <TextField
+          autoFocus
+          multiline
+          fullWidth
+          minRows={isMedium ? 2 : 3}
+          maxRows={10}
+          size="small"
+          value={draft}
+          placeholder="Escribe la biografía…"
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onFocus={(e) => {
+            const end = e.target.value.length;
+            e.target.setSelectionRange(end, end);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.stopPropagation();
+              setDraft(value || '');
+              setEditing(false);
+            } else if (e.key === 'Tab') {
+              e.preventDefault();
+              jumpToSibling(e, e.shiftKey ? -1 : 1);
+            } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault();
+              commit();
+            }
+          }}
+          InputProps={{ sx: { fontSize, lineHeight: 1.4, bgcolor: 'background.paper', borderRadius: 1.5 } }}
+        />
+        <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.3, fontSize: '0.64rem' }}>
+          Tab siguiente personaje · Ctrl+Enter guardar · Esc cancelar
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Tooltip title="Clic para editar la biografía" placement="top" enterDelay={600}>
+      <Typography
+        data-bio-card
+        variant="body2"
+        onClick={startEditing}
+        sx={{
+          fontSize,
+          lineHeight: 1.4,
+          mt: 0.8,
+          px: 0.6,
+          mx: -0.6,
+          py: 0.2,
+          borderRadius: 1,
+          cursor: 'text',
+          color: value ? 'text.secondary' : 'text.disabled',
+          fontStyle: value ? 'normal' : 'italic',
+          display: '-webkit-box',
+          WebkitLineClamp: isMedium ? 2 : 3,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          transition: 'background-color 0.15s ease',
+          '&:hover': { bgcolor: 'action.hover' },
+        }}
+      >
+        {value || 'Añadir biografía…'}
+      </Typography>
+    </Tooltip>
+  );
+}
 
 export default function CharacterCard({
   character,
@@ -41,6 +141,7 @@ export default function CharacterCard({
   onClone,
   onMakeLocalCopy,
   onRoleChange,
+  onBiographyChange,
   onMoveToFolder,
   onAssignTags,
   selectable = false,
@@ -934,7 +1035,14 @@ export default function CharacterCard({
       )}
 
       {/* Biografía en modo medio o detallado */}
-      {showBiography && !isCompact && character.biography && (
+      {showBiography && !isCompact && onBiographyChange && (
+        <InlineBiography
+          value={character.biography}
+          isMedium={isMedium}
+          onSave={(text) => onBiographyChange(character.id, text)}
+        />
+      )}
+      {showBiography && !isCompact && !onBiographyChange && character.biography && (
         <Typography
           variant="body2"
           color="text.secondary"
